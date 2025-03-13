@@ -96,6 +96,10 @@ dependencies {
     implementation (libs.converter.gson.v290)
     implementation (libs.kotlinx.coroutines.android.v164)
 
+
+    // Coil for image loading in Compose
+    implementation("io.coil-kt:coil-compose:2.6.0")
+
     // Testing
     androidTestImplementation (libs.ui.test.junit4)
     debugImplementation (libs.ui.tooling)
