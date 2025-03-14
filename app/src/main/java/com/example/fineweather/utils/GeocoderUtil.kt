@@ -5,6 +5,7 @@ import android.location.Geocoder
 import java.util.Locale
 import android.location.Geocoder.GeocodeListener
 import android.os.Build
+import android.util.Log
 import androidx.annotation.RequiresApi
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
@@ -24,8 +25,12 @@ object GeocoderUtil {
                 }
 
                 override fun onError(errorMessage: String?) {
+                    errorMessage?.let {
+                        Log.e("GeocoderError", it)
+                    } ?: Log.e("GeocoderError", "Unknown geocoding error")
                     continuation.resume(null)
                 }
+
             })
         }
     }

@@ -1,5 +1,6 @@
 package com.example.fineweather
 
+import WeatherRepository
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -14,11 +15,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.fineweather.api.OpenMeteoApiService
+import com.example.fineweather.api.RetrofitClient
 import com.example.fineweather.ui.theme.FineWeatherTheme
 import com.example.fineweather.viewmodels.WeatherViewModel
+import com.example.fineweather.viewmodels.WeatherViewModelFactory
 
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 class MainActivity : ComponentActivity() {
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -36,7 +40,10 @@ class MainActivity : ComponentActivity() {
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
-fun WeatherApp(viewModel: WeatherViewModel = viewModel()) {
+fun WeatherApp() {
+    val weatherRepository = WeatherRepository(RetrofitClient.client.create(OpenMeteoApiService::class.java))
+    val viewModel: WeatherViewModel = viewModel(factory = WeatherViewModelFactory(weatherRepository))
+
     var location by remember { mutableStateOf("") }
     val context = LocalContext.current
     val result by viewModel.result.collectAsState()
