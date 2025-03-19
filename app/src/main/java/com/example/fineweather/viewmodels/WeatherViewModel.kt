@@ -7,12 +7,16 @@ import androidx.annotation.RequiresApi
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.fineweather.data.repositories.StationRepository
 import com.example.fineweather.utils.GeocoderUtil
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
-class WeatherViewModel(private val weatherRepository: WeatherRepository) : ViewModel() {
+class WeatherViewModel(
+    private val weatherRepository: WeatherRepository,
+    private val stationRepository: StationRepository
+) : ViewModel() {
     private val _result = MutableStateFlow("Search results will be shown here")
     val result: StateFlow<String> = _result
 
@@ -21,7 +25,6 @@ class WeatherViewModel(private val weatherRepository: WeatherRepository) : ViewM
         viewModelScope.launch {
             _result.value = "Searching for $location..."
             val coordinates = GeocoderUtil.getCoordinates(context, location)
-            println(coordinates)
             if (coordinates != null) {
                 val (latitude, longitude) = coordinates
                 _result.value = "Coordinates: ($latitude, $longitude)"
@@ -36,14 +39,28 @@ class WeatherViewModel(private val weatherRepository: WeatherRepository) : ViewM
             }
         }
     }
+
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+    fun getStation(context: Context, location: String) {
+        viewModelScope.launch {
+            val coordinates = GeocoderUtil.getCoordinates(context, location)
+            if (coordinates != null) {
+                _result.value += "\nNearest Station: " + stationRepository.findClosestCoordinate(coordinates)
+            } else
+                _result.value += "\nNo nearest station found"
+        }
+    }
 }
 
 
-class WeatherViewModelFactory(private val weatherRepository: WeatherRepository) : ViewModelProvider.Factory {
+class WeatherViewModelFactory(
+    private val weatherRepository: WeatherRepository,
+    private val stationRepository: StationRepository
+) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(WeatherViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return WeatherViewModel(weatherRepository) as T
+            return WeatherViewModel(weatherRepository, stationRepository) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
