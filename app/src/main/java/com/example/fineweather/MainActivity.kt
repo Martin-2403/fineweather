@@ -1,6 +1,6 @@
 package com.example.fineweather
 
-import WeatherRepository
+import com.example.fineweather.data.repositories.WeatherRepository
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -43,14 +43,15 @@ class MainActivity : ComponentActivity() {
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun WeatherApp() {
+    val context = LocalContext.current
     val weatherRepository = remember { WeatherRepository(RetrofitClient.client.create(OpenMeteoApiService::class.java)) }
-    val stationRepository = remember { StationRepository() }
+    val stationRepository = remember { StationRepository(context)}
 
     val viewModel: WeatherViewModel = viewModel(factory = WeatherViewModelFactory(weatherRepository, stationRepository))
 
     var location by rememberSaveable { mutableStateOf("") }
-    val context = LocalContext.current
     val result by viewModel.result.collectAsState(initial = "Enter a city to get weather data")
+    val stations by viewModel.stations.collectAsState(initial = "Known stations are being displayed here")
 
     Column(
         modifier = Modifier
@@ -65,6 +66,7 @@ fun WeatherApp() {
         }
         Spacer(modifier = Modifier.height(16.dp))
         WeatherDisplay(result)
+        StationDisplay(stations)
     }
 }
 
@@ -90,6 +92,14 @@ fun WeatherDisplay(result: String) {
     Text(
         textAlign = TextAlign.Center,
         text = result,
+        modifier = Modifier.fillMaxWidth()
+    )
+}
+@Composable
+fun StationDisplay(stations: String) {
+    Text(
+        textAlign = TextAlign.Center,
+        text = stations,
         modifier = Modifier.fillMaxWidth()
     )
 }

@@ -2,7 +2,8 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.serialization)
-    alias(libs.plugins.compose.compiler)}
+    alias(libs.plugins.compose.compiler)
+}
 
 android {
     namespace = "com.example.fineweather"
@@ -76,38 +77,38 @@ dependencies {
     implementation(libs.converter.gson)
 
     // Coroutines für asynchrone Aufgaben
-    implementation (libs.kotlinx.coroutines.android)
+    implementation(libs.kotlinx.coroutines.android)
 
     // Lifecycle-Komponenten für ViewModel
-    implementation (libs.androidx.lifecycle.viewmodel.ktx)
-    implementation (libs.androidx.lifecycle.runtime.ktx.v251)
+    implementation(libs.androidx.lifecycle.viewmodel.ktx)
+    implementation(libs.androidx.lifecycle.runtime.ktx.v251)
 
     // AndroidX Core und UI-Komponenten
-    implementation (libs.androidx.core.ktx.v180)
-    implementation (libs.androidx.appcompat.v151)
-    implementation (libs.material.v170)
-    implementation (libs.androidx.constraintlayout)
+    implementation(libs.androidx.core.ktx.v180)
+    implementation(libs.androidx.appcompat.v151)
+    implementation(libs.material.v170)
+    implementation(libs.androidx.constraintlayout)
 
     // Jetpack Compose
-    implementation (libs.androidx.activity.compose.v151)
-    implementation (libs.ui)
-    implementation (libs.androidx.material)
-    implementation (libs.ui.tooling.preview)
-    implementation (libs.androidx.lifecycle.viewmodel.compose)
-    implementation (libs.androidx.runtime.livedata)
+    implementation(libs.androidx.activity.compose.v151)
+    implementation(libs.ui)
+    implementation(libs.androidx.material)
+    implementation(libs.ui.tooling.preview)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.runtime.livedata)
 
     // Retrofit und Coroutines
-    implementation (libs.retrofit.v290)
-    implementation (libs.converter.gson.v290)
-    implementation (libs.kotlinx.coroutines.android.v164)
+    implementation(libs.retrofit.v290)
+    implementation(libs.converter.gson.v290)
+    implementation(libs.kotlinx.coroutines.android.v164)
 
 
     // Coil for image loading in Compose
     implementation("io.coil-kt:coil-compose:2.6.0")
 
     // Testing
-    androidTestImplementation (libs.ui.test.junit4)
-    debugImplementation (libs.ui.tooling)
+    androidTestImplementation(libs.ui.test.junit4)
+    debugImplementation(libs.ui.tooling)
 
     //Serialization
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0")
@@ -122,5 +123,5 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 
-    implementation ("androidx.core:core-ktx:1.15.0") // Use latest version
+    implementation("androidx.core:core-ktx:1.15.0") // Use latest version
 }

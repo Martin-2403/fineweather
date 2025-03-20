@@ -18,7 +18,12 @@ object GeocoderUtil {
             geocoder.getFromLocationName(locationName, 1, object : GeocodeListener {
                 override fun onGeocode(addresses: MutableList<android.location.Address>) {
                     if (addresses.isNotEmpty()) {
-                        continuation.resume(Pair(addresses[0].latitude, addresses[0].longitude))
+                        continuation.resume(
+                            Pair(
+                                String.format("%.4f", addresses[0].latitude).toDouble(),
+                                String.format("%.4f", addresses[0].longitude).toDouble()
+                            )
+                        )
                     } else {
                         continuation.resume(null)
                     }

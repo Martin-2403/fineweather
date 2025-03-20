@@ -1,21 +1,36 @@
 package com.example.fineweather.data.repositories
 
+import android.content.Context
+import android.util.Log
 import com.example.fineweather.data.models.StationData
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
-import java.io.File
 import kotlin.math.pow
 import kotlin.math.sqrt
 
 private const val PATH =
-    "java/com/example/fineweather/data/mapping/KL_Tageswerte_Beschreibung_Stationen.json"
+    "assets/KL_Tageswerte_Beschreibung_Stationen.json"
 
-class StationRepository {
-    private val stationsList: List<StationData> = try {
-        val fileContent = File(PATH).readText()
-        Json.decodeFromString(ListSerializer(StationData.serializer()), fileContent)
-    } catch (e: Exception) {
-        emptyList()
+class StationRepository (context: Context) {
+    private var stationsList: List<StationData> = emptyList()
+    private var isInitialized = false
+
+    fun initialize(context: Context) {
+        if (!isInitialized) {
+            stationsList = loadStationsFromAssets(context.applicationContext)
+            isInitialized = true
+        }
+    }
+
+    private fun loadStationsFromAssets(context: Context): List<StationData> {
+        return try {
+            val inputStream = context.assets.open("KL_Tageswerte_Beschreibung_Stationen.json")
+            val fileContent = inputStream.bufferedReader().use { it.readText() }
+            Json.decodeFromString(ListSerializer(StationData.serializer()), fileContent)
+        } catch (e: Exception) {
+            Log.i("Failed to load stations data", "${e.message}")
+            emptyList()
+        }
     }
 
     fun findById(id: String): StationData? = stationsList.find { it.Stations_id == id }
@@ -39,7 +54,7 @@ class StationRepository {
         return stationsList.minByOrNull {
             calculateDistance(
                 point,
-                Pair(it.geoLaenge, it.geoBreite)
+                Pair( it.geoBreite, it.geoLaenge)
             )
         }
     }

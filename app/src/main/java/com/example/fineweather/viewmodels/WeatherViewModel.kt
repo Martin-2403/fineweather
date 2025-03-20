@@ -1,8 +1,9 @@
 package com.example.fineweather.viewmodels
 
-import WeatherRepository
+import com.example.fineweather.data.repositories.WeatherRepository
 import android.content.Context
 import android.os.Build
+import android.view.View
 import androidx.annotation.RequiresApi
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -17,8 +18,12 @@ class WeatherViewModel(
     private val weatherRepository: WeatherRepository,
     private val stationRepository: StationRepository
 ) : ViewModel() {
+
     private val _result = MutableStateFlow("Search results will be shown here")
     val result: StateFlow<String> = _result
+
+    private val _stations = MutableStateFlow("Stations results will be shown here")
+    val stations: StateFlow<String> = _stations
 
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     fun fetchWeather(context: Context, location: String) {
@@ -27,10 +32,10 @@ class WeatherViewModel(
             val coordinates = GeocoderUtil.getCoordinates(context, location)
             if (coordinates != null) {
                 val (latitude, longitude) = coordinates
-                _result.value = "Coordinates: ($latitude, $longitude)"
+                _result.value = "\n$location \nCoordinates: ($latitude, $longitude)"
                 try {
                     val forecast = weatherRepository.getWeatherForecast(latitude, longitude)
-                    _result.value += "\nForecast: ${forecast.daily}"
+                    _result.value += "\nForecast Average: ${weatherRepository.calculateForecastAverageTemperature()}"
                 } catch (e: Exception) {
                     _result.value += "\nError fetching forecast: ${e.message}"
                 }
@@ -42,12 +47,13 @@ class WeatherViewModel(
 
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     fun getStation(context: Context, location: String) {
+        stationRepository.initialize(context)
         viewModelScope.launch {
             val coordinates = GeocoderUtil.getCoordinates(context, location)
             if (coordinates != null) {
-                _result.value += "\nNearest Station: " + stationRepository.findClosestCoordinate(coordinates)
+                _stations.value = "\nNearest Station: " + stationRepository.findClosestCoordinate(coordinates)?.Stationsname
             } else
-                _result.value += "\nNo nearest station found"
+                _stations.value = "\nNo nearest station found"
         }
     }
 }
