@@ -3,7 +3,7 @@ package com.example.fineweather.api
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
-object RetrofitClient {
+object OpenMeteoRetrofitClient {
     private const val BASE_URL = "https://api.open-meteo.com/"
 
     val client: Retrofit by lazy {

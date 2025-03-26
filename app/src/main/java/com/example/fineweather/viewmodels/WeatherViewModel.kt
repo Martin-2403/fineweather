@@ -35,7 +35,7 @@ class WeatherViewModel(
                 _result.value = "\n$location \nCoordinates: ($latitude, $longitude)"
                 try {
                     val forecast = weatherRepository.getWeatherForecast(latitude, longitude)
-                    _result.value += "\nForecast Average: ${weatherRepository.calculateForecastAverageTemperature()}"
+                    _result.value += "\n7 day forecast daily average: ${weatherRepository.calculateForecastAverageTemperature()}"
                 } catch (e: Exception) {
                     _result.value += "\nError fetching forecast: ${e.message}"
                 }

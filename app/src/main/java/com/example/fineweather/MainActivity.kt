@@ -17,7 +17,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.fineweather.api.OpenMeteoApiService
-import com.example.fineweather.api.RetrofitClient
+import com.example.fineweather.api.OpenMeteoRetrofitClient
 import com.example.fineweather.data.repositories.StationRepository
 import com.example.fineweather.ui.theme.FineWeatherTheme
 import com.example.fineweather.viewmodels.WeatherViewModel
@@ -44,7 +44,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun WeatherApp() {
     val context = LocalContext.current
-    val weatherRepository = remember { WeatherRepository(RetrofitClient.client.create(OpenMeteoApiService::class.java)) }
+    val weatherRepository = remember { WeatherRepository(OpenMeteoRetrofitClient.client.create(OpenMeteoApiService::class.java)) }
     val stationRepository = remember { StationRepository(context)}
 
     val viewModel: WeatherViewModel = viewModel(factory = WeatherViewModelFactory(weatherRepository, stationRepository))
