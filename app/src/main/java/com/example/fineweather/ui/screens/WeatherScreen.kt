@@ -27,7 +27,6 @@ fun WeatherScreen() {
         Spacer(modifier = Modifier.height(16.dp))
         Button(
             onClick = {
-//                viewModel.fetchWeatherData(location)
             },
             modifier = Modifier.fillMaxWidth()
         ) {

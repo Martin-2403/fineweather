@@ -44,13 +44,16 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun WeatherApp() {
     val context = LocalContext.current
-    val weatherRepository = remember { WeatherRepository(OpenMeteoRetrofitClient.client.create(OpenMeteoApiService::class.java)) }
-    val stationRepository = remember { StationRepository(context)}
+    val weatherRepository =
+        remember { WeatherRepository(OpenMeteoRetrofitClient.client.create(OpenMeteoApiService::class.java)) }
+    val stationRepository = remember { StationRepository(context) }
 
-    val viewModel: WeatherViewModel = viewModel(factory = WeatherViewModelFactory(weatherRepository, stationRepository))
+    val viewModel: WeatherViewModel =
+        viewModel(factory = WeatherViewModelFactory(weatherRepository, stationRepository))
 
     var location by rememberSaveable { mutableStateOf("") }
-    val result by viewModel.result.collectAsState(initial = "Enter a city to get weather data")
+    var selectedTimeframe by remember { mutableStateOf(10) }
+    val result by viewModel.resultForecastAverage.collectAsState(initial = "Enter a city to get weather data")
     val stations by viewModel.stations.collectAsState(initial = "Known stations are being displayed here")
 
     Column(
@@ -60,13 +63,16 @@ fun WeatherApp() {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        Row {
+            NumberDropdown(label = "Time in years", onSelected = { selectedTimeframe = it })
+        }
         SearchBar(location, onLocationChange = { location = it }) {
             viewModel.fetchWeather(context, location)
             viewModel.getStation(context, location)
         }
         Spacer(modifier = Modifier.height(16.dp))
         WeatherDisplay(result)
-        StationDisplay(stations)
+        HistoricWeatherDisplay(result)
     }
 }
 
@@ -95,6 +101,16 @@ fun WeatherDisplay(result: String) {
         modifier = Modifier.fillMaxWidth()
     )
 }
+
+@Composable
+fun HistoricWeatherDisplay(result: String) {
+    Text(
+        textAlign = TextAlign.Center,
+        text = result,
+        modifier = Modifier.fillMaxWidth()
+    )
+}
+
 @Composable
 fun StationDisplay(stations: String) {
     Text(
@@ -103,3 +119,48 @@ fun StationDisplay(stations: String) {
         modifier = Modifier.fillMaxWidth()
     )
 }
+
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun NumberDropdown(
+    label: String = "Select number",
+    options: List<Int> = listOf(10, 20, 30),
+    onSelected: (Int) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var selectedOptionText by remember { mutableStateOf(options.first().toString()) }
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = !expanded }
+    ) {
+        TextField(
+            readOnly = true,
+            value = selectedOptionText,
+            onValueChange = {},
+            label = { Text(label) },
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+            },
+            modifier = Modifier.menuAnchor()
+        )
+
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            options.forEach { number ->
+                DropdownMenuItem(
+                    text = { Text(number.toString()) },
+                    onClick = {
+                        selectedOptionText = number.toString()
+                        expanded = false
+                        onSelected(number)
+                    }
+                )
+            }
+        }
+    }
+}
+

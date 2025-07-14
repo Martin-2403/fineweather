@@ -3,7 +3,6 @@ package com.example.fineweather.viewmodels
 import com.example.fineweather.data.repositories.WeatherRepository
 import android.content.Context
 import android.os.Build
-import android.view.View
 import androidx.annotation.RequiresApi
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -19,28 +18,36 @@ class WeatherViewModel(
     private val stationRepository: StationRepository
 ) : ViewModel() {
 
-    private val _result = MutableStateFlow("Search results will be shown here")
-    val result: StateFlow<String> = _result
+    private val _resultForecastAverage = MutableStateFlow("Forecast results will be shown here")
+    val resultForecastAverage: StateFlow<String> = _resultForecastAverage
+    
+//    private val _resultForecastAverage = MutableStateFlow("Forecast results will be shown here")
+//    val resultForecastAverage: StateFlow<String> = _resultForecastAverage
 
     private val _stations = MutableStateFlow("Stations results will be shown here")
     val stations: StateFlow<String> = _stations
 
+    private val _coordinates = MutableStateFlow(Pair(0.0,0.0))
+    val coordinates: StateFlow<Pair<Double, Double>> = _coordinates
+
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     fun fetchWeather(context: Context, location: String) {
         viewModelScope.launch {
-            _result.value = "Searching for $location..."
-            val coordinates = GeocoderUtil.getCoordinates(context, location)
+            _resultForecastAverage.value = "Searching for $location..."
+            _coordinates.value = GeocoderUtil.getCoordinates(context, location) ?: Pair(0.0,0.0)
             if (coordinates != null) {
-                val (latitude, longitude) = coordinates
-                _result.value = "\n$location \nCoordinates: ($latitude, $longitude)"
+                val (latitude, longitude) = _coordinates.value
+                _resultForecastAverage.value = "\n$location \nCoordinates: ($latitude, $longitude)"
                 try {
-                    val forecast = weatherRepository.getWeatherForecast(latitude, longitude)
-                    _result.value += "\n7 day forecast daily average: ${weatherRepository.calculateForecastAverageTemperature()}"
+                    weatherRepository.getWeatherForecast(latitude, longitude)
+                    //weatherRepository.getWeatherHistory(latitude, longitude, 30)
+                    _resultForecastAverage.value += "\n7 day forecast daily average: ${weatherRepository.calculateForecastAverageTemperature()}"
+                    _resultForecastAverage.value += "\n 30 Year historic data: ${weatherRepository.getWeatherHistory(latitude,longitude,30)}"
                 } catch (e: Exception) {
-                    _result.value += "\nError fetching forecast: ${e.message}"
+                    _resultForecastAverage.value += "\nError fetching forecast: ${e.message}"
                 }
             } else {
-                _result.value = "City not found"
+                _resultForecastAverage.value = "City not found"
             }
         }
     }
