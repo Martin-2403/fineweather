@@ -18,11 +18,23 @@ class WeatherViewModel(
     private val stationRepository: StationRepository
 ) : ViewModel() {
 
-    private val _resultForecastAverage = MutableStateFlow("Forecast results will be shown here")
+    private val _resultForecastAverage = MutableStateFlow("Forecast temperature will be shown here")
     val resultForecastAverage: StateFlow<String> = _resultForecastAverage
+
+    private val _resultCurrentAverage = MutableStateFlow("Current temperature will be shown here")
+    val resultCurrentAverage: StateFlow<String> = _resultCurrentAverage
+
+    private val _resultCurrentMonthAverage = MutableStateFlow("Current month temperature will be shown here")
+    val resultCurrentMonthAverage: StateFlow<String> = _resultCurrentMonthAverage
+
+    private val _resultHistoricAverage = MutableStateFlow("Historic temperature will be shown here")
+    val resultHistoricAverage: StateFlow<String> = _resultHistoricAverage
+
+    private val _status = MutableStateFlow("Please enter location\n")
+    val status: StateFlow<String> = _status
     
-//    private val _resultForecastAverage = MutableStateFlow("Forecast results will be shown here")
-//    val resultForecastAverage: StateFlow<String> = _resultForecastAverage
+//    private val _resultCurrentMonthlyAverage = MutableStateFlow("Forecast results will be shown here")
+//    val resultForecastAverage: StateFlow<String> = _resultCurrentMonthlyAverage
 
     private val _stations = MutableStateFlow("Stations results will be shown here")
     val stations: StateFlow<String> = _stations
@@ -33,21 +45,40 @@ class WeatherViewModel(
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     fun fetchWeather(context: Context, location: String) {
         viewModelScope.launch {
-            _resultForecastAverage.value = "Searching for $location..."
+            _status.value = "Searching for $location...\n"
             _coordinates.value = GeocoderUtil.getCoordinates(context, location) ?: Pair(0.0,0.0)
-            if (coordinates != null) {
+            val (first, second) = _coordinates.value
+            if (first != 0.0 && second != 0.0) {
                 val (latitude, longitude) = _coordinates.value
-                _resultForecastAverage.value = "\n$location \nCoordinates: ($latitude, $longitude)"
+                _status.value = "$location \nCoordinates: ($latitude, $longitude)"
+                var historicData: Pair<String,String> = Pair("no data","no data")
                 try {
-                    weatherRepository.getWeatherForecast(latitude, longitude)
-                    //weatherRepository.getWeatherHistory(latitude, longitude, 30)
-                    _resultForecastAverage.value += "\n7 day forecast daily average: ${weatherRepository.calculateForecastAverageTemperature()}"
-                    _resultForecastAverage.value += "\n 30 Year historic data: ${weatherRepository.getWeatherHistory(latitude,longitude,30)}"
+                    _resultCurrentMonthAverage.value = "Fetching current weather data..."
+                    weatherRepository.getWeatherCurrent(latitude, longitude, 31)
+                    _resultCurrentAverage.value = "Past 31 days daily average: ${weatherRepository.calculateAverageCurrentTemperature()}°C"
+                    historicData = weatherRepository.calculateAverageCurrentMonthlyTemperature()!!
+                    _resultCurrentMonthAverage.value = "Current average for ${historicData.first}: ${historicData.second}°C"
                 } catch (e: Exception) {
-                    _resultForecastAverage.value += "\nError fetching forecast: ${e.message}"
+                    _resultCurrentAverage.value = "Error fetching forecast: ${e.message}"
+                    _resultCurrentMonthAverage.value = "Error fetching forecast: ${e.message}"
+                }
+                try {
+                    _resultForecastAverage.value = "Fetching forecast weather data..."
+                    weatherRepository.getWeatherForecast(latitude, longitude, 14)
+                    _resultForecastAverage.value = "Next 14 day forecast daily average: ${weatherRepository.calculateAverageForecastTemperature()}°C"
+                } catch (e: Exception) {
+                    _resultForecastAverage.value = "Error fetching forecast: ${e.message}"
+                }
+                try {
+                    _resultHistoricAverage.value = "Fetching historic weather data..."
+                    weatherRepository.getWeatherHistory(latitude, longitude, 30)
+                    historicData = weatherRepository.calculateAverageHistoricMonthlyTemperature()!!
+                    _resultHistoricAverage.value = "Past 30 year average for ${historicData.first}: ${historicData.second}°C"
+                } catch (e: Exception) {
+                    _resultHistoricAverage.value = "Error fetching forecast: ${e.message}"
                 }
             } else {
-                _resultForecastAverage.value = "City not found"
+                _status.value = "City not found"
             }
         }
     }

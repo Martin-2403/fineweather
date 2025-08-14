@@ -1,3 +1,5 @@
+package com.example.fineweather.data.models
+
 data class WeatherResponse(
     val latitude: Double,
     val longitude: Double,
