@@ -43,11 +43,16 @@ class WeatherViewModel(
     fun fetchWeather(location: String) {
         viewModelScope.launch {
             _status.value = "Searching for $location...\n"
-            _coordinates.value = weatherRepository.getGeoCode(location) ?: Pair(0.0,0.0)
+            _coordinates.value = weatherRepository.getGeoCode(location.trim()) ?: Pair(0.0,0.0)
+
+
+
             val (first, second) = _coordinates.value
-            if (first != 0.0 && second != 0.0) {
+            val geoCodeLocation = weatherRepository.getGeoCodeLocation()
+            if (first != 0.0 && second != 0.0 && geoCodeLocation !== "") {
                 val (latitude, longitude) = _coordinates.value
-                _status.value = "$location \nCoordinates: ($latitude, $longitude)"
+
+                _status.value = "Set location $geoCodeLocation \nCoordinates: ($latitude, $longitude)"
                 var historicData: Pair<String,String> = Pair("no data","no data")
                 try {
                     _resultCurrentMonthAverage.value = "Fetching current weather data..."

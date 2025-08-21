@@ -5,8 +5,8 @@ import android.util.Log
 import com.example.fineweather.api.OpenMeteoArchiveApiService
 import com.example.fineweather.api.OpenMeteoGeoCodeApiService
 import com.example.fineweather.api.OpenMeteoWeatherApiService
+import com.example.fineweather.data.models.GeocodingResult
 import retrofit2.HttpException
-import retrofit2.Retrofit
 import java.util.Calendar
 import java.util.Locale
 
@@ -18,6 +18,7 @@ class WeatherRepository(
     private var cachedForecast: WeatherResponse? = null
     private var cachedCurrentData: WeatherResponse? = null
     private var cachedHistoricData: WeatherResponse? = null
+    private var cachedGeoCodeData: GeocodingResult? = null
 
     suspend fun getWeatherCurrent(
         latitude: Double,
@@ -36,7 +37,6 @@ class WeatherRepository(
             cachedCurrentData = weatherData
             return weatherData
         } catch (e: Exception) {
-
             throw Exception("Failed to fetch weather data", e)
         }
     }
@@ -45,15 +45,13 @@ class WeatherRepository(
         name: String
     ): Pair<Double, Double>? {
         try {
-            val geoCoding = openMeteoGeoCodeApi.getGeoCoding(
+            cachedGeoCodeData = openMeteoGeoCodeApi.getGeoCoding(
                 name = name
-            )
-            return Pair(geoCoding.results[0].latitude, geoCoding.results[0].longitude)
+            ).results.first()
+            return Pair(cachedGeoCodeData?.latitude ?: 0.0, cachedGeoCodeData?.longitude ?: 0.0)
         } catch (e: Exception) {
-
             throw Exception("Failed to fetch geocoding", e)
         }
-
     }
 
     suspend fun getWeatherForecast(
@@ -86,7 +84,6 @@ class WeatherRepository(
                 "%.2f",
                 (cachedForecast!!.daily.temperature_2m_mean.sum() / cachedForecast!!.daily.temperature_2m_mean.size)
             ).toDouble()
-
         } else -273.15)
     }
 
@@ -97,7 +94,6 @@ class WeatherRepository(
                 "%.2f",
                 (cachedCurrentData!!.daily.temperature_2m_mean.sum() / cachedCurrentData!!.daily.temperature_2m_mean.size)
             ).toDouble()
-
         } else -273.15)
     }
 
@@ -169,15 +165,12 @@ class WeatherRepository(
         require(!timeList.isNullOrEmpty() && !tempList.isNullOrEmpty()) {
             "No historic weather data available"
         }
-
         // Combine the data safely
         val dailyData = timeList.zip(tempList)
-
         // Group by "YYYY-MM"
         val groupedByMonth = dailyData.groupBy { (dateStr, _) ->
             dateStr.substring(0, 7)
         }
-
         // Calculate average per month
         return groupedByMonth.mapValues { (_, values) ->
             val temps = values.map { it.second }
@@ -219,5 +212,7 @@ class WeatherRepository(
         return Pair(getCurrentMonthName(), monthlyAverage)
     }
 
-
+    fun getGeoCodeLocation(): String {
+        return cachedGeoCodeData?.name ?: ""
+    }
 }
