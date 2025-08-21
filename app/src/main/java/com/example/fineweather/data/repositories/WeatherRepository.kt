@@ -2,12 +2,19 @@ package com.example.fineweather.data.repositories
 
 import com.example.fineweather.data.models.WeatherResponse
 import android.util.Log
-import com.example.fineweather.api.OpenMeteoApiService
+import com.example.fineweather.api.OpenMeteoArchiveApiService
+import com.example.fineweather.api.OpenMeteoGeoCodeApiService
+import com.example.fineweather.api.OpenMeteoWeatherApiService
 import retrofit2.HttpException
+import retrofit2.Retrofit
 import java.util.Calendar
 import java.util.Locale
 
-class WeatherRepository(private val openMeteoApi: OpenMeteoApiService) {
+class WeatherRepository(
+    private val openMeteoWeatherApi: OpenMeteoWeatherApiService,
+    private val openMeteoGeoCodeApi: OpenMeteoGeoCodeApiService,
+    private val openMeteoArchiveApi: OpenMeteoArchiveApiService
+) {
     private var cachedForecast: WeatherResponse? = null
     private var cachedCurrentData: WeatherResponse? = null
     private var cachedHistoricData: WeatherResponse? = null
@@ -18,7 +25,7 @@ class WeatherRepository(private val openMeteoApi: OpenMeteoApiService) {
         pastDays: Int
     ): WeatherResponse {
         try {
-            val weatherData = openMeteoApi.getForecast(
+            val weatherData = openMeteoWeatherApi.getForecast(
                 latitude = latitude,
                 longitude = longitude,
                 daily = "temperature_2m_mean",
@@ -34,13 +41,28 @@ class WeatherRepository(private val openMeteoApi: OpenMeteoApiService) {
         }
     }
 
+    suspend fun getGeoCode(
+        name: String
+    ): Pair<Double, Double>? {
+        try {
+            val geoCoding = openMeteoGeoCodeApi.getGeoCoding(
+                name = name
+            )
+            return Pair(geoCoding.results[0].latitude, geoCoding.results[0].longitude)
+        } catch (e: Exception) {
+
+            throw Exception("Failed to fetch geocoding", e)
+        }
+
+    }
+
     suspend fun getWeatherForecast(
         latitude: Double,
         longitude: Double,
         forecastDays: Int
     ): WeatherResponse {
         try {
-            val weatherData = openMeteoApi.getForecast(
+            val weatherData = openMeteoWeatherApi.getForecast(
                 latitude = latitude,
                 longitude = longitude,
                 daily = "temperature_2m_mean",
@@ -56,6 +78,7 @@ class WeatherRepository(private val openMeteoApi: OpenMeteoApiService) {
         }
     }
 
+    //todo remove duplicate code
     fun calculateAverageForecastTemperature(): Double {
         requireNotNull(cachedForecast) { "No forecast data available" }
         return (if (cachedForecast?.daily?.temperature_2m_mean != null) {
@@ -78,6 +101,15 @@ class WeatherRepository(private val openMeteoApi: OpenMeteoApiService) {
         } else -273.15)
     }
 
+    fun calculateAverageCurrentTemperature(cachedData: WeatherResponse): Double {
+        requireNotNull(cachedData) { "No current data available" }
+        return (
+                String.format(
+                    "%.2f",
+                    (cachedCurrentData!!.daily.temperature_2m_mean.sum() / cachedCurrentData!!.daily.temperature_2m_mean.size)
+                ).toDouble())
+    }
+
     fun calculateAverageCurrentMonthlyTemperature(): Pair<String, String>? {
         requireNotNull(cachedCurrentData) { "No current data available" }
         val timeList = cachedCurrentData?.daily?.time
@@ -87,7 +119,8 @@ class WeatherRepository(private val openMeteoApi: OpenMeteoApiService) {
             "No historic weather data available"
         }
         val dailyData = timeList.zip(tempList)
-        val dailyDataCurrentMonth = dailyData.filter { pair ->  pair.first.contains(("-${getCurrentMonthString()}-" ))}
+        val dailyDataCurrentMonth =
+            dailyData.filter { pair -> pair.first.contains(("-${getCurrentMonthString()}-")) }
         return calculateMonthlyAverage(dailyDataCurrentMonth)
     }
 
@@ -96,14 +129,17 @@ class WeatherRepository(private val openMeteoApi: OpenMeteoApiService) {
         longitude: Double,
         timeSpan: Int
     ): WeatherResponse {
-        val startYear: Int = Calendar.getInstance().get(Calendar.YEAR) - (timeSpan + 1);
-        val month: String = getCurrentMonthString()
-        val endYear: Int = Calendar.getInstance().get(Calendar.YEAR) - 1
-        val startDate = "$startYear-$month-01"
-        val endDate = "$endYear-$month-31"
+//        val startYear: Int = Calendar.getInstance().get(Calendar.YEAR) - (timeSpan + 1);
+//        val month: String = getCurrentMonthString()
+//        val endYear: Int = Calendar.getInstance().get(Calendar.YEAR) - 1
+//        val startDate = "$startYear-$month-01"
+//        val endDate = "$endYear-$month-31"
+        val startDate = "1970-01-01"
+        val endDate = "1999-12-31"
 
         try {
-            val historicData = openMeteoApi.getHistoricData(latitude, longitude, startDate, endDate)
+            val historicData =
+                openMeteoArchiveApi.getHistoricData(latitude, longitude, startDate, endDate)
             cachedHistoricData = historicData
             return historicData
         } catch (e: HttpException) {
@@ -163,7 +199,7 @@ class WeatherRepository(private val openMeteoApi: OpenMeteoApiService) {
         return calculateMonthlyAverage(dailyData)
     }
 
-    fun calculateMonthlyAverage(dailyData: List<Pair<String, Double>>): Pair<String, String>?{
+    fun calculateMonthlyAverage(dailyData: List<Pair<String, Double>>): Pair<String, String>? {
         val month = getCurrentMonthString()
         val groupedByMonth = dailyData.groupBy { (dateStr, _) ->
             dateStr.substring(0, 7)

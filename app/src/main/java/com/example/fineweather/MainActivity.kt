@@ -14,8 +14,6 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -25,10 +23,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.fineweather.api.OpenMeteoApiService
-import com.example.fineweather.api.OpenMeteoRetrofitClient
+import com.example.fineweather.api.OpenMeteoRetrofitClients
 import com.example.fineweather.data.repositories.StationRepository
-import com.example.fineweather.nunitoSansFamily
 import com.example.fineweather.ui.theme.FineWeatherTheme
 import com.example.fineweather.viewmodels.WeatherViewModel
 import com.example.fineweather.viewmodels.WeatherViewModelFactory
@@ -57,8 +53,14 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun WeatherApp() {
     val context = LocalContext.current
-    val weatherRepository =
-        remember { WeatherRepository(OpenMeteoRetrofitClient.client.create(OpenMeteoApiService::class.java)) }
+    val weatherRepository = remember {
+        WeatherRepository(
+            openMeteoWeatherApi = OpenMeteoRetrofitClients.forecastApi,
+            openMeteoArchiveApi = OpenMeteoRetrofitClients.archiveApi,
+            openMeteoGeoCodeApi = OpenMeteoRetrofitClients.geocodingApi
+        )
+    }
+//    val geoCodeRepository = remember { [] }
     val stationRepository = remember { StationRepository(context) }
 
     val viewModel: WeatherViewModel =
@@ -86,8 +88,7 @@ fun WeatherApp() {
 //         NumberDropdown(label = "Time in years", onSelected = { selectedTimeframe = it })
 //      }
         SearchBar(location, onLocationChange = { location = it }) {
-            viewModel.fetchWeather(context, location)
-            viewModel.getStation(context, location)
+            viewModel.fetchWeather(location)
         }
         Spacer(modifier = Modifier.height(16.dp))
         StatusDisplay(status)

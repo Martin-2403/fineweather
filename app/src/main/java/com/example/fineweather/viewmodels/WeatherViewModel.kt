@@ -32,9 +32,6 @@ class WeatherViewModel(
 
     private val _status = MutableStateFlow("Please enter location\n")
     val status: StateFlow<String> = _status
-    
-//    private val _resultCurrentMonthlyAverage = MutableStateFlow("Forecast results will be shown here")
-//    val resultForecastAverage: StateFlow<String> = _resultCurrentMonthlyAverage
 
     private val _stations = MutableStateFlow("Stations results will be shown here")
     val stations: StateFlow<String> = _stations
@@ -43,10 +40,10 @@ class WeatherViewModel(
     val coordinates: StateFlow<Pair<Double, Double>> = _coordinates
 
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-    fun fetchWeather(context: Context, location: String) {
+    fun fetchWeather(location: String) {
         viewModelScope.launch {
             _status.value = "Searching for $location...\n"
-            _coordinates.value = GeocoderUtil.getCoordinates(context, location) ?: Pair(0.0,0.0)
+            _coordinates.value = weatherRepository.getGeoCode(location) ?: Pair(0.0,0.0)
             val (first, second) = _coordinates.value
             if (first != 0.0 && second != 0.0) {
                 val (latitude, longitude) = _coordinates.value
@@ -73,7 +70,7 @@ class WeatherViewModel(
                     _resultHistoricAverage.value = "Fetching historic weather data..."
                     weatherRepository.getWeatherHistory(latitude, longitude, 30)
                     historicData = weatherRepository.calculateAverageHistoricMonthlyTemperature()!!
-                    _resultHistoricAverage.value = "Past 30 year average for ${historicData.first}: ${historicData.second}°C"
+                    _resultHistoricAverage.value = "Historic (1970-1999) average for ${historicData.first}: ${historicData.second}°C"
                 } catch (e: Exception) {
                     _resultHistoricAverage.value = "Error fetching forecast: ${e.message}"
                 }
