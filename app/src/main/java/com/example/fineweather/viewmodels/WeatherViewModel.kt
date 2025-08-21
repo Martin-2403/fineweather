@@ -51,8 +51,7 @@ class WeatherViewModel(
             val geoCodeLocation = weatherRepository.getGeoCodeLocation()
             if (first != 0.0 && second != 0.0 && geoCodeLocation !== "") {
                 val (latitude, longitude) = _coordinates.value
-
-                _status.value = "Set location: $geoCodeLocation \nCoordinates: ($latitude, $longitude)"
+                _status.value = "$location \nCoordinates: ($latitude, $longitude)"
                 var historicData: Pair<String,String> = Pair("no data","no data")
                 try {
                     _resultCurrentMonthAverage.value = "Fetching current weather data..."
