@@ -43,9 +43,10 @@ class WeatherViewModel(
     fun fetchWeather(location: String) {
         viewModelScope.launch {
             _status.value = "Searching for $location...\n"
-            _coordinates.value = weatherRepository.getGeoCode(location.trim()) ?: Pair(0.0,0.0)
-
-
+            try{
+            _coordinates.value = weatherRepository.getGeoCode(location.trim()) ?: Pair(0.0,0.0)}
+            catch (e: Exception ){
+            }
 
             val (first, second) = _coordinates.value
             val geoCodeLocation = weatherRepository.getGeoCodeLocation()
@@ -74,7 +75,8 @@ class WeatherViewModel(
                     _resultHistoricAverage.value = "Fetching historic weather data..."
                     weatherRepository.getWeatherHistory(latitude, longitude, 30)
                     historicData = weatherRepository.calculateAverageHistoricMonthlyTemperature()!!
-                    _resultHistoricAverage.value = "Historic (1970-1999) average for ${historicData.first}: ${historicData.second}°C"
+//                    _resultHistoricAverage.value = "Historic (1970-1999) average for ${historicData.first}: ${historicData.second}°C"
+                    _resultHistoricAverage.value = "30 year average for ${historicData.first}: ${historicData.second}°C"
                 } catch (e: Exception) {
                     _resultHistoricAverage.value = "Error fetching forecast: ${e.message}"
                 }
@@ -96,7 +98,6 @@ class WeatherViewModel(
         }
     }
 }
-
 
 class WeatherViewModelFactory(
     private val weatherRepository: WeatherRepository,

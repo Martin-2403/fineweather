@@ -7,6 +7,8 @@ import com.example.fineweather.api.OpenMeteoGeoCodeApiService
 import com.example.fineweather.api.OpenMeteoWeatherApiService
 import com.example.fineweather.data.models.GeocodingResult
 import retrofit2.HttpException
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import java.util.Calendar
 import java.util.Locale
 
@@ -23,16 +25,16 @@ class WeatherRepository(
     suspend fun getWeatherCurrent(
         latitude: Double,
         longitude: Double,
-        pastDays: Int
+        timeSpan: Int
     ): WeatherResponse {
         try {
-            val weatherData = openMeteoWeatherApi.getForecast(
+            val (endDate, startDate) = getDateRange(timeSpan)
+            val weatherData = openMeteoArchiveApi.getHistoricData(
                 latitude = latitude,
                 longitude = longitude,
                 daily = "temperature_2m_mean",
-                forecastDays = 0,
-                pastDays = pastDays,
-                timezone = "auto"
+                startDate = startDate,
+                endDate = endDate
             )
             cachedCurrentData = weatherData
             return weatherData
@@ -78,33 +80,41 @@ class WeatherRepository(
 
     //todo remove duplicate code
     fun calculateAverageForecastTemperature(): Double {
+        try{
         requireNotNull(cachedForecast) { "No forecast data available" }
-        return (if (cachedForecast?.daily?.temperature_2m_mean != null) {
-            String.format(
+        val cleanedData = cachedForecast!!.daily.temperature_2m_mean.filterNotNull()
+        return String.format(
                 "%.2f",
-                (cachedForecast!!.daily.temperature_2m_mean.sum() / cachedForecast!!.daily.temperature_2m_mean.size)
+                (cleanedData.sum() / cleanedData.size)
             ).toDouble()
-        } else -273.15)
+        }
+        catch (e: IllegalArgumentException){
+            return -273.15
+        }
     }
 
     fun calculateAverageCurrentTemperature(): Double {
-        requireNotNull(cachedCurrentData) { "No current data available" }
-        return (if (cachedCurrentData?.daily?.temperature_2m_mean != null) {
-            String.format(
+        try{
+            requireNotNull(cachedCurrentData) { "No current data available" }
+            val cleanedData = cachedCurrentData!!.daily.temperature_2m_mean.filterNotNull()
+            return String.format(
                 "%.2f",
-                (cachedCurrentData!!.daily.temperature_2m_mean.sum() / cachedCurrentData!!.daily.temperature_2m_mean.size)
+                (cleanedData.sum() / cleanedData.size)
             ).toDouble()
-        } else -273.15)
+        }
+        catch (e: IllegalArgumentException){
+            return -273.15
+        }
     }
 
-    fun calculateAverageCurrentTemperature(cachedData: WeatherResponse): Double {
-        requireNotNull(cachedData) { "No current data available" }
-        return (
-                String.format(
-                    "%.2f",
-                    (cachedCurrentData!!.daily.temperature_2m_mean.sum() / cachedCurrentData!!.daily.temperature_2m_mean.size)
-                ).toDouble())
-    }
+//    fun calculateAverageCurrentTemperature(cachedData: WeatherResponse): Double {
+//        requireNotNull(cachedData) { "No current data available" }
+//        return (
+//                String.format(
+//                    "%.2f",
+//                    (cachedCurrentData!!.daily.temperature_2m_mean.sum() / cachedCurrentData!!.daily.temperature_2m_mean.size)
+//                ).toDouble())
+//    }
 
     fun calculateAverageCurrentMonthlyTemperature(): Pair<String, String>? {
         requireNotNull(cachedCurrentData) { "No current data available" }
@@ -112,11 +122,12 @@ class WeatherRepository(
         val tempList = cachedCurrentData?.daily?.temperature_2m_mean
 
         require(!timeList.isNullOrEmpty() && !tempList.isNullOrEmpty()) {
-            "No historic weather data available"
+            "No weather data available"
         }
-        val dailyData = timeList.zip(tempList)
+        var dailyData = timeList.zip(tempList).filter { it.second != null}
+        val currentMonth = getCurrentMonthString()
         val dailyDataCurrentMonth =
-            dailyData.filter { pair -> pair.first.contains(("-${getCurrentMonthString()}-")) }
+            dailyData.filter { pair -> pair.first.contains(("-${currentMonth}-")) }
         return calculateMonthlyAverage(dailyDataCurrentMonth)
     }
 
@@ -125,13 +136,13 @@ class WeatherRepository(
         longitude: Double,
         timeSpan: Int
     ): WeatherResponse {
-//        val startYear: Int = Calendar.getInstance().get(Calendar.YEAR) - (timeSpan + 1);
-//        val month: String = getCurrentMonthString()
-//        val endYear: Int = Calendar.getInstance().get(Calendar.YEAR) - 1
-//        val startDate = "$startYear-$month-01"
-//        val endDate = "$endYear-$month-31"
-        val startDate = "1970-01-01"
-        val endDate = "1999-12-31"
+        val startYear: Int = Calendar.getInstance().get(Calendar.YEAR) - (timeSpan + 1);
+        val month: String = getCurrentMonthString()
+        val endYear: Int = Calendar.getInstance().get(Calendar.YEAR) - 1
+        val startDate = "$startYear-$month-01"
+        val endDate = "$endYear-$month-31"
+//        val startDate = "1970-01-01"
+//        val endDate = "1999-12-31"
 
         try {
             val historicData =
@@ -148,7 +159,7 @@ class WeatherRepository(
     }
 
     private fun getCurrentMonthString(): String {
-        val month: Int = Calendar.getInstance().get(Calendar.MONTH)
+        val month: Int = Calendar.getInstance().get(Calendar.MONTH)+1
         return if (month >= 10) "$month" else "0${month}"
     }
 
@@ -214,5 +225,13 @@ class WeatherRepository(
 
     fun getGeoCodeLocation(): String {
         return cachedGeoCodeData?.name ?: ""
+    }
+
+    fun getDateRange(daysAgo: Int): Pair<String, String> {
+        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+        val currentDate = LocalDate.now()
+        val pastDate = currentDate.minusDays(daysAgo.toLong())
+
+        return Pair(currentDate.format(formatter), pastDate.format(formatter))
     }
 }
