@@ -6,6 +6,9 @@ import com.example.fineweather.api.OpenMeteoArchiveApiService
 import com.example.fineweather.api.OpenMeteoGeoCodeApiService
 import com.example.fineweather.api.OpenMeteoWeatherApiService
 import com.example.fineweather.data.models.GeocodingResult
+import com.example.fineweather.utils.getCurrentMonthName
+import com.example.fineweather.utils.getCurrentMonthString
+import com.example.fineweather.utils.formatDouble
 import retrofit2.HttpException
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -116,7 +119,7 @@ class WeatherRepository(
 //                ).toDouble())
 //    }
 
-    fun calculateAverageCurrentMonthlyTemperature(): Pair<String, String>? {
+    fun calculateAverageCurrentMonthlyTemperature(): Pair<String, Double> {
         requireNotNull(cachedCurrentData) { "No current data available" }
         val timeList = cachedCurrentData?.daily?.time
         val tempList = cachedCurrentData?.daily?.temperature_2m_mean
@@ -128,7 +131,8 @@ class WeatherRepository(
         val currentMonth = getCurrentMonthString()
         val dailyDataCurrentMonth =
             dailyData.filter { pair -> pair.first.contains(("-${currentMonth}-")) }
-        return calculateMonthlyAverage(dailyDataCurrentMonth)
+
+        return Pair(currentMonth,dailyDataCurrentMonth.map { it.second }.average())
     }
 
     suspend fun getWeatherHistory(
@@ -158,16 +162,7 @@ class WeatherRepository(
         }
     }
 
-    private fun getCurrentMonthString(): String {
-        val month: Int = Calendar.getInstance().get(Calendar.MONTH)+1
-        return if (month >= 10) "$month" else "0${month}"
-    }
 
-    private fun getCurrentMonthName(): String {
-        val calendar = Calendar.getInstance()
-        return calendar.getDisplayName(Calendar.MONTH, Calendar.LONG, Locale.getDefault())
-            ?: "Unknown"
-    }
 
     fun calculateMonthlyAverageTemperature(): Map<String, Double> {
         val timeList = cachedHistoricData?.daily?.time
@@ -189,7 +184,7 @@ class WeatherRepository(
         }
     }
 
-    fun calculateAverageHistoricMonthlyTemperature(): Pair<String, String>? {
+    fun calculateAverageHistoricMonthlyTemperature(): Pair<String, Double>? {
         val timeList = cachedHistoricData?.daily?.time
         val tempList = cachedHistoricData?.daily?.temperature_2m_mean
 
@@ -203,7 +198,7 @@ class WeatherRepository(
         return calculateMonthlyAverage(dailyData)
     }
 
-    fun calculateMonthlyAverage(dailyData: List<Pair<String, Double>>): Pair<String, String>? {
+    fun calculateMonthlyAverage(dailyData: List<Pair<String, Double>>): Pair<String, Double>? {
         val month = getCurrentMonthString()
         val groupedByMonth = dailyData.groupBy { (dateStr, _) ->
             dateStr.substring(0, 7)
@@ -219,7 +214,7 @@ class WeatherRepository(
         if (monthlyData.isEmpty()) {
             return null
         }
-        val monthlyAverage = String.format("%.2f", monthlyData.map { it.value }.average())
+        val monthlyAverage = monthlyData.map { it.value }.average()
         return Pair(getCurrentMonthName(), monthlyAverage)
     }
 

@@ -92,10 +92,29 @@ fun WeatherApp() {
         }
         Spacer(modifier = Modifier.height(16.dp))
         StatusDisplay(status)
-        WeatherDisplay(resultCurrent)
-        WeatherDisplay(resultCurrentMonth)
-        WeatherDisplay(resultForecast)
-        WeatherDisplay(resultHistoric)
+        Row {
+            Column {
+                Text(
+                    "31 day average:", fontFamily = nunitoSansFamily
+                )
+                Text(
+                    "Average current month:", fontFamily = nunitoSansFamily
+                )
+                Text(
+                    "14 day forecast Average:", fontFamily = nunitoSansFamily
+                )
+                Text(
+                    "Historic monthly temperature:", fontFamily = nunitoSansFamily
+                )
+            }
+            Column {
+                WeatherDisplay(resultCurrent)
+                WeatherDisplay(resultCurrentMonth)
+                WeatherDisplay(resultForecast)
+                WeatherDisplay(resultHistoric)
+            }
+
+        }
     }
 }
 
