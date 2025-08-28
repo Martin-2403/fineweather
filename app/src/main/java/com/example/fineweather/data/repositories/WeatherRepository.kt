@@ -6,24 +6,21 @@ import com.example.fineweather.api.OpenMeteoArchiveApiService
 import com.example.fineweather.api.OpenMeteoGeoCodeApiService
 import com.example.fineweather.api.OpenMeteoWeatherApiService
 import com.example.fineweather.data.models.GeocodingResult
+import com.example.fineweather.utils.formatDouble
 import com.example.fineweather.utils.getCurrentMonthName
 import com.example.fineweather.utils.getCurrentMonthString
-import com.example.fineweather.utils.formatDouble
 import retrofit2.HttpException
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Calendar
-import java.util.Locale
 
 class WeatherRepository(
     private val openMeteoWeatherApi: OpenMeteoWeatherApiService,
-    private val openMeteoGeoCodeApi: OpenMeteoGeoCodeApiService,
     private val openMeteoArchiveApi: OpenMeteoArchiveApiService
 ) {
     private var cachedForecast: WeatherResponse? = null
     private var cachedCurrentData: WeatherResponse? = null
     private var cachedHistoricData: WeatherResponse? = null
-    private var cachedGeoCodeData: GeocodingResult? = null
 
     suspend fun getWeatherCurrent(
         latitude: Double,
@@ -43,19 +40,6 @@ class WeatherRepository(
             return weatherData
         } catch (e: Exception) {
             throw Exception("Failed to fetch weather data", e)
-        }
-    }
-
-    suspend fun getGeoCode(
-        name: String
-    ): Pair<Double, Double>? {
-        try {
-            cachedGeoCodeData = openMeteoGeoCodeApi.getGeoCoding(
-                name = name
-            ).results.first()
-            return Pair(cachedGeoCodeData?.latitude ?: 0.0, cachedGeoCodeData?.longitude ?: 0.0)
-        } catch (e: Exception) {
-            throw Exception("Failed to fetch geocoding", e)
         }
     }
 
@@ -83,41 +67,24 @@ class WeatherRepository(
 
     //todo remove duplicate code
     fun calculateAverageForecastTemperature(): Double {
-        try{
-        requireNotNull(cachedForecast) { "No forecast data available" }
-        val cleanedData = cachedForecast!!.daily.temperature_2m_mean.filterNotNull()
-        return String.format(
-                "%.2f",
-                (cleanedData.sum() / cleanedData.size)
-            ).toDouble()
-        }
-        catch (e: IllegalArgumentException){
+        try {
+            requireNotNull(cachedForecast) { "No forecast data available" }
+            val cleanedData = cachedForecast!!.daily.temperature_2m_mean.filterNotNull()
+            return cleanedData.sum() / cleanedData.size
+        } catch (e: IllegalArgumentException) {
             return -273.15
         }
     }
 
     fun calculateAverageCurrentTemperature(): Double {
-        try{
+        try {
             requireNotNull(cachedCurrentData) { "No current data available" }
             val cleanedData = cachedCurrentData!!.daily.temperature_2m_mean.filterNotNull()
-            return String.format(
-                "%.2f",
-                (cleanedData.sum() / cleanedData.size)
-            ).toDouble()
-        }
-        catch (e: IllegalArgumentException){
+            return cleanedData.sum() / cleanedData.size
+        } catch (e: IllegalArgumentException) {
             return -273.15
         }
     }
-
-//    fun calculateAverageCurrentTemperature(cachedData: WeatherResponse): Double {
-//        requireNotNull(cachedData) { "No current data available" }
-//        return (
-//                String.format(
-//                    "%.2f",
-//                    (cachedCurrentData!!.daily.temperature_2m_mean.sum() / cachedCurrentData!!.daily.temperature_2m_mean.size)
-//                ).toDouble())
-//    }
 
     fun calculateAverageCurrentMonthlyTemperature(): Pair<String, Double> {
         requireNotNull(cachedCurrentData) { "No current data available" }
@@ -127,12 +94,12 @@ class WeatherRepository(
         require(!timeList.isNullOrEmpty() && !tempList.isNullOrEmpty()) {
             "No weather data available"
         }
-        var dailyData = timeList.zip(tempList).filter { it.second != null}
+        var dailyData = timeList.zip(tempList).filter { it.second != null }
         val currentMonth = getCurrentMonthString()
         val dailyDataCurrentMonth =
             dailyData.filter { pair -> pair.first.contains(("-${currentMonth}-")) }
 
-        return Pair(currentMonth,dailyDataCurrentMonth.map { it.second }.average())
+        return Pair(currentMonth, dailyDataCurrentMonth.map { it.second }.average())
     }
 
     suspend fun getWeatherHistory(
@@ -161,7 +128,6 @@ class WeatherRepository(
             throw Exception("Failed to fetch weather data: ${e.message}", e)
         }
     }
-
 
 
     fun calculateMonthlyAverageTemperature(): Map<String, Double> {
@@ -216,10 +182,6 @@ class WeatherRepository(
         }
         val monthlyAverage = monthlyData.map { it.value }.average()
         return Pair(getCurrentMonthName(), monthlyAverage)
-    }
-
-    fun getGeoCodeLocation(): String {
-        return cachedGeoCodeData?.name ?: ""
     }
 
     fun getDateRange(daysAgo: Int): Pair<String, String> {

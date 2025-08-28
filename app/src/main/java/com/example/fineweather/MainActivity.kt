@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.fineweather.api.OpenMeteoRetrofitClients
+import com.example.fineweather.data.repositories.GeoCodeRepository
 import com.example.fineweather.data.repositories.StationRepository
 import com.example.fineweather.ui.theme.FineWeatherTheme
 import com.example.fineweather.viewmodels.WeatherViewModel
@@ -57,14 +58,13 @@ fun WeatherApp() {
         WeatherRepository(
             openMeteoWeatherApi = OpenMeteoRetrofitClients.forecastApi,
             openMeteoArchiveApi = OpenMeteoRetrofitClients.archiveApi,
-            openMeteoGeoCodeApi = OpenMeteoRetrofitClients.geocodingApi
         )
     }
-//    val geoCodeRepository = remember { [] }
-    val stationRepository = remember { StationRepository(context) }
+    val geoCodeRepository =
+        remember { GeoCodeRepository(openMeteoGeoCodeApi = OpenMeteoRetrofitClients.geocodingApi) }
 
     val viewModel: WeatherViewModel =
-        viewModel(factory = WeatherViewModelFactory(weatherRepository, stationRepository))
+        viewModel(factory = WeatherViewModelFactory(weatherRepository, geoCodeRepository))
 
     var location by rememberSaveable { mutableStateOf("") }
     var selectedTimeframe by remember { mutableIntStateOf(10) }
@@ -73,7 +73,6 @@ fun WeatherApp() {
     val resultCurrent by viewModel.resultCurrentAverage.collectAsState(initial = "")
     val resultHistoric by viewModel.resultHistoricAverage.collectAsState(initial = "")
     val resultCurrentMonth by viewModel.resultCurrentMonthAverage.collectAsState(initial = "")
-    //val stations by viewModel.stations.collectAsState(initial = "Known stations are being displayed here")
 
     Column(
         modifier = Modifier
@@ -101,7 +100,7 @@ fun WeatherApp() {
                     "Average current month:", fontFamily = nunitoSansFamily
                 )
                 Text(
-                    "14 day forecast Average:", fontFamily = nunitoSansFamily
+                    "14 day forecast average:", fontFamily = nunitoSansFamily
                 )
                 Text(
                     "Historic monthly temperature:", fontFamily = nunitoSansFamily

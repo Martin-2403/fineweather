@@ -14,12 +14,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import android.util.Log
+import com.example.fineweather.data.repositories.GeoCodeRepository
 import com.example.fineweather.utils.formatDouble
 import kotlinx.coroutines.flow.asStateFlow
 
 class WeatherViewModel(
     private val weatherRepository: WeatherRepository,
-    private val stationRepository: StationRepository
+    private val geoCodeRepository: GeoCodeRepository
 ) : ViewModel() {
 
     private val _fineWeatherDataCache = MutableStateFlow<List<FineWeatherData>>(emptyList())
@@ -51,91 +52,88 @@ class WeatherViewModel(
     fun fetchWeather(location: String) {
         viewModelScope.launch {
             _status.value = "Searching for $location..."
+            setDataValues("loading...")
             try {
-                _coordinates.value = weatherRepository.getGeoCode(location.trim()) ?: Pair(0.0, 0.0)
-            } catch (ex: Exception) {
-                Log.e(
-                    "WeatherAPI",
-                    ex.message ?: "Error occurred while trying to geocode the location"
-                )
-            }
-            setLoading()
-            val (first, second) = _coordinates.value
-            val geoCodeLocation = weatherRepository.getGeoCodeLocation()
-            val data = FineWeatherData(geoCodeLocation, _coordinates.value)
-
-            Log.i("WeatherAPI", data.toString())
-            if (first != 0.0 && second != 0.0 && geoCodeLocation !== "") {
+                _coordinates.value = geoCodeRepository.getGeoCode(location.trim()) ?: Pair(0.0, 0.0)
+                val geoCodeLocation = geoCodeRepository.getGeoCodeLocation()
+                val data = FineWeatherData(geoCodeLocation, _coordinates.value)
                 val (latitude, longitude) = _coordinates.value
                 _status.value =
-                    "Set location: $geoCodeLocation \nCoordinates: ($latitude, $longitude)"
+                    "Set location: $geoCodeLocation\nCoordinates: ${data.coordinates}"
                 var historicData: Pair<String, Double?> = Pair("no data", null)
                 try {
                     _resultCurrentMonthAverage.value = "Fetching..."
-                    weatherRepository.getWeatherCurrent(latitude, longitude, 31)
+                    weatherRepository.getWeatherCurrent(data.coordinates.first,data.coordinates.second, 31)
+                    data.currentAverage = weatherRepository.calculateAverageCurrentTemperature()
                     _resultCurrentAverage.value =
-                        "${formatDouble(weatherRepository.calculateAverageCurrentTemperature())}°C"
-                    historicData = weatherRepository.calculateAverageCurrentMonthlyTemperature()!!
+                        "${formatDouble(data.currentAverage)}°C"
+                    historicData =
+                        weatherRepository.calculateAverageCurrentMonthlyTemperature()!!
+                    data.currentMonthAverage = historicData.second
                     _resultCurrentMonthAverage.value =
                         "${formatDouble(historicData.second)}°C"
                 } catch (e: Exception) {
 
-                    _resultCurrentAverage.value = "Error fetching forecast: ${e.message}"
-                    _resultCurrentMonthAverage.value = "Error fetching forecast: ${e.message}"
+                    _resultCurrentAverage.value = "Error"
+                    _resultCurrentMonthAverage.value = "Error"
+                    _status.value += "\nError fetching data: ${e.message}"
                 }
                 try {
                     _resultForecastAverage.value = "Fetching..."
-                    weatherRepository.getWeatherForecast(latitude, longitude, 14)
+                    weatherRepository.getWeatherForecast(data.coordinates.first,data.coordinates.second, 14)
+                    data.forecastAverage =
+                        weatherRepository.calculateAverageForecastTemperature()
                     _resultForecastAverage.value =
-                        "${formatDouble(weatherRepository.calculateAverageForecastTemperature())}°C"
+                        "${formatDouble(data.forecastAverage)}°C"
                 } catch (e: Exception) {
-                    _resultForecastAverage.value = "Error fetching forecast: ${e.message}"
+                    _resultForecastAverage.value = "Error"
+                    _status.value += "\nError fetching data: ${e.message}"
+
                 }
                 try {
                     _resultHistoricAverage.value = "Fetching..."
-                    weatherRepository.getWeatherHistory(latitude, longitude, 30)
-                    historicData = weatherRepository.calculateAverageHistoricMonthlyTemperature()!!
+                    weatherRepository.getWeatherHistory(data.coordinates.first,data.coordinates.second, 30)
+                    historicData =
+                        weatherRepository.calculateAverageHistoricMonthlyTemperature()!!
 //                    _resultHistoricAverage.value = "Historic (1970-1999) average for ${historicData.first}: ${historicData.second}°C"
+                    data.historicMonthlyAverage = historicData.second
                     _resultHistoricAverage.value =
-                        "${formatDouble(historicData.second)}°C"
+                        "${formatDouble(data.historicMonthlyAverage)}°C"
                 } catch (e: Exception) {
-                    _resultHistoricAverage.value = "Error fetching forecast: ${e.message}"
+                    _resultHistoricAverage.value = "Error"
+                    _status.value += "\nError fetching data: ${e.message}"
                 }
-            } else {
+                Log.i("WeatherAPI", "temp difference: " + data.tempDifference.toString())
+            } catch (ex: Exception) {
                 _status.value = "City not found"
+                setDataValues("N/A")
+                    Log.e(
+                    "WeatherAPI",
+                    ex.message ?: "Error occurred while trying to geocode the location"
+
+                )
             }
+
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-    fun getStation(context: Context, location: String) {
-        stationRepository.initialize(context)
-        viewModelScope.launch {
-            val coordinates = GeocoderUtil.getCoordinates(context, location)
-            if (coordinates != null) {
-                _stations.value =
-                    "Nearest Station: " + stationRepository.findClosestCoordinate(coordinates)?.Stationsname
-            } else
-                _stations.value = "No nearest station found"
-        }
-    }
 
-    fun setLoading() {
-        _resultForecastAverage.value = "loading..."
-        _resultCurrentAverage.value = "loading..."
-        _resultHistoricAverage.value = "loading..."
-        _resultCurrentMonthAverage.value = "loading..."
+    fun setDataValues(text: String) {
+        _resultForecastAverage.value = text
+        _resultCurrentAverage.value = text
+        _resultHistoricAverage.value = text
+        _resultCurrentMonthAverage.value = text
     }
 }
 
 class WeatherViewModelFactory(
     private val weatherRepository: WeatherRepository,
-    private val stationRepository: StationRepository
+    private val geoCodeRepository: GeoCodeRepository
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(WeatherViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return WeatherViewModel(weatherRepository, stationRepository) as T
+            return WeatherViewModel(weatherRepository, geoCodeRepository) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

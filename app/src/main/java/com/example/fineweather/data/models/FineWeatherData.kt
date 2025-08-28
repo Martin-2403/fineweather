@@ -20,19 +20,7 @@ class FineWeatherData(
     var forecastTimePeriod: Int = 14
     var historicTimePeriod: Int = 30
 
-    override fun toString(): String {
-        return "FineWeatherData(" +
-                "location=$location, " +
-                "coordinates=(lat=${coordinates.first}, lon=${coordinates.second}), " +
-                "timestamp=$timestamp, " +
-                "currentMonthAverage=${formatDouble(currentMonthAverage)}, " +
-                "currentAverage=${formatDouble(currentAverage)}, " +
-                "forecastAverage=${formatDouble(forecastAverage)}, " +
-                "historicMonthlyAverage=${formatDouble(historicMonthlyAverage)}, " +
-                "historicTimePeriodAverage=${formatDouble(historicTimePeriodAverage)}, " +
-                "currentTimePeriod=$currentTimePeriod, " +
-                "forecastTimePeriod=$forecastTimePeriod, " +
-                "historicTimePeriod=$historicTimePeriod" +
-                ")"
-    }
+    val tempDifference: Double?
+        get() = if (currentMonthAverage == null || historicMonthlyAverage == null) null else currentMonthAverage!! - historicMonthlyAverage!!
+
 }
