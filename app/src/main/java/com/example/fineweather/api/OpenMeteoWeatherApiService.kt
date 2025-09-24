@@ -1,8 +1,6 @@
 package com.example.fineweather.api
 
-
 import com.example.fineweather.data.models.WeatherResponse
-import com.example.fineweather.data.models.GeoCodingResponse
 import retrofit2.http.GET
 import retrofit2.http.Query
 
@@ -14,6 +12,6 @@ interface OpenMeteoWeatherApiService {
         @Query("daily") daily: String,
         @Query("forecast_days") forecastDays: Int,
         @Query("past_days") pastDays: Int,
-        @Query("timezone") timezone: String
+        @Query("timezone") timezone: String,
     ): WeatherResponse
 }

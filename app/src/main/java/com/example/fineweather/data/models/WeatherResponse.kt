@@ -9,15 +9,15 @@ data class WeatherResponse(
     val timezone_abbreviation: String,
     val elevation: Double,
     val daily_units: DailyUnits,
-    val daily: Daily
+    val daily: Daily,
 )
 
 data class DailyUnits(
     val time: String,
-    val temperature_2m_mean: String
+    val temperature_2m_mean: String,
 )
 
 data class Daily(
     val time: List<String>,
-    val temperature_2m_mean: List<Double>
+    val temperature_2m_mean: List<Double>,
 )
