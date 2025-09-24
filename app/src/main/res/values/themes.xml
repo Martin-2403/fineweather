@@ -1,4 +1,70 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+
     <style name="Theme.FineWeather" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <style name="FineWeatherTheme.H1" parent="@android:style/TextAppearance.Large">
+        <item name="android:fontFamily">@font/nunito_regular</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textSize">24sp</item>
+    </style>
+
+    <style name="FineWeatherTheme.H2" parent="@android:style/TextAppearance.Large">
+        <item name="android:fontFamily">@font/nunito_regular</item>
+        <item name="android:textStyle">normal</item>
+        <item name="android:textSize">20sp</item>
+    </style>
+
+    <style name="FineWeatherTheme.Subtitle1" parent="@android:style/TextAppearance.Medium">
+        <item name="android:fontFamily">@font/nunito_regular</item>
+        <item name="android:textStyle">normal</item>
+        <item name="android:textSize">16sp</item>
+    </style>
+
+    <style name="FineWeatherTheme.Body1" parent="@android:style/TextAppearance.Medium">
+        <item name="android:fontFamily">@font/nunito_regular</item>
+        <item name="android:textStyle">normal</item>
+        <item name="android:textSize">16sp</item>
+    </style>
+
+    <style name="FineWeatherTheme.Body2" parent="@android:style/TextAppearance.Medium">
+        <item name="android:fontFamily">@font/nunito_regular</item>
+        <item name="android:textStyle">normal</item>
+        <item name="android:textSize">14sp</item>
+    </style>
+
+    <style name="FineWeatherTheme.Button" parent="@android:style/TextAppearance.Widget.Button">
+        <item name="android:fontFamily">@font/nunito_regular</item>
+        <item name="android:textStyle">normal</item>
+        <item name="android:textSize">14sp</item>
+    </style>
+
+    <style name="FineWeatherTheme.Caption" parent="@android:style/TextAppearance.Small">
+        <item name="android:fontFamily">@font/nunito_regular</item>
+        <item name="android:textSize">12sp</item>
+    </style>
+
+    <style name="FineWeatherTheme.Overline" parent="@android:style/TextAppearance.Small">
+        <item name="android:fontFamily">@font/nunito_regular</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textSize">12sp</item>
+    </style>
+
+    <!-- Colors -->
+    <color name="fine_weather_primary">#6200EE</color>
+    <color name="fine_weather_on_primary">#FFFFFFFF</color>
+    <color name="fine_weather_primary_container">#3700B3</color>
+    <color name="fine_weather_on_primary_container">#FFFFFFFF</color>
+    <color name="fine_weather_secondary">#03DAC6</color>
+    <color name="fine_weather_on_secondary">#000000</color>
+    <color name="fine_weather_secondary_container">#018786</color>
+    <color name="fine_weather_on_secondary_container">#FFFFFFFF</color>
+    <color name="fine_weather_background">#F7FAFA</color>
+    <color name="fine_weather_on_background">#000000</color>
+    <color name="fine_weather_surface">#F7FAFA</color>
+    <color name="fine_weather_on_surface">#000000</color>
+    <color name="fine_weather_error">#B00020</color>
+    <color name="fine_weather_on_error">#FFFFFFFF</color>
+    <color name="fine_weather_error_container">#FFDAD4</color>
+    <color name="fine_weather_on_error_container">#000000</color>
 </resources>

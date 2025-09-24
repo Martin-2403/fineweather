@@ -27,7 +27,7 @@ android {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                "proguard-rules.pro",
             )
         }
     }
@@ -102,7 +102,6 @@ dependencies {
     implementation(libs.converter.gson.v290)
     implementation(libs.kotlinx.coroutines.android.v164)
 
-
     // Coil for image loading in Compose
     implementation("io.coil-kt:coil-compose:2.6.0")
 
@@ -110,7 +109,7 @@ dependencies {
     androidTestImplementation(libs.ui.test.junit4)
     debugImplementation(libs.ui.tooling)
 
-    //Serialization
+    // Serialization
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0")
 
     implementation(platform("androidx.compose:compose-bom:2023.10.01"))
