@@ -1,6 +1,7 @@
 package com.example.fineweather.data.repositories
 
 import com.example.fineweather.api.OpenMeteoGeoCodeApiService
+import com.example.fineweather.data.models.FineWeatherData
 import com.example.fineweather.data.models.GeocodingResult
 
 class GeoCodeRepository(
@@ -8,20 +9,26 @@ class GeoCodeRepository(
 ) {
     private var cachedGeoCodeData: GeocodingResult? = null
 
-    suspend fun getGeoCode(
-        name: String
-    ): Pair<Double, Double>? {
+    suspend fun getGeoCode(name: String): FineWeatherData? {
         try {
-            cachedGeoCodeData = openMeteoGeoCodeApi.getGeoCoding(
-                name = name
-            ).results.first()
-            return Pair(cachedGeoCodeData?.latitude ?: 0.0, cachedGeoCodeData?.longitude ?: 0.0)
+            cachedGeoCodeData =
+                openMeteoGeoCodeApi
+                    .getGeoCoding(
+                        name = name,
+                    ).results
+                    .first()
+            return FineWeatherData(
+                cachedGeoCodeData?.name ?: "n/a",
+                Pair(
+                    cachedGeoCodeData?.latitude ?: 0.0,
+                    cachedGeoCodeData?.longitude ?: 0.0,
+                ),
+                cachedGeoCodeData?.id ?: "n/a",
+            )
         } catch (e: Exception) {
             throw Exception("Failed to fetch geocoding", e)
         }
     }
 
-    fun getGeoCodeLocation(): String {
-        return ("${cachedGeoCodeData?.name}, ${cachedGeoCodeData?.country}")
-    }
+    fun getGeoCodeLocation(): String = ("${cachedGeoCodeData?.name}, ${cachedGeoCodeData?.country}")
 }

@@ -1,17 +1,36 @@
 package com.example.fineweather
 
-import com.example.fineweather.data.repositories.WeatherRepository
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -25,14 +44,15 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.fineweather.api.OpenMeteoRetrofitClients
 import com.example.fineweather.data.repositories.GeoCodeRepository
-import com.example.fineweather.data.repositories.StationRepository
+import com.example.fineweather.data.repositories.WeatherRepository
 import com.example.fineweather.ui.theme.FineWeatherTheme
 import com.example.fineweather.viewmodels.WeatherViewModel
 import com.example.fineweather.viewmodels.WeatherViewModelFactory
 
-val nunitoSansFamily = FontFamily(
-    Font(R.font.nunito_regular, FontWeight.Normal)
-)
+val nunitoSansFamily =
+    FontFamily(
+        Font(R.font.nunito_regular, FontWeight.Normal),
+    )
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 class MainActivity : ComponentActivity() {
@@ -53,13 +73,14 @@ class MainActivity : ComponentActivity() {
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun WeatherApp() {
-    val context = LocalContext.current
-    val weatherRepository = remember {
-        WeatherRepository(
-            openMeteoWeatherApi = OpenMeteoRetrofitClients.forecastApi,
-            openMeteoArchiveApi = OpenMeteoRetrofitClients.archiveApi,
-        )
-    }
+    LocalContext.current
+    val weatherRepository =
+        remember {
+            WeatherRepository(
+                openMeteoWeatherApi = OpenMeteoRetrofitClients.forecastApi,
+                openMeteoArchiveApi = OpenMeteoRetrofitClients.archiveApi,
+            )
+        }
     val geoCodeRepository =
         remember { GeoCodeRepository(openMeteoGeoCodeApi = OpenMeteoRetrofitClients.geocodingApi) }
 
@@ -67,7 +88,6 @@ fun WeatherApp() {
         viewModel(factory = WeatherViewModelFactory(weatherRepository, geoCodeRepository))
 
     var location by rememberSaveable { mutableStateOf("") }
-    var selectedTimeframe by remember { mutableIntStateOf(10) }
     val status by viewModel.status.collectAsState(initial = "Enter city name to get weather data")
     val resultForecast by viewModel.resultForecastAverage.collectAsState(initial = "")
     val resultCurrent by viewModel.resultCurrentAverage.collectAsState(initial = "")
@@ -75,12 +95,12 @@ fun WeatherApp() {
     val resultCurrentMonth by viewModel.resultCurrentMonthAverage.collectAsState(initial = "")
 
     Column(
-        modifier = Modifier
-            .padding(16.dp)
-            .fillMaxSize(),
+        modifier =
+            Modifier
+                .padding(16.dp)
+                .fillMaxSize(),
         verticalArrangement = Arrangement.Top,
-        horizontalAlignment = Alignment.CenterHorizontally
-
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         EarthStatus()
 //      Row {
@@ -94,16 +114,20 @@ fun WeatherApp() {
         Row {
             Column {
                 Text(
-                    "31 day average:", fontFamily = nunitoSansFamily
+                    "31 day average:",
+                    fontFamily = nunitoSansFamily,
                 )
                 Text(
-                    "Average current month:", fontFamily = nunitoSansFamily
+                    "Average current month:",
+                    fontFamily = nunitoSansFamily,
                 )
                 Text(
-                    "14 day forecast average:", fontFamily = nunitoSansFamily
+                    "14 day forecast average:",
+                    fontFamily = nunitoSansFamily,
                 )
                 Text(
-                    "Historic monthly temperature:", fontFamily = nunitoSansFamily
+                    "Historic monthly temperature:",
+                    fontFamily = nunitoSansFamily,
                 )
             }
             Column {
@@ -112,19 +136,23 @@ fun WeatherApp() {
                 WeatherDisplay(resultForecast)
                 WeatherDisplay(resultHistoric)
             }
-
         }
     }
 }
 
 @Composable
-fun SearchBar(location: String, onLocationChange: (String) -> Unit, onSearch: () -> Unit) {
+fun SearchBar(
+    location: String,
+    onLocationChange: (String) -> Unit,
+    onSearch: () -> Unit,
+) {
     OutlinedTextField(
         value = location,
         onValueChange = onLocationChange,
         label = {
             Text(
-                "Enter city", fontFamily = nunitoSansFamily
+                "Enter city",
+                fontFamily = nunitoSansFamily,
             )
         },
         modifier = Modifier.fillMaxWidth(),
@@ -132,7 +160,7 @@ fun SearchBar(location: String, onLocationChange: (String) -> Unit, onSearch: ()
     Spacer(modifier = Modifier.height(16.dp))
     Button(
         onClick = onSearch,
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
     ) {
         Text("Search city", fontFamily = nunitoSansFamily)
     }
@@ -144,7 +172,7 @@ fun WeatherDisplay(result: String) {
         textAlign = TextAlign.Center,
         text = result,
         modifier = Modifier.fillMaxWidth(),
-        fontFamily = nunitoSansFamily
+        fontFamily = nunitoSansFamily,
     )
 }
 
@@ -154,7 +182,7 @@ fun StatusDisplay(status: String) {
         textAlign = TextAlign.Center,
         text = status,
         modifier = Modifier.fillMaxWidth(),
-        fontFamily = nunitoSansFamily
+        fontFamily = nunitoSansFamily,
     )
     Spacer(modifier = Modifier.height(16.dp))
 }
@@ -162,16 +190,18 @@ fun StatusDisplay(status: String) {
 @Composable
 fun EarthStatus() {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier =
+            Modifier
+                .fillMaxWidth(),
     ) {
         Image(
             painter = painterResource(R.drawable.initial),
             contentDescription = "Picture of the earth looking questioning at different weather types",
             contentScale = ContentScale.Fit,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(0.dp)  // Remove any padding from the Image composable
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(0.dp), // Remove any padding from the Image composable
         )
     }
 }
@@ -181,14 +211,14 @@ fun EarthStatus() {
 fun NumberDropdown(
     label: String = "Select number",
     options: List<Int> = listOf(10, 20, 30),
-    onSelected: (Int) -> Unit
+    onSelected: (Int) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
     var selectedOptionText by remember { mutableStateOf(options.first().toString()) }
 
     ExposedDropdownMenuBox(
         expanded = expanded,
-        onExpandedChange = { expanded = !expanded }
+        onExpandedChange = { expanded = !expanded },
     ) {
         TextField(
             readOnly = true,
@@ -198,12 +228,12 @@ fun NumberDropdown(
             trailingIcon = {
                 ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
             },
-            modifier = Modifier.menuAnchor()
+            modifier = Modifier.menuAnchor(),
         )
 
         ExposedDropdownMenu(
             expanded = expanded,
-            onDismissRequest = { expanded = false }
+            onDismissRequest = { expanded = false },
         ) {
             options.forEach { number ->
                 DropdownMenuItem(
@@ -212,10 +242,9 @@ fun NumberDropdown(
                         selectedOptionText = number.toString()
                         expanded = false
                         onSelected(number)
-                    }
+                    },
                 )
             }
         }
     }
 }
-
