@@ -8,7 +8,7 @@ import com.example.fineweather.data.local.entities.WeatherEntity
 
 @Dao
 interface WeatherDao {
-    @Query("SELECT * FROM weather_history WHERE locationId = :locId AND date = :date LIMIT 1")
+    @Query("SELECT * FROM weather_history WHERE id = :locId AND date = :date LIMIT 1")
     suspend fun getWeatherByIdAndDate(
         locId: Long,
         date: String,

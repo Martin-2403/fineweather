@@ -42,7 +42,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.room.Room
 import com.example.fineweather.api.OpenMeteoRetrofitClients
+import com.example.fineweather.data.local.WeatherDatabase
 import com.example.fineweather.data.repositories.GeoCodeRepository
 import com.example.fineweather.data.repositories.WeatherRepository
 import com.example.fineweather.ui.theme.FineWeatherTheme
@@ -74,11 +76,18 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun WeatherApp() {
     LocalContext.current
+    val db = Room.databaseBuilder(
+        LocalContext.current,
+        WeatherDatabase::class.java, "weather-database"
+    ).build()
+
     val weatherRepository =
         remember {
             WeatherRepository(
                 openMeteoWeatherApi = OpenMeteoRetrofitClients.forecastApi,
                 openMeteoArchiveApi = OpenMeteoRetrofitClients.archiveApi,
+                weatherDao = db.weatherDao()
+
             )
         }
     val geoCodeRepository =

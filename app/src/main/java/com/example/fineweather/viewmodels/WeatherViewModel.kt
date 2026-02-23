@@ -50,12 +50,12 @@ class WeatherViewModel(
             _status.value = "Searching for $location..."
             setDataValues("loading...")
             try {
-                _coordinates.value = geoCodeRepository.getGeoCode(location.trim()) ?: Pair(0.0, 0.0)
-                val geoCodeLocation = geoCodeRepository.getGeoCodeLocation()
-                val data = FineWeatherData(geoCodeLocation, _coordinates.value)
+                val data = geoCodeRepository.getGeoCode(location.trim())
+                _coordinates.value = data.coordinates
+
                 val (_, _) = _coordinates.value
                 _status.value =
-                    "Set location: $geoCodeLocation\nCoordinates: ${data.coordinates}"
+                    "Set location: ${data.location}\nCoordinates: ${data.coordinates}"
                 var historicData: Pair<String, Double?> = Pair("no data", null)
                 try {
                     _resultCurrentMonthAverage.value = "Fetching..."

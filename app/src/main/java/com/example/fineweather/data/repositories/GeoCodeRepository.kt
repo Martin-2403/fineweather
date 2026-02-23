@@ -9,7 +9,7 @@ class GeoCodeRepository(
 ) {
     private var cachedGeoCodeData: GeocodingResult? = null
 
-    suspend fun getGeoCode(name: String): FineWeatherData? {
+    suspend fun getGeoCode(name: String): FineWeatherData {
         try {
             cachedGeoCodeData =
                 openMeteoGeoCodeApi
@@ -29,6 +29,4 @@ class GeoCodeRepository(
             throw Exception("Failed to fetch geocoding", e)
         }
     }
-
-    fun getGeoCodeLocation(): String = ("${cachedGeoCodeData?.name}, ${cachedGeoCodeData?.country}")
 }

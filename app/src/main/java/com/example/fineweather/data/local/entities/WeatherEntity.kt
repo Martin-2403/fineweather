@@ -8,7 +8,7 @@ import com.example.fineweather.data.models.FineWeatherData
     primaryKeys = ["locationId", "date"],
 )
 data class WeatherEntity(
-    val id: Long,
+    val id: String,
     val date: String, // "yyyy-MM-dd"
     val locationName: String,
     val country: String?,
