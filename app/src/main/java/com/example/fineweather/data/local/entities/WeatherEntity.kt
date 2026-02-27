@@ -5,7 +5,7 @@ import com.example.fineweather.data.models.FineWeatherData
 
 @Entity(
     tableName = "weather_history",
-    primaryKeys = ["locationId", "date"],
+    primaryKeys = ["id", "date"],
 )
 data class WeatherEntity(
     val id: String,
