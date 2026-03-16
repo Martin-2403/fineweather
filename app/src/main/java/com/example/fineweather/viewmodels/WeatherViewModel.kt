@@ -13,16 +13,12 @@ import com.example.fineweather.data.local.entities.WeatherEntity
 import com.example.fineweather.utils.formatDouble
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class WeatherViewModel(
     private val weatherRepository: WeatherRepository,
     private val geoCodeRepository: GeoCodeRepository,
 ) : ViewModel() {
-    private val _fineWeatherDataCache = MutableStateFlow<List<FineWeatherData>>(emptyList())
-    val fineWeatherDataCache = _fineWeatherDataCache.asStateFlow()
-
     private val _resultForecastAverage = MutableStateFlow("-")
     val resultForecastAverage: StateFlow<String> = _resultForecastAverage
 
@@ -38,13 +34,7 @@ class WeatherViewModel(
 
     private val _status = MutableStateFlow("Please enter location")
     val status: StateFlow<String> = _status
-
-    private val _stations = MutableStateFlow("Stations results will be shown here")
-    val stations: StateFlow<String> = _stations
-
     private val _coordinates = MutableStateFlow(Pair(0.0, 0.0))
-    val coordinates: StateFlow<Pair<Double, Double>> = _coordinates
-
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     fun fetchWeather(location: String) {
         viewModelScope.launch {
@@ -57,33 +47,7 @@ class WeatherViewModel(
 
                 _status.value =
                     "Set location: ${data.location}\nCoordinates: ${data.coordinates}"
-                val cachedLatest = weatherRepository.getCachedWeatherById(data.id)
-                val isCurrentToday = cachedLatest?.date == data.timestamp
-                val hasCachedCurrent =
-                    cachedLatest?.currentAverage != null &&
-                        cachedLatest?.currentMonthAverage != null
-
-                if (isCurrentToday && hasCachedCurrent) {
-                    data.currentAverage = cachedLatest?.currentAverage
-                    data.currentMonthAverage = cachedLatest?.currentMonthAverage
-                    _resultCurrentAverage.value =
-                        "${formatDouble(data.currentAverage)}°C"
-                    _resultCurrentMonthAverage.value =
-                        "${formatDouble(data.currentMonthAverage)}°C"
-                } else {
-                    fetchCurrentWeather(data)
-                }
-
-                fetchForecastWeather(data)
-
-                val hasCachedHistoric = cachedLatest?.historicMonthlyAverage != null
-                if (hasCachedHistoric) {
-                    data.historicMonthlyAverage = cachedLatest?.historicMonthlyAverage
-                    _resultHistoricAverage.value =
-                        "${formatDouble(data.historicMonthlyAverage)}°C"
-                } else {
-                    fetchHistoricWeather(data)
-                }
+                fetchWeatherForData(data)
                 Log.i("WeatherAPI", "temp difference: " + data.tempDifference.toString())
             } catch (ex: Exception) {
                 _status.value = "City not found"
@@ -101,6 +65,36 @@ class WeatherViewModel(
         _resultCurrentAverage.value = text
         _resultHistoricAverage.value = text
         _resultCurrentMonthAverage.value = text
+    }
+
+    private suspend fun fetchWeatherForData(data: FineWeatherData) {
+        val cachedLatest = weatherRepository.getCachedWeatherById(data.id)
+        val isCurrentToday = cachedLatest?.date == data.timestamp
+        val hasCachedCurrent =
+            cachedLatest?.currentAverage != null &&
+                cachedLatest?.currentMonthAverage != null
+
+        if (isCurrentToday && hasCachedCurrent) {
+            data.currentAverage = cachedLatest?.currentAverage
+            data.currentMonthAverage = cachedLatest?.currentMonthAverage
+            _resultCurrentAverage.value =
+                "${formatDouble(data.currentAverage)}°C"
+            _resultCurrentMonthAverage.value =
+                "${formatDouble(data.currentMonthAverage)}°C"
+        } else {
+            fetchCurrentWeather(data)
+        }
+
+        fetchForecastWeather(data)
+
+        val hasCachedHistoric = cachedLatest?.historicMonthlyAverage != null
+        if (hasCachedHistoric) {
+            data.historicMonthlyAverage = cachedLatest?.historicMonthlyAverage
+            _resultHistoricAverage.value =
+                "${formatDouble(data.historicMonthlyAverage)}°C"
+        } else {
+            fetchHistoricWeather(data)
+        }
     }
 
     private suspend fun fetchCurrentWeather(data: FineWeatherData) {
@@ -188,6 +182,7 @@ class WeatherViewModel(
             )
         weatherRepository.insertWeather(entity)
     }
+
 }
 
 class WeatherViewModelFactory(

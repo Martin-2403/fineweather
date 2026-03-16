@@ -74,8 +74,8 @@ class MainActivity : ComponentActivity() {
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun WeatherApp() {
-    LocalContext.current
-    val db = WeatherDatabase.getDatabase(LocalContext.current)
+    val context = LocalContext.current
+    val db = WeatherDatabase.getDatabase(context)
 
     val weatherRepository =
         remember {
@@ -98,7 +98,6 @@ fun WeatherApp() {
     val resultCurrent by viewModel.resultCurrentAverage.collectAsState(initial = "")
     val resultHistoric by viewModel.resultHistoricAverage.collectAsState(initial = "")
     val resultCurrentMonth by viewModel.resultCurrentMonthAverage.collectAsState(initial = "")
-
     Column(
         modifier =
             Modifier
@@ -110,10 +109,13 @@ fun WeatherApp() {
         EarthStatus()
 //      Row {
 //         NumberDropdown(label = "Time in years", onSelected = { selectedTimeframe = it })
-//      }
-        SearchBar(location, onLocationChange = { location = it }) {
-            viewModel.fetchWeather(location)
-        }
+
+        SearchBar(
+            location = location,
+            onLocationChange = { location = it },
+            onSearch = { viewModel.fetchWeather(location) },
+        )
+
         Spacer(modifier = Modifier.height(16.dp))
         StatusDisplay(status)
         Row {

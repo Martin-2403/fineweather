@@ -121,28 +121,6 @@ class WeatherRepository(
             throw Exception("Failed to fetch weather data: ${e.message}", e)
         }
     }
-
-    fun calculateMonthlyAverageTemperature(): Map<String, Double> {
-        val timeList = cachedHistoricData?.daily?.time
-        val tempList = cachedHistoricData?.daily?.temperature_2m_mean
-
-        require(!timeList.isNullOrEmpty() && !tempList.isNullOrEmpty()) {
-            "No historic weather data available"
-        }
-        // Combine the data safely
-        val dailyData = timeList.zip(tempList)
-        // Group by "YYYY-MM"
-        val groupedByMonth =
-            dailyData.groupBy { (dateStr, _) ->
-                dateStr.substring(0, 7)
-            }
-        // Calculate average per month
-        return groupedByMonth.mapValues { (_, values) ->
-            val temps = values.map { it.second }
-            temps.average()
-        }
-    }
-
     fun calculateAverageHistoricMonthlyTemperature(): Pair<String, Double>? {
         val timeList = cachedHistoricData?.daily?.time
         val tempList = cachedHistoricData?.daily?.temperature_2m_mean
