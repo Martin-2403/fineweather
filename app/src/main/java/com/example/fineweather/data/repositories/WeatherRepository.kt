@@ -18,6 +18,11 @@ class WeatherRepository(
     private val openMeteoArchiveApi: OpenMeteoArchiveApiService,
     private val weatherDao: WeatherDao,
 ) {
+    private companion object {
+        const val DAILY_TEMPERATURE = "temperature_2m_mean"
+        const val FALLBACK_TEMPERATURE = -273.15
+    }
+
     private var cachedForecast: WeatherResponse? = null
     private var cachedCurrentData: WeatherResponse? = null
     private var cachedHistoricData: WeatherResponse? = null
@@ -33,7 +38,7 @@ class WeatherRepository(
                 openMeteoArchiveApi.getHistoricData(
                     latitude = latitude,
                     longitude = longitude,
-                    daily = "temperature_2m_mean",
+                    daily = DAILY_TEMPERATURE,
                     startDate = startDate,
                     endDate = endDate,
                 )
@@ -54,7 +59,7 @@ class WeatherRepository(
                 openMeteoWeatherApi.getForecast(
                     latitude = latitude,
                     longitude = longitude,
-                    daily = "temperature_2m_mean",
+                    daily = DAILY_TEMPERATURE,
                     forecastDays = forecastDays,
                     pastDays = 0,
                     timezone = "auto",
@@ -66,25 +71,12 @@ class WeatherRepository(
         }
     }
 
-    // todo remove duplicate code
     fun calculateAverageForecastTemperature(): Double {
-        try {
-            requireNotNull(cachedForecast) { "No forecast data available" }
-            val cleanedData = cachedForecast!!.daily.temperature_2m_mean.filterNotNull()
-            return cleanedData.sum() / cleanedData.size
-        } catch (e: IllegalArgumentException) {
-            return -273.15
-        }
+        return averageTemperature(cachedForecast?.daily?.temperature_2m_mean, "forecast")
     }
 
     fun calculateAverageCurrentTemperature(): Double {
-        try {
-            requireNotNull(cachedCurrentData) { "No current data available" }
-            val cleanedData = cachedCurrentData!!.daily.temperature_2m_mean.filterNotNull()
-            return cleanedData.sum() / cleanedData.size
-        } catch (e: IllegalArgumentException) {
-            return -273.15
-        }
+        return averageTemperature(cachedCurrentData?.daily?.temperature_2m_mean, "current")
     }
 
     fun calculateAverageCurrentMonthlyTemperature(): Pair<String, Double> {
@@ -95,7 +87,7 @@ class WeatherRepository(
         require(!timeList.isNullOrEmpty() && !tempList.isNullOrEmpty()) {
             "No weather data available"
         }
-        var dailyData = timeList.zip(tempList).filter { it.second != null }
+        val dailyData = timeList.zip(tempList)
         val currentMonth = getCurrentMonthString()
         val dailyDataCurrentMonth =
             dailyData.filter { pair -> pair.first.contains(("-$currentMonth-")) }
@@ -173,13 +165,13 @@ class WeatherRepository(
             }
 
         // Calculate average per month
-        val avaragesByMonth: Map<String, Double> =
+        val averagesByMonth: Map<String, Double> =
             groupedByMonth.mapValues { (_, values) ->
                 val temps = values.map { it.second }
                 temps.average()
             }
         val monthlyData =
-            avaragesByMonth.entries.filter { it.key.contains("-$month", ignoreCase = true) }
+            averagesByMonth.entries.filter { it.key.contains("-$month", ignoreCase = true) }
         if (monthlyData.isEmpty()) {
             return null
         }
@@ -206,5 +198,16 @@ class WeatherRepository(
 
     suspend fun insertWeather(entity: WeatherEntity) {
         weatherDao.insertWeather(entity)
+    }
+
+    private fun averageTemperature(
+        temperatures: List<Double>?,
+        label: String,
+    ): Double {
+        if (temperatures.isNullOrEmpty()) {
+            Log.e("WeatherRepository", "No $label data available")
+            return FALLBACK_TEMPERATURE
+        }
+        return temperatures.average()
     }
 }
