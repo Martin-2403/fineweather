@@ -4,6 +4,7 @@ import android.util.Log
 import com.example.fineweather.api.OpenMeteoArchiveApiService
 import com.example.fineweather.api.OpenMeteoWeatherApiService
 import com.example.fineweather.data.local.doa.WeatherDao
+import com.example.fineweather.data.local.entities.WeatherEntity
 import com.example.fineweather.data.models.WeatherResponse
 import com.example.fineweather.utils.getCurrentMonthName
 import com.example.fineweather.utils.getCurrentMonthString
@@ -195,7 +196,15 @@ class WeatherRepository(
     }
 
     suspend fun cleanOutdatedWeatherDate() {
-        val today = LocalDate.now().toString()
-        weatherDao.cleanOutdatedCache(today)
+        val minDate = LocalDate.now().minusDays(7).toString()
+        weatherDao.cleanOutdatedCache(minDate)
+    }
+
+    suspend fun getCachedWeatherById(
+        locId: String,
+    ) = weatherDao.getWeatherById(locId)
+
+    suspend fun insertWeather(entity: WeatherEntity) {
+        weatherDao.insertWeather(entity)
     }
 }

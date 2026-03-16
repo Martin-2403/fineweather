@@ -9,7 +9,7 @@ import com.example.fineweather.data.local.entities.WeatherEntity
 
 @Database(
     entities = [WeatherEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -28,7 +28,9 @@ abstract class WeatherDatabase : RoomDatabase() {
                             context.applicationContext,
                             WeatherDatabase::class.java,
                             "weather_database",
-                        ).build()
+                        )
+                        .fallbackToDestructiveMigration()
+                        .build()
                 INSTANCE = instance
                 instance
             }

@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.fineweather.data.models.FineWeatherData
 import com.example.fineweather.data.repositories.GeoCodeRepository
 import com.example.fineweather.data.repositories.WeatherRepository
+import com.example.fineweather.data.local.entities.WeatherEntity
 import com.example.fineweather.utils.formatDouble
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -49,108 +50,76 @@ class WeatherViewModel(
         viewModelScope.launch {
             _status.value = "Searching for $location..."
             setDataValues("loading...")
-            var data: FineWeatherData? = null
-            data = processLocation(location)
-            if (data !== null) {
-                data = processCurrentWeather(data)
-                data = processForecast(data)
-                data = processHistoricWeather(data)
+            try {
+                val data = geoCodeRepository.getGeoCode(location.trim())
+                _coordinates.value = data.coordinates
+
+                val (_, _) = _coordinates.value
+                _status.value =
+                    "Set location: ${data.location}\nCoordinates: ${data.coordinates}"
+                var historicData: Pair<String, Double?> = Pair("no data", null)
+                try {
+                    _resultCurrentMonthAverage.value = "Fetching..."
+                    weatherRepository.getWeatherCurrent(
+                        data.coordinates.first,
+                        data.coordinates.second,
+                        31,
+                    )
+                    data.currentAverage = weatherRepository.calculateAverageCurrentTemperature()
+                    _resultCurrentAverage.value =
+                        "${formatDouble(data.currentAverage)}°C"
+                    historicData =
+                        weatherRepository.calculateAverageCurrentMonthlyTemperature()!!
+                    data.currentMonthAverage = historicData.second
+                    _resultCurrentMonthAverage.value =
+                        "${formatDouble(historicData.second)}°C"
+                } catch (e: Exception) {
+                    _resultCurrentAverage.value = "Error"
+                    _resultCurrentMonthAverage.value = "Error"
+                    _status.value += "\nError fetching data: ${e.message}"
+                }
+                try {
+                    _resultForecastAverage.value = "Fetching..."
+                    weatherRepository.getWeatherForecast(
+                        data.coordinates.first,
+                        data.coordinates.second,
+                        14,
+                    )
+                    data.forecastAverage =
+                        weatherRepository.calculateAverageForecastTemperature()
+                    _resultForecastAverage.value =
+                        "${formatDouble(data.forecastAverage)}°C"
+                } catch (e: Exception) {
+                    _resultForecastAverage.value = "Error"
+                    _status.value += "\nError fetching data: ${e.message}"
+                }
+                try {
+                    _resultHistoricAverage.value = "Fetching..."
+                    weatherRepository.getWeatherHistory(
+                        data.coordinates.first,
+                        data.coordinates.second,
+                        30,
+                    )
+                    historicData =
+                        weatherRepository.calculateAverageHistoricMonthlyTemperature()!!
+//                    _resultHistoricAverage.value = "Historic (1970-1999) average for ${historicData.first}: ${historicData.second}°C"
+                    data.historicMonthlyAverage = historicData.second
+                    _resultHistoricAverage.value =
+                        "${formatDouble(data.historicMonthlyAverage)}°C"
+                } catch (e: Exception) {
+                    _resultHistoricAverage.value = "Error"
+                    _status.value += "\nError fetching data: ${e.message}"
+                }
                 Log.i("WeatherAPI", "temp difference: " + data.tempDifference.toString())
+            } catch (ex: Exception) {
+                _status.value = "City not found"
+                setDataValues("N/A")
+                Log.e(
+                    "WeatherAPI",
+                    ex.message ?: "Error occurred while trying to geocode the location",
+                )
             }
         }
-    }
-
-    suspend fun processLocation(location: String): FineWeatherData? {
-        var data: FineWeatherData
-        try {
-            data = geoCodeRepository.getGeoCode(location.trim())
-            _coordinates.value = data.coordinates
-
-            val (_, _) = _coordinates.value
-            _status.value =
-                "Set location: ${data.location}\nCoordinates: ${data.coordinates}"
-            Pair("no data", null)
-            return data
-        } catch (ex: Exception) {
-            _status.value = "City not found"
-            setDataValues("N/A")
-            Log.e(
-                "WeatherAPI",
-                ex.message ?: "Error occurred while trying to geocode the location",
-            )
-        }
-        return null
-    }
-
-    suspend fun processCurrentWeather(data: FineWeatherData): FineWeatherData {
-        try {
-            _resultCurrentMonthAverage.value = "Fetching..."
-            weatherRepository.getWeatherCurrent(
-                data.coordinates.first,
-                data.coordinates.second,
-                31,
-            )
-            data.currentAverage = weatherRepository.calculateAverageCurrentTemperature()
-            _resultCurrentAverage.value =
-                "${formatDouble(data.currentAverage)}°C"
-            val historicData = weatherRepository.calculateAverageCurrentMonthlyTemperature()
-            data.currentMonthAverage = historicData.second
-            _resultCurrentMonthAverage.value =
-                "${formatDouble(historicData.second)}°C"
-        } catch (e: Exception) {
-            _resultCurrentAverage.value = "Error"
-            _resultCurrentMonthAverage.value = "Error"
-            _status.value += "\nError fetching data: ${e.message}"
-        }
-        return data
-    }
-
-    suspend fun processForecast(data: FineWeatherData): FineWeatherData {
-        try {
-            _resultForecastAverage.value = "Fetching..."
-            weatherRepository.getWeatherForecast(
-                data.coordinates.first,
-                data.coordinates.second,
-                14,
-            )
-            data.forecastAverage =
-                weatherRepository.calculateAverageForecastTemperature()
-            _resultForecastAverage.value =
-                "${formatDouble(data.forecastAverage)}°C"
-        } catch (e: Exception) {
-            _resultForecastAverage.value = "Error"
-            _status.value += "\nError fetching data: ${e.message}"
-        }
-        return data
-    }
-
-    suspend fun processHistoricWeather(data: FineWeatherData): FineWeatherData {
-        var historicData: Pair<String, Double>? = null
-        try {
-            _resultHistoricAverage.value = "Fetching..."
-            weatherRepository.getWeatherHistory(
-                data.coordinates.first,
-                data.coordinates.second,
-                30,
-            )
-            historicData =
-                weatherRepository.calculateAverageHistoricMonthlyTemperature()!!
-//                    _resultHistoricAverage.value = "Historic (1970-1999) average for ${historicData.first}: ${historicData.second}°C"
-            data.historicMonthlyAverage = historicData.second
-            _resultHistoricAverage.value =
-                "${formatDouble(data.historicMonthlyAverage)}°C"
-        } catch (e: Exception) {
-            _resultHistoricAverage.value = "Error"
-            _status.value += "\nError fetching data: ${e.message}"
-        }
-        return data
-    }
-
-    fun setDataValues(text: String) {
-        _resultForecastAverage.value = text
-        _resultCurrentAverage.value = text
-        _resultHistoricAverage.value = text
-        _resultCurrentMonthAverage.value = text
     }
 }
 
