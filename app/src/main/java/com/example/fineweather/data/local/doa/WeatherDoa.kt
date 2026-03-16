@@ -8,15 +8,12 @@ import com.example.fineweather.data.local.entities.WeatherEntity
 
 @Dao
 interface WeatherDao {
-    @Query("SELECT * FROM weather_history WHERE id = :locId AND date = :date LIMIT 1")
-    suspend fun getWeatherByIdAndDate(
-        locId: String,
-        date: String,
-    ): WeatherEntity?
+    @Query("SELECT * FROM weather_history WHERE id = :locId LIMIT 1")
+    suspend fun getWeatherById(locId: String): WeatherEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertWeather(weather: WeatherEntity)
 
-    @Query("DELETE FROM weather_history WHERE date != :today")
-    suspend fun cleanOutdatedCache(today: String)
+    @Query("DELETE FROM weather_history WHERE date < :minDate")
+    suspend fun cleanOutdatedCache(minDate: String)
 }
