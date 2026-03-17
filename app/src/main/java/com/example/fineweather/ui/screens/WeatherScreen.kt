@@ -257,7 +257,7 @@ internal fun buildStatusCardText(
     val currentValue = parseTemperature(currentMonth)
     val historicValue = parseTemperature(historic)
     if (currentValue == null || historicValue == null) {
-        return "—"
+        return "-"
     }
     val delta = currentValue - historicValue
     val absDelta = abs(delta)
@@ -289,18 +289,29 @@ internal fun buildTrendCardText(
     val forecastValue = parseTemperature(forecast)
     val currentMonthValue = parseTemperature(currentMonth)
     if (forecastValue == null || currentMonthValue == null) {
-        return "—"
+        return "-"
     }
     val delta = forecastValue - currentMonthValue
-    return when {
-        delta > 2.25 -> "🔺🔺🔺"
-        delta > 1.25 -> "🔺🔺"
-        delta > 0.25 -> "🔺"
-        delta < -2.25 -> "\uD83D\uDD3B\uD83D\uDD3B\uD83D\uDD3B"
-        delta < -1.25 -> "\uD83D\uDD3B\uD83D\uDD3B"
-        delta < -0.25 -> "\uD83D\uDD3B"
-        else -> "—"
+    val absDelta = abs(delta)
+    if (absDelta < 0.25) {
+        return "-"
     }
+    val emoji = if (delta > 0) {
+        when {
+            absDelta > 2.25 -> "🔺🔺🔺"
+            absDelta > 1.25 -> "🔺🔺"
+            absDelta > 0.25 -> "🔺"
+            else -> "-"
+        }
+    } else {
+        when {
+            absDelta > 2.25 -> "\uD83D\uDD3B\uD83D\uDD3B\uD83D\uDD3B"
+            absDelta > 1.25 -> "\uD83D\uDD3B\uD83D\uDD3B"
+            absDelta > 0.25 -> "\uD83D\uDD3B"
+            else -> "-"
+        }
+    }
+    return emoji
 }
 
 internal fun parseTemperature(value: String): Double? {

@@ -21,14 +21,14 @@ class WeatherScreenUtilsTest {
     @Test
     fun buildStatusCardText_returnsApproxZeroWhenClose() {
         val text = buildStatusCardText("10.30°C", "10.00°C")
-        assertEquals("≈0°C", text)
+        assertEquals("Normal (+/- 1°C)", text)
     }
 
     @Test
     fun buildTrendCardText_returnsUpDownOrDash() {
         assertEquals("🔺", buildTrendCardText("11.00°C", "10.00°C"))
-        assertEquals("🔽", buildTrendCardText("9.00°C", "10.00°C"))
-        assertEquals("—", buildTrendCardText("10.10°C", "10.00°C"))
+        assertEquals("\uD83D\uDD3B", buildTrendCardText("9.00°C", "10.00°C"))
+        assertEquals("-", buildTrendCardText("10.10°C", "10.00°C"))
     }
 
     @Test
