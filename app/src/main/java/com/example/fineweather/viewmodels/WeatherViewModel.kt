@@ -32,7 +32,7 @@ class WeatherViewModel(
     private val _resultHistoricAverage = MutableStateFlow("-")
     val resultHistoricAverage: StateFlow<String> = _resultHistoricAverage
 
-    private val _status = MutableStateFlow("Please enter location")
+    private val _status = MutableStateFlow("Enter a city to see temperature averages")
     val status: StateFlow<String> = _status
     private val _coordinates = MutableStateFlow(Pair(0.0, 0.0))
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)

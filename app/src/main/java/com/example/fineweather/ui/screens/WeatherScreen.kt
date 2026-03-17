@@ -14,6 +14,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,16 +34,25 @@ import androidx.compose.ui.unit.dp
 import com.example.fineweather.R
 import com.example.fineweather.nunitoSansFamily
 import com.example.fineweather.viewmodels.WeatherViewModel
+import java.util.Locale
+import kotlin.math.abs
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun WeatherScreen(viewModel: WeatherViewModel) {
     var location by rememberSaveable { mutableStateOf("") }
-    val status by viewModel.status.collectAsState(initial = "Enter city name to get weather data")
+    val status by viewModel.status.collectAsState(initial = "Enter a city to see temperature averages")
     val resultForecast by viewModel.resultForecastAverage.collectAsState(initial = "")
     val resultCurrent by viewModel.resultCurrentAverage.collectAsState(initial = "")
     val resultHistoric by viewModel.resultHistoricAverage.collectAsState(initial = "")
     val resultCurrentMonth by viewModel.resultCurrentMonthAverage.collectAsState(initial = "")
+    val statusCardText = buildStatusCardText(resultCurrentMonth, resultHistoric)
+    val trendCardText = buildTrendCardText(resultForecast, resultCurrentMonth)
+    val statusImageRes = resolveStatusImageRes(
+        currentMonth = resultCurrentMonth,
+        historic = resultHistoric,
+        status = status,
+    )
 
     Column(
         modifier =
@@ -50,10 +62,82 @@ fun WeatherScreen(viewModel: WeatherViewModel) {
         verticalArrangement = Arrangement.Top,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        EarthStatus()
+        EarthStatus(statusImageRes)
 //      Row {
 //         NumberDropdown(label = "Time in years", onSelected = { selectedTimeframe = it })
 //      }
+        Row {
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                ),
+                modifier = Modifier
+                    .weight(3f)
+                    .padding(horizontal = 4.dp)
+                    .padding(vertical = 2.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "Status:",
+                        fontFamily = nunitoSansFamily,
+                        modifier = Modifier
+                            .padding(start = 4.dp)
+                            .padding(2.dp),
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        text = statusCardText,
+                        fontFamily = nunitoSansFamily,
+                        modifier = Modifier
+                            .padding(end = 4.dp)
+                            .padding(2.dp),
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                ),
+                modifier = Modifier
+                    .weight(2f)
+                    .padding(horizontal = 4.dp)
+                    .padding(vertical = 2.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "Trend:",
+                        fontFamily = nunitoSansFamily,
+                        modifier = Modifier
+                            .padding(start = 4.dp)
+                            .padding(2.dp),
+                        textAlign = TextAlign.Center,
+                    )
+
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        text = trendCardText,
+                        fontFamily = nunitoSansFamily,
+                        modifier = Modifier
+                            .padding(end = 4.dp)
+                            .padding(2.dp),
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+        }
+
 
         SearchBar(
             location = location,
@@ -61,26 +145,31 @@ fun WeatherScreen(viewModel: WeatherViewModel) {
             onSearch = { viewModel.fetchWeather(location) },
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         StatusDisplay(status)
+        Text(
+            "Average temperatures:",
+            fontFamily = nunitoSansFamily,
+        )
         Row(
             modifier = Modifier.fillMaxWidth(),
         ) {
+
             Column {
                 Text(
-                    "31 day average:",
+                    "Last 31 days:",
                     fontFamily = nunitoSansFamily,
                 )
                 Text(
-                    "Average current month:",
+                    "This month so far:",
                     fontFamily = nunitoSansFamily,
                 )
                 Text(
-                    "14 day forecast average:",
+                    "Next 14 days (forecast):",
                     fontFamily = nunitoSansFamily,
                 )
                 Text(
-                    "Historic monthly temperature:",
+                    "Historical (30y) for this month:",
                     fontFamily = nunitoSansFamily,
                 )
             }
@@ -106,18 +195,18 @@ private fun SearchBar(
         onValueChange = onLocationChange,
         label = {
             Text(
-                "Enter city",
+                "City or place",
                 fontFamily = nunitoSansFamily,
             )
         },
         modifier = Modifier.fillMaxWidth(),
     )
-    Spacer(modifier = Modifier.height(16.dp))
+    Spacer(modifier = Modifier.height(8.dp))
     Button(
         onClick = onSearch,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Text("Search city", fontFamily = nunitoSansFamily)
+        Text("Get weather averages", fontFamily = nunitoSansFamily)
     }
 }
 
@@ -139,24 +228,108 @@ private fun StatusDisplay(status: String) {
         modifier = Modifier.fillMaxWidth(),
         fontFamily = nunitoSansFamily,
     )
-    Spacer(modifier = Modifier.height(16.dp))
+    Spacer(modifier = Modifier.height(8.dp))
 }
 
 @Composable
-private fun EarthStatus() {
+private fun EarthStatus(imageRes: Int) {
     Card(
         modifier =
             Modifier
                 .fillMaxWidth(),
     ) {
         Image(
-            painter = painterResource(R.drawable.initial),
-            contentDescription = "Picture of the earth looking questioning at different weather types",
+            painter = painterResource(imageRes),
+            contentDescription = "Status illustration",
             contentScale = ContentScale.Fit,
             modifier =
                 Modifier
                     .fillMaxWidth()
                     .padding(0.dp),
         )
+    }
+}
+
+internal fun buildStatusCardText(
+    currentMonth: String,
+    historic: String,
+): String {
+    val currentValue = parseTemperature(currentMonth)
+    val historicValue = parseTemperature(historic)
+    if (currentValue == null || historicValue == null) {
+        return "—"
+    }
+    val delta = currentValue - historicValue
+    val absDelta = abs(delta)
+    if (absDelta < 1.0) {
+        return "Normal (+/- 1°C)"
+    }
+    val emoji = if (delta > 0) {
+        when {
+            absDelta < 2.0 -> "🔥"
+            absDelta < 3.0 -> "🔥🔥"
+            else -> "🔥🔥🔥"
+        }
+    } else {
+        when {
+            absDelta < 2.0 -> "❄️"
+            absDelta < 3.0 -> "❄️❄️"
+            else -> "❄️❄️❄️"
+        }
+    }
+    val formattedDelta = String.format(Locale.US, "%.2f", absDelta)
+    val sign = if (delta >= 0) "+" else "-"
+    return "$sign$formattedDelta°C $emoji"
+}
+
+internal fun buildTrendCardText(
+    forecast: String,
+    currentMonth: String,
+): String {
+    val forecastValue = parseTemperature(forecast)
+    val currentMonthValue = parseTemperature(currentMonth)
+    if (forecastValue == null || currentMonthValue == null) {
+        return "—"
+    }
+    val delta = forecastValue - currentMonthValue
+    return when {
+        delta > 2.25 -> "🔺🔺🔺"
+        delta > 1.25 -> "🔺🔺"
+        delta > 0.25 -> "🔺"
+        delta < -2.25 -> "\uD83D\uDD3B\uD83D\uDD3B\uD83D\uDD3B"
+        delta < -1.25 -> "\uD83D\uDD3B\uD83D\uDD3B"
+        delta < -0.25 -> "\uD83D\uDD3B"
+        else -> "—"
+    }
+}
+
+internal fun parseTemperature(value: String): Double? {
+    val match = Regex("[-+]?\\d+(?:\\.\\d+)?").find(value) ?: return null
+    return match.value.toDoubleOrNull()
+}
+
+internal fun resolveStatusImageRes(
+    currentMonth: String,
+    historic: String,
+    status: String,
+): Int {
+    val currentValue = parseTemperature(currentMonth)
+    val historicValue = parseTemperature(historic)
+    val isInitial =
+        currentValue == null &&
+                historicValue == null &&
+                status.startsWith("Enter a city", ignoreCase = true)
+
+    if (isInitial) {
+        return R.drawable.initial
+    }
+    if (currentValue == null || historicValue == null) {
+        return R.drawable.initial
+    }
+    val delta = currentValue - historicValue
+    return when {
+        delta > 1 -> R.drawable.warm
+        delta < -1 -> R.drawable.cold
+        else -> R.drawable.equal
     }
 }
