@@ -3,21 +3,25 @@ package com.example.fineweather.ui.screens
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedButton
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -28,9 +32,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.fineweather.R
@@ -55,6 +61,11 @@ fun WeatherScreen(viewModel: WeatherViewModel) {
         historic = resultHistoric,
         status = status,
     )
+    val cardShape = RoundedCornerShape(12.dp)
+    val cardColors = CardDefaults.elevatedCardColors(
+        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 
     Column(
         modifier =
@@ -64,89 +75,12 @@ fun WeatherScreen(viewModel: WeatherViewModel) {
         verticalArrangement = Arrangement.Top,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        EarthStatus(statusImageRes)
-//      Row {
-//         NumberDropdown(label = "Time in years", onSelected = { selectedTimeframe = it })
-//      }
-        Row {
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                ),
-                modifier = Modifier
-                    .weight(3f)
-                    .padding(vertical = 2.dp)
-                    .border(
-                        1.dp, MaterialTheme.colorScheme.onSurfaceVariant,
-                        MaterialTheme.shapes.medium
-                    ),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp)
-                ) {
-                    Text(
-                        text = "Status:",
-                        fontFamily = nunitoSansFamily,
-                        modifier = Modifier
-                            .padding(start = 4.dp)
-                            .padding(2.dp),
-                        textAlign = TextAlign.Center,
-                    )
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        text = statusCardText,
-                        fontFamily = nunitoSansFamily,
-                        modifier = Modifier
-                            .padding(end = 4.dp)
-                            .padding(2.dp),
-                        textAlign = TextAlign.Center,
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.width(4.dp))
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-
-                    ),
-                modifier = Modifier
-                    .weight(2f)
-                    .padding(vertical = 2.dp)
-                    .border(
-                        1.dp, MaterialTheme.colorScheme.onSurfaceVariant,
-                        MaterialTheme.shapes.medium
-                    ),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp)
-                ) {
-                    Text(
-                        text = "Trend:",
-                        fontFamily = nunitoSansFamily,
-                        modifier = Modifier
-                            .padding(start = 4.dp)
-                            .padding(2.dp),
-                        textAlign = TextAlign.Center,
-                    )
-
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        text = trendCardText,
-                        fontFamily = nunitoSansFamily,
-                        modifier = Modifier
-                            .padding(end = 4.dp)
-                            .padding(2.dp),
-                        textAlign = TextAlign.Center,
-                    )
-                }
-            }
-        }
+        StatusHeaderCard(
+            imageRes = statusImageRes,
+            statusCardText = statusCardText,
+            trendCardText = trendCardText,
+            shape = cardShape,
+        )
 
 
         SearchBar(
@@ -159,17 +93,9 @@ fun WeatherScreen(viewModel: WeatherViewModel) {
         StatusDisplay(status)
         Spacer(modifier = Modifier.height(8.dp))
         Card(
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(
-                    1.dp,
-                    MaterialTheme.colorScheme.onSurfaceVariant,
-                    MaterialTheme.shapes.medium
-                ),
+            shape = cardShape,
+            colors = cardColors,
+            modifier = Modifier.fillMaxWidth(),
         ) {
             Column(
                 modifier =
@@ -181,12 +107,30 @@ fun WeatherScreen(viewModel: WeatherViewModel) {
                     "Average temperatures",
                     fontFamily = nunitoSansFamily,
                     style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                TemperatureRow(label = "Last 31 days", value = resultCurrent)
-                TemperatureRow(label = "This month so far", value = resultCurrentMonth)
-                TemperatureRow(label = "Next 14 days (forecast)", value = resultForecast)
-                TemperatureRow(label = "Historical (30y) for this month", value = resultHistoric)
+                val temperatureRows =
+                    listOf(
+                        "Last 31 days" to resultCurrent,
+                        "This month so far" to resultCurrentMonth,
+                        "Next 14 days (forecast)" to resultForecast,
+                        "Historical (30y) for this month" to resultHistoric,
+                    )
+                temperatureRows.forEachIndexed { index, (label, value) ->
+                    TemperatureRow(label = label, value = value)
+                    if (index != temperatureRows.lastIndex) {
+                        Box(
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .height(1.dp)
+                                    .background(
+                                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f),
+                                    ),
+                        )
+                    }
+                }
             }
         }
     }
@@ -230,69 +174,183 @@ private fun TemperatureRow(
     label: String,
     value: String,
 ) {
+    val isPlaceholder = isPlaceholderValue(value)
     Row(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .padding(vertical = 4.dp),
+                .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = label,
             fontFamily = nunitoSansFamily,
             modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
             text = value,
             fontFamily = nunitoSansFamily,
             textAlign = TextAlign.End,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = if (isPlaceholder) FontWeight.Normal else FontWeight.SemiBold,
+            color = valueColor(value),
         )
     }
 }
 
 @Composable
+private fun valueColor(value: String): Color {
+    return if (isPlaceholderValue(value)) {
+        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+}
+
+private fun isPlaceholderValue(value: String): Boolean {
+    val trimmed = value.trim()
+    return trimmed.isEmpty() ||
+        trimmed == "-" ||
+        trimmed.equals("N/A", ignoreCase = true) ||
+        trimmed.equals("Fetching...", ignoreCase = true) ||
+        trimmed.equals("Error", ignoreCase = true) ||
+        trimmed.equals("loading...", ignoreCase = true)
+}
+
+@Composable
 private fun StatusDisplay(status: String) {
     Card(
-        colors = CardDefaults.cardColors(
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.elevatedCardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
             contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         ),
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(
-                1.dp, MaterialTheme.colorScheme.onSurfaceVariant,
-                MaterialTheme.shapes.medium
-            ),
+        modifier = Modifier.fillMaxWidth(),
     ) {
         Text(
             textAlign = TextAlign.Center,
             text = status,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(2.dp),
+                .padding(8.dp),
             fontFamily = nunitoSansFamily,
+            style = MaterialTheme.typography.bodySmall,
         )
-        Spacer(modifier = Modifier.height(8.dp))
     }
 }
 
 @Composable
-private fun EarthStatus(imageRes: Int) {
+private fun EarthStatus(
+    imageRes: Int,
+    modifier: Modifier = Modifier,
+) {
+    Image(
+        painter = painterResource(imageRes),
+        contentDescription = "Status illustration",
+        contentScale = ContentScale.Fit,
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun StatusHeaderCard(
+    imageRes: Int,
+    statusCardText: String,
+    trendCardText: String,
+    shape: RoundedCornerShape,
+) {
     Card(
+        shape = shape,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        ),
         modifier =
             Modifier
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .border(
+                    1.dp,
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
+                    shape,
+                ),
     ) {
-        Image(
-            painter = painterResource(imageRes),
-            contentDescription = "Status illustration",
-            contentScale = ContentScale.Fit,
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(0.dp),
+        Column(modifier = Modifier.fillMaxWidth()) {
+            EarthStatus(
+                imageRes = imageRes,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            DividerLine()
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(IntrinsicSize.Min),
+            ) {
+                StatusTrendCell(
+                    label = "Status",
+                    value = statusCardText,
+                    modifier = Modifier.weight(3f),
+                )
+                VerticalDividerLine()
+                StatusTrendCell(
+                    label = "Trend",
+                    value = trendCardText,
+                    modifier = Modifier.weight(2f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatusTrendCell(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            fontFamily = nunitoSansFamily,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(Modifier.weight(1f))
+        Text(
+            text = value,
+            fontFamily = nunitoSansFamily,
+            style = MaterialTheme.typography.titleSmall,
+            color = valueColor(value),
+            textAlign = TextAlign.End,
         )
     }
+}
+
+@Composable
+private fun DividerLine() {
+    Box(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)),
+    )
+}
+
+@Composable
+private fun VerticalDividerLine() {
+    Box(
+        modifier =
+            Modifier
+                .fillMaxHeight()
+                .width(1.dp)
+                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)),
+    )
 }
 
 internal fun buildStatusCardText(
