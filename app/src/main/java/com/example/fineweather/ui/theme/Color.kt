@@ -2,10 +2,11 @@ package com.example.fineweather.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val SkyBlue80 = Color(0xFF8BB7CC)
-val WarmSand80 = Color(0xFFE3B774)
-val Moss80 = Color(0xFFA7C67A)
+val TealInk = Color(0xFF213448)
+val TealBlue = Color(0xFF547792)
+val MistBlue = Color(0xFF94B4C1)
+val Sand = Color(0xFFEFEBE6)
+val SandLight = Color(0xFFF6F2EC)
 
-val SkyBlue40 = Color(0xFF3C6E86)
-val WarmSand40 = Color(0xFFC08A46)
-val Moss40 = Color(0xFF6F8F4A)
+val DeepTeal = Color(0xFF172636)
+val SoftMist = Color(0xFFBFD1D8)

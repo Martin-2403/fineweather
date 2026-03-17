@@ -3,6 +3,7 @@ package com.example.fineweather.ui.screens
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,9 +13,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -74,8 +76,11 @@ fun WeatherScreen(viewModel: WeatherViewModel) {
                 ),
                 modifier = Modifier
                     .weight(3f)
-                    .padding(horizontal = 4.dp)
                     .padding(vertical = 2.dp)
+                    .border(
+                        1.dp, MaterialTheme.colorScheme.onSurfaceVariant,
+                        MaterialTheme.shapes.medium
+                    ),
             ) {
                 Row(
                     modifier = Modifier
@@ -101,15 +106,20 @@ fun WeatherScreen(viewModel: WeatherViewModel) {
                     )
                 }
             }
+            Spacer(modifier = Modifier.width(4.dp))
             Card(
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                ),
+
+                    ),
                 modifier = Modifier
                     .weight(2f)
-                    .padding(horizontal = 4.dp)
                     .padding(vertical = 2.dp)
+                    .border(
+                        1.dp, MaterialTheme.colorScheme.onSurfaceVariant,
+                        MaterialTheme.shapes.medium
+                    ),
             ) {
                 Row(
                     modifier = Modifier
@@ -147,38 +157,36 @@ fun WeatherScreen(viewModel: WeatherViewModel) {
 
         Spacer(modifier = Modifier.height(8.dp))
         StatusDisplay(status)
-        Text(
-            "Average temperatures:",
-            fontFamily = nunitoSansFamily,
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
+        Spacer(modifier = Modifier.height(8.dp))
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(
+                    1.dp,
+                    MaterialTheme.colorScheme.onSurfaceVariant,
+                    MaterialTheme.shapes.medium
+                ),
         ) {
-
-            Column {
+            Column(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+            ) {
                 Text(
-                    "Last 31 days:",
+                    "Average temperatures",
                     fontFamily = nunitoSansFamily,
+                    style = MaterialTheme.typography.titleSmall,
                 )
-                Text(
-                    "This month so far:",
-                    fontFamily = nunitoSansFamily,
-                )
-                Text(
-                    "Next 14 days (forecast):",
-                    fontFamily = nunitoSansFamily,
-                )
-                Text(
-                    "Historical (30y) for this month:",
-                    fontFamily = nunitoSansFamily,
-                )
-            }
-            Spacer(modifier = Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                WeatherDisplay(resultCurrent)
-                WeatherDisplay(resultCurrentMonth)
-                WeatherDisplay(resultForecast)
-                WeatherDisplay(resultHistoric)
+                Spacer(modifier = Modifier.height(8.dp))
+                TemperatureRow(label = "Last 31 days", value = resultCurrent)
+                TemperatureRow(label = "This month so far", value = resultCurrentMonth)
+                TemperatureRow(label = "Next 14 days (forecast)", value = resultForecast)
+                TemperatureRow(label = "Historical (30y) for this month", value = resultHistoric)
             }
         }
     }
@@ -202,8 +210,15 @@ private fun SearchBar(
         modifier = Modifier.fillMaxWidth(),
     )
     Spacer(modifier = Modifier.height(8.dp))
-    Button(
+    ElevatedButton(
         onClick = onSearch,
+        colors = ButtonDefaults.elevatedButtonColors(
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+        ),
+        elevation = ButtonDefaults.buttonElevation(
+            defaultElevation = 8.dp
+        ),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Text("Get weather averages", fontFamily = nunitoSansFamily)
@@ -211,24 +226,54 @@ private fun SearchBar(
 }
 
 @Composable
-private fun WeatherDisplay(result: String) {
-    Text(
-        textAlign = TextAlign.Center,
-        text = result,
-        modifier = Modifier.fillMaxWidth(),
-        fontFamily = nunitoSansFamily,
-    )
+private fun TemperatureRow(
+    label: String,
+    value: String,
+) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            fontFamily = nunitoSansFamily,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = value,
+            fontFamily = nunitoSansFamily,
+            textAlign = TextAlign.End,
+        )
+    }
 }
 
 @Composable
 private fun StatusDisplay(status: String) {
-    Text(
-        textAlign = TextAlign.Center,
-        text = status,
-        modifier = Modifier.fillMaxWidth(),
-        fontFamily = nunitoSansFamily,
-    )
-    Spacer(modifier = Modifier.height(8.dp))
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                1.dp, MaterialTheme.colorScheme.onSurfaceVariant,
+                MaterialTheme.shapes.medium
+            ),
+    ) {
+        Text(
+            textAlign = TextAlign.Center,
+            text = status,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(2.dp),
+            fontFamily = nunitoSansFamily,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+    }
 }
 
 @Composable

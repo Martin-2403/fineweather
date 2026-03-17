@@ -37,6 +37,10 @@ class WeatherViewModel(
     private val _coordinates = MutableStateFlow(Pair(0.0, 0.0))
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     fun fetchWeather(location: String) {
+        if (location.trim().isEmpty()) {
+            _status.value = "Enter a city to see temperature averages"
+            return
+        }
         viewModelScope.launch {
             _status.value = "Searching for $location..."
             setDataValues("loading...")
