@@ -1,5 +1,6 @@
 package com.example.fineweather.ui.screens
 
+import androidx.compose.ui.graphics.Color
 import com.example.fineweather.R
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -7,28 +8,47 @@ import org.junit.Test
 class WeatherScreenUtilsTest {
 
     @Test
-    fun buildStatusCardText_returnsFireForPositiveDelta() {
-        val text = buildStatusCardText("12.00°C", "10.00°C")
-        assertEquals("+2.00°C 🔥🔥", text)
+    fun buildStatusCardValue_returnsFireForPositiveDelta() {
+        val value = buildStatusCardValue("12.00°C", "10.00°C")
+        assertEquals("+2.00°C", value.text)
+        assertEquals(R.drawable.fire, value.icons?.resId)
+        assertEquals(2, value.icons?.count)
+        assertEquals(Color(0xFFE53935), value.icons?.tint)
     }
 
     @Test
-    fun buildStatusCardText_returnsSnowForNegativeDelta() {
-        val text = buildStatusCardText("8.00°C", "10.00°C")
-        assertEquals("-2.00°C ❄️❄️", text)
+    fun buildStatusCardValue_returnsSnowForNegativeDelta() {
+        val value = buildStatusCardValue("8.00°C", "10.00°C")
+        assertEquals("-2.00°C", value.text)
+        assertEquals(R.drawable.frost, value.icons?.resId)
+        assertEquals(2, value.icons?.count)
+        assertEquals(Color(0xFF1E88E5), value.icons?.tint)
     }
 
     @Test
-    fun buildStatusCardText_returnsApproxZeroWhenClose() {
-        val text = buildStatusCardText("10.30°C", "10.00°C")
-        assertEquals("Normal (+/- 1°C)", text)
+    fun buildStatusCardValue_returnsApproxZeroWhenClose() {
+        val value = buildStatusCardValue("10.30°C", "10.00°C")
+        assertEquals("Normal (+/- 1°C)", value.text)
+        assertEquals(null, value.icons)
     }
 
     @Test
-    fun buildTrendCardText_returnsUpDownOrDash() {
-        assertEquals("🔺", buildTrendCardText("11.00°C", "10.00°C"))
-        assertEquals("\uD83D\uDD3B", buildTrendCardText("9.00°C", "10.00°C"))
-        assertEquals("-", buildTrendCardText("10.10°C", "10.00°C"))
+    fun buildTrendCardValue_returnsUpDownOrDash() {
+        val up = buildTrendCardValue("11.00°C", "10.00°C")
+        assertEquals(R.drawable.up, up.icons?.resId)
+        assertEquals(1, up.icons?.count)
+        assertEquals(Color(0xFFE53935), up.icons?.tint)
+
+        val down = buildTrendCardValue("9.00°C", "10.00°C")
+        assertEquals(R.drawable.down, down.icons?.resId)
+        assertEquals(1, down.icons?.count)
+        assertEquals(Color(0xFF1E88E5), down.icons?.tint)
+
+        val flat = buildTrendCardValue("10.10°C", "10.00°C")
+        assertEquals("", flat.text)
+        assertEquals(R.drawable.arrow_right, flat.icons?.resId)
+        assertEquals(1, flat.icons?.count)
+        assertEquals(Color(0xFF43A047), flat.icons?.tint)
     }
 
     @Test

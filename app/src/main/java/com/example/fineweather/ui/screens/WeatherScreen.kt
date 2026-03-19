@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
@@ -57,8 +58,8 @@ fun WeatherScreen(viewModel: WeatherViewModel) {
     val resultCurrent by viewModel.resultCurrentAverage.collectAsState(initial = "")
     val resultHistoric by viewModel.resultHistoricAverage.collectAsState(initial = "")
     val resultCurrentMonth by viewModel.resultCurrentMonthAverage.collectAsState(initial = "")
-    val statusCardText = buildStatusCardText(resultCurrentMonth, resultHistoric)
-    val trendCardText = buildTrendCardText(resultForecast, resultCurrentMonth)
+    val statusCardValue = buildStatusCardValue(resultCurrentMonth, resultHistoric)
+    val trendCardValue = buildTrendCardValue(resultForecast, resultCurrentMonth)
     val statusImageRes = resolveStatusImageRes(
         currentMonth = resultCurrentMonth,
         historic = resultHistoric,
@@ -80,8 +81,8 @@ fun WeatherScreen(viewModel: WeatherViewModel) {
     ) {
         StatusHeaderCard(
             imageRes = statusImageRes,
-            statusCardText = statusCardText,
-            trendCardText = trendCardText,
+            statusCardValue = statusCardValue,
+            trendCardValue = trendCardValue,
             shape = cardShape,
         )
 
@@ -281,8 +282,8 @@ private fun EarthStatus(
 @Composable
 private fun StatusHeaderCard(
     imageRes: Int,
-    statusCardText: String,
-    trendCardText: String,
+    statusCardValue: ValueWithIcons,
+    trendCardValue: ValueWithIcons,
     shape: RoundedCornerShape,
 ) {
     Card(
@@ -314,13 +315,13 @@ private fun StatusHeaderCard(
             ) {
                 StatusTrendCell(
                     label = "Status",
-                    value = statusCardText,
+                    value = statusCardValue,
                     modifier = Modifier.weight(3f),
                 )
                 VerticalDividerLine()
                 StatusTrendCell(
                     label = "Trend",
-                    value = trendCardText,
+                    value = trendCardValue,
                     modifier = Modifier.weight(2f),
                 )
             }
@@ -331,7 +332,7 @@ private fun StatusHeaderCard(
 @Composable
 private fun StatusTrendCell(
     label: String,
-    value: String,
+    value: ValueWithIcons,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -341,17 +342,40 @@ private fun StatusTrendCell(
         Text(
             text = label,
             fontFamily = nunitoSansFamily,
-            style = MaterialTheme.typography.labelLarge,
+            style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.SemiBold,
         )
         Spacer(Modifier.weight(1f))
-        Text(
-            text = value,
-            fontFamily = nunitoSansFamily,
-            style = MaterialTheme.typography.titleSmall,
-            color = valueColor(value),
-            textAlign = TextAlign.End,
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            if (value.text.isNotBlank()) {
+                Text(
+                    text = value.text,
+                    fontFamily = nunitoSansFamily,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = valueColor(value.text),
+                    textAlign = TextAlign.End,
+                )
+            }
+            val icons = value.icons
+            if (icons != null) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    repeat(icons.count) { index ->
+                        Icon(
+                            painter = painterResource(icons.resId),
+                            contentDescription = if (index == 0) icons.contentDescription else null,
+                            tint = icons.tint,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -377,68 +401,95 @@ private fun VerticalDividerLine() {
     )
 }
 
-internal fun buildStatusCardText(
+internal data class IconStack(
+    val resId: Int,
+    val count: Int,
+    val tint: Color,
+    val contentDescription: String,
+)
+
+internal data class ValueWithIcons(
+    val text: String,
+    val icons: IconStack?,
+)
+
+private val WarmIconTint = Color(0xFFE53935)
+private val CoolIconTint = Color(0xFF1E88E5)
+private val NeutralIconTint = Color(0xFF43A047)
+
+internal fun buildStatusCardValue(
     currentMonth: String,
     historic: String,
-): String {
+): ValueWithIcons {
     val currentValue = parseTemperature(currentMonth)
     val historicValue = parseTemperature(historic)
     if (currentValue == null || historicValue == null) {
-        return "-"
+        return ValueWithIcons("-", null)
     }
     val delta = currentValue - historicValue
     val absDelta = abs(delta)
     if (absDelta < 1.0) {
-        return "Normal (+/- 1°C)"
+        return ValueWithIcons("Normal (+/- 1°C)", null)
     }
-    val emoji = if (delta > 0) {
+    val count =
         when {
-            absDelta < 2.0 -> "🔥"
-            absDelta < 3.0 -> "🔥🔥"
-            else -> "🔥🔥🔥"
+            absDelta < 2.0 -> 1
+            absDelta < 3.0 -> 2
+            else -> 3
         }
-    } else {
-        when {
-            absDelta < 2.0 -> "❄️"
-            absDelta < 3.0 -> "❄️❄️"
-            else -> "❄️❄️❄️"
+    val (resId, tint, description) =
+        if (delta > 0) {
+            Triple(R.drawable.fire, WarmIconTint, "Warmer than average")
+        } else {
+            Triple(R.drawable.frost, CoolIconTint, "Colder than average")
         }
-    }
     val formattedDelta = String.format(Locale.US, "%.2f", absDelta)
     val sign = if (delta >= 0) "+" else "-"
-    return "$sign$formattedDelta°C $emoji"
+    return ValueWithIcons(
+        "$sign$formattedDelta°C",
+        IconStack(resId = resId, count = count, tint = tint, contentDescription = description),
+    )
 }
 
-internal fun buildTrendCardText(
+internal fun buildTrendCardValue(
     forecast: String,
     currentMonth: String,
-): String {
+): ValueWithIcons {
     val forecastValue = parseTemperature(forecast)
     val currentMonthValue = parseTemperature(currentMonth)
     if (forecastValue == null || currentMonthValue == null) {
-        return "-"
+        return ValueWithIcons("-", null)
     }
     val delta = forecastValue - currentMonthValue
     val absDelta = abs(delta)
     if (absDelta < 0.25) {
-        return "-"
+        return ValueWithIcons(
+            text = "",
+            icons =
+                IconStack(
+                    resId = R.drawable.arrow_right,
+                    count = 1,
+                    tint = NeutralIconTint,
+                    contentDescription = "Trend steady",
+                ),
+        )
     }
-    val emoji = if (delta > 0) {
+    val count =
         when {
-            absDelta > 2.25 -> "🔺🔺🔺"
-            absDelta > 1.25 -> "🔺🔺"
-            absDelta > 0.25 -> "🔺"
-            else -> "-"
+            absDelta > 2.25 -> 3
+            absDelta > 1.25 -> 2
+            else -> 1
         }
-    } else {
-        when {
-            absDelta > 2.25 -> "\uD83D\uDD3B\uD83D\uDD3B\uD83D\uDD3B"
-            absDelta > 1.25 -> "\uD83D\uDD3B\uD83D\uDD3B"
-            absDelta > 0.25 -> "\uD83D\uDD3B"
-            else -> "-"
+    val (resId, tint, description) =
+        if (delta > 0) {
+            Triple(R.drawable.up, WarmIconTint, "Trending warmer")
+        } else {
+            Triple(R.drawable.down, CoolIconTint, "Trending cooler")
         }
-    }
-    return emoji
+    return ValueWithIcons(
+        text = "",
+        icons = IconStack(resId = resId, count = count, tint = tint, contentDescription = description),
+    )
 }
 
 internal fun parseTemperature(value: String): Double? {
