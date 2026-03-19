@@ -8,13 +8,13 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,6 +22,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedButton
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -35,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -87,6 +90,7 @@ fun WeatherScreen(viewModel: WeatherViewModel) {
             location = location,
             onLocationChange = { location = it },
             onSearch = { viewModel.fetchWeather(location) },
+            onClear = { location = "" },
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -137,10 +141,11 @@ fun WeatherScreen(viewModel: WeatherViewModel) {
 }
 
 @Composable
-private fun SearchBar(
+internal fun SearchBar(
     location: String,
     onLocationChange: (String) -> Unit,
     onSearch: () -> Unit,
+    onClear: () -> Unit,
 ) {
     OutlinedTextField(
         value = location,
@@ -151,21 +156,40 @@ private fun SearchBar(
                 fontFamily = nunitoSansFamily,
             )
         },
-        modifier = Modifier.fillMaxWidth(),
+        singleLine = true,
+        shape = RoundedCornerShape(12.dp),
+        trailingIcon = {
+            IconButton(
+                onClick = onClear,
+                modifier = Modifier.testTag("clearButton"),
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.delete_24),
+                    contentDescription = "Clear search",
+                )
+            }
+        },
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .testTag("searchField"),
     )
     Spacer(modifier = Modifier.height(8.dp))
-    ElevatedButton(
-        onClick = onSearch,
-        colors = ButtonDefaults.elevatedButtonColors(
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-        ),
-        elevation = ButtonDefaults.buttonElevation(
-            defaultElevation = 8.dp
-        ),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Text("Get weather averages", fontFamily = nunitoSansFamily)
+    Row {
+        ElevatedButton(
+            onClick = onSearch,
+            colors = ButtonDefaults.elevatedButtonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ),
+            elevation = ButtonDefaults.buttonElevation(
+                defaultElevation = 8.dp
+            ),
+            modifier = Modifier
+                .weight(1f),
+        ) {
+            Text("Get weather averages", fontFamily = nunitoSansFamily)
+        }
     }
 }
 
@@ -212,11 +236,11 @@ private fun valueColor(value: String): Color {
 private fun isPlaceholderValue(value: String): Boolean {
     val trimmed = value.trim()
     return trimmed.isEmpty() ||
-        trimmed == "-" ||
-        trimmed.equals("N/A", ignoreCase = true) ||
-        trimmed.equals("Fetching...", ignoreCase = true) ||
-        trimmed.equals("Error", ignoreCase = true) ||
-        trimmed.equals("loading...", ignoreCase = true)
+            trimmed == "-" ||
+            trimmed.equals("N/A", ignoreCase = true) ||
+            trimmed.equals("Fetching...", ignoreCase = true) ||
+            trimmed.equals("Error", ignoreCase = true) ||
+            trimmed.equals("loading...", ignoreCase = true)
 }
 
 @Composable
