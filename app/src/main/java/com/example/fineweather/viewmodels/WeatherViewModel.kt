@@ -39,11 +39,13 @@ class WeatherViewModel(
     fun fetchWeather(location: String) {
         if (location.trim().isEmpty()) {
             _status.value = "Enter a city to see temperature averages"
+            setDataValues("-")
+            _coordinates.value = Pair(0.0, 0.0)
             return
         }
         viewModelScope.launch {
             _status.value = "Searching for $location..."
-            setDataValues("loading...")
+            setDataValues("Loading...")
             try {
                 weatherRepository.cleanOutdatedWeatherDate()
                 val data = geoCodeRepository.getGeoCode(location.trim())
@@ -76,11 +78,11 @@ class WeatherViewModel(
         val isCurrentToday = cachedLatest?.date == data.timestamp
         val hasCachedCurrent =
             cachedLatest?.currentAverage != null &&
-                cachedLatest?.currentMonthAverage != null
+                cachedLatest.currentMonthAverage != null
 
         if (isCurrentToday && hasCachedCurrent) {
-            data.currentAverage = cachedLatest?.currentAverage
-            data.currentMonthAverage = cachedLatest?.currentMonthAverage
+            data.currentAverage = cachedLatest.currentAverage
+            data.currentMonthAverage = cachedLatest.currentMonthAverage
             _resultCurrentAverage.value =
                 "${formatDouble(data.currentAverage)}°C"
             _resultCurrentMonthAverage.value =
@@ -93,7 +95,7 @@ class WeatherViewModel(
 
         val hasCachedHistoric = cachedLatest?.historicMonthlyAverage != null
         if (hasCachedHistoric) {
-            data.historicMonthlyAverage = cachedLatest?.historicMonthlyAverage
+            data.historicMonthlyAverage = cachedLatest.historicMonthlyAverage
             _resultHistoricAverage.value =
                 "${formatDouble(data.historicMonthlyAverage)}°C"
         } else {

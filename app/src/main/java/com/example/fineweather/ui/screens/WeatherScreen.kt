@@ -45,6 +45,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.fineweather.R
 import com.example.fineweather.nunitoSansFamily
+import com.example.fineweather.ui.models.IconStack
+import com.example.fineweather.ui.models.ValueWithIcons
 import com.example.fineweather.viewmodels.WeatherViewModel
 import java.util.Locale
 import kotlin.math.abs
@@ -91,7 +93,10 @@ fun WeatherScreen(viewModel: WeatherViewModel) {
             location = location,
             onLocationChange = { location = it },
             onSearch = { viewModel.fetchWeather(location) },
-            onClear = { location = "" },
+            onClear = {
+                location = ""
+                viewModel.fetchWeather("")
+            },
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -241,7 +246,7 @@ private fun isPlaceholderValue(value: String): Boolean {
             trimmed.equals("N/A", ignoreCase = true) ||
             trimmed.equals("Fetching...", ignoreCase = true) ||
             trimmed.equals("Error", ignoreCase = true) ||
-            trimmed.equals("loading...", ignoreCase = true)
+            trimmed.equals("Loading...", ignoreCase = true)
 }
 
 @Composable
@@ -400,18 +405,6 @@ private fun VerticalDividerLine() {
                 .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)),
     )
 }
-
-internal data class IconStack(
-    val resId: Int,
-    val count: Int,
-    val tint: Color,
-    val contentDescription: String,
-)
-
-internal data class ValueWithIcons(
-    val text: String,
-    val icons: IconStack?,
-)
 
 private val WarmIconTint = Color(0xFFE53935)
 private val CoolIconTint = Color(0xFF1E88E5)

@@ -170,6 +170,24 @@ class WeatherViewModelTest {
         assertEquals("9.00°C", viewModel.resultHistoricAverage.value)
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun fetchWeather_resetsStateWhenLocationIsBlank() = runTest {
+        viewModel.setDataValues("10.00°C")
+
+        viewModel.fetchWeather("   ")
+        advanceUntilIdle()
+
+        assertEquals("Enter a city to see temperature averages", viewModel.status.value)
+        assertEquals("-", viewModel.resultCurrentAverage.value)
+        assertEquals("-", viewModel.resultCurrentMonthAverage.value)
+        assertEquals("-", viewModel.resultForecastAverage.value)
+        assertEquals("-", viewModel.resultHistoricAverage.value)
+
+        coVerify(exactly = 0) { geoCodeRepository.getGeoCode(any()) }
+        coVerify(exactly = 0) { weatherRepository.cleanOutdatedWeatherDate() }
+    }
+
     private fun buildEntity(
         id: String,
         date: String,
