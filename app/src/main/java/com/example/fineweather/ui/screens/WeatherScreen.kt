@@ -124,7 +124,7 @@ fun WeatherScreen(viewModel: WeatherViewModel) {
                     listOf(
                         "Last 31 days" to resultCurrent,
                         "This month so far" to resultCurrentMonth,
-                        "Next 14 days (forecast)" to resultForecast,
+                        "Next 7 days (forecast)" to resultForecast,
                         "Historical (30y) for this month" to resultHistoric,
                     )
                 temperatureRows.forEachIndexed { index, (label, value) ->

@@ -35,6 +35,7 @@ class WeatherViewModel(
     private val _status = MutableStateFlow("Enter a city to see temperature averages")
     val status: StateFlow<String> = _status
     private val _coordinates = MutableStateFlow(Pair(0.0, 0.0))
+
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     fun fetchWeather(location: String) {
         if (location.trim().isEmpty()) {
@@ -78,7 +79,7 @@ class WeatherViewModel(
         val isCurrentToday = cachedLatest?.date == data.timestamp
         val hasCachedCurrent =
             cachedLatest?.currentAverage != null &&
-                cachedLatest.currentMonthAverage != null
+                    cachedLatest.currentMonthAverage != null
 
         if (isCurrentToday && hasCachedCurrent) {
             data.currentAverage = cachedLatest.currentAverage
@@ -125,13 +126,13 @@ class WeatherViewModel(
         }
     }
 
-    private suspend fun fetchForecastWeather(data: FineWeatherData) {
+    private suspend fun fetchForecastWeather(data: FineWeatherData, forecastDays: Int = 7) {
         _resultForecastAverage.value = "Fetching..."
         runCatching {
             weatherRepository.getWeatherForecast(
                 data.coordinates.first,
                 data.coordinates.second,
-                14,
+                forecastDays
             )
             data.forecastAverage = weatherRepository.calculateAverageForecastTemperature()
             _resultForecastAverage.value = "${formatDouble(data.forecastAverage)}°C"

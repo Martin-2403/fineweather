@@ -1,17 +1,15 @@
 package com.example.fineweather.utils
 
-import java.util.Calendar
 import java.util.Locale
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
 
-fun formatDouble(value: Double?): String = value?.let { String.format(Locale.US, "%.2f", it) } ?: "N/A"
+fun formatDouble(value: Double?): String =
+    value?.let { String.format(Locale.US, "%.2f", it) } ?: "N/A"
 
-fun getCurrentMonthString(): String {
-    val month: Int = Calendar.getInstance().get(Calendar.MONTH) + 1
-    return if (month >= 10) "$month" else "0$month"
-}
+fun getCurrentMonthString(now: LocalDate = LocalDate.now()): String =
+    now.format(DateTimeFormatter.ofPattern("MM"))
 
-fun getCurrentMonthName(): String {
-    val calendar = Calendar.getInstance()
-    return calendar.getDisplayName(Calendar.MONTH, Calendar.LONG, Locale.getDefault())
-        ?: "Unknown"
-}
+fun getCurrentMonthName(now: LocalDate = LocalDate.now()): String =
+    now.month.getDisplayName(TextStyle.FULL, Locale.getDefault())

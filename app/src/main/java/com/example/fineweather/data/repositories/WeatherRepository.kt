@@ -10,8 +10,7 @@ import com.example.fineweather.utils.getCurrentMonthName
 import com.example.fineweather.utils.getCurrentMonthString
 import retrofit2.HttpException
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.util.Calendar
+import java.time.YearMonth
 
 class WeatherRepository(
     private val openMeteoWeatherApi: OpenMeteoWeatherApiService,
@@ -92,6 +91,10 @@ class WeatherRepository(
         val dailyDataCurrentMonth =
             dailyData.filter { pair -> pair.first.contains(("-$currentMonth-")) }
 
+        require(dailyDataCurrentMonth.isNotEmpty()) {
+            "No current-month weather data available"
+        }
+
         return Pair(currentMonth, dailyDataCurrentMonth.map { it.second }.average())
     }
 
@@ -100,19 +103,18 @@ class WeatherRepository(
         longitude: Double,
         timeSpan: Int,
     ): WeatherResponse {
-        val startYear: Int = Calendar.getInstance().get(Calendar.YEAR) - (timeSpan + 1)
-        val month: String = getCurrentMonthString()
-        val endYear: Int = Calendar.getInstance().get(Calendar.YEAR) - 1
-        val startDate = "$startYear-$month-01"
-        val endDate = "$endYear-$month-31"
-//        val startDate = "1970-01-01"
-//        val endDate = "1999-12-31"
-
         try {
+            val range = buildHistoricDateRange(timeSpan)
             val historicData =
-                openMeteoArchiveApi.getHistoricData(latitude, longitude, startDate, endDate)
-            cachedHistoricData = historicData
-            return historicData
+                openMeteoArchiveApi.getHistoricData(
+                    latitude = latitude,
+                    longitude = longitude,
+                    startDate = range.start,
+                    endDate = range.end,
+                )
+            val sanitized = filterDailyToRange(historicData, range)
+            cachedHistoricData = sanitized
+            return sanitized
         } catch (e: HttpException) {
             Log.e("WeatherAPI", "HTTP error: ${e.code()} - ${e.message()}")
             throw Exception("Failed to fetch weather data: HTTP ${e.code()}", e)
@@ -121,6 +123,7 @@ class WeatherRepository(
             throw Exception("Failed to fetch weather data: ${e.message}", e)
         }
     }
+
     fun calculateAverageHistoricMonthlyTemperature(): Pair<String, Double>? {
         val timeList = cachedHistoricData?.daily?.time
         val tempList = cachedHistoricData?.daily?.temperature_2m_mean
@@ -158,11 +161,10 @@ class WeatherRepository(
     }
 
     fun getDateRange(daysAgo: Int): Pair<String, String> {
-        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
         val currentDate = LocalDate.now()
         val pastDate = currentDate.minusDays(daysAgo.toLong())
 
-        return Pair(currentDate.format(formatter), pastDate.format(formatter))
+        return Pair(currentDate.toString(), pastDate.toString())
     }
 
     suspend fun cleanOutdatedWeatherDate() {
@@ -187,5 +189,47 @@ class WeatherRepository(
             return FALLBACK_TEMPERATURE
         }
         return temperatures.average()
+    }
+
+    data class DateRange(
+        val start: String,
+        val end: String,
+    )
+
+    internal fun buildHistoricDateRange(
+        timeSpan: Int,
+        now: LocalDate = LocalDate.now(),
+    ): DateRange {
+        require(timeSpan > 0) { "timeSpan must be positive" }
+        val startYear = now.year - timeSpan
+        val endYear = now.year - 1
+        val month = now.monthValue
+        val start = LocalDate.of(startYear, month, 1)
+        val end = LocalDate.of(endYear, month, YearMonth.of(endYear, month).lengthOfMonth())
+        return DateRange(start = start.toString(), end = end.toString())
+    }
+
+    private fun filterDailyToRange(
+        response: WeatherResponse,
+        range: DateRange,
+    ): WeatherResponse {
+        val startDate = LocalDate.parse(range.start)
+        val endDate = LocalDate.parse(range.end)
+        val filteredPairs =
+            response.daily.time.zip(response.daily.temperature_2m_mean).filter { (dateStr, _) ->
+                val date = runCatching { LocalDate.parse(dateStr) }.getOrNull() ?: return@filter false
+                !date.isBefore(startDate) && !date.isAfter(endDate)
+            }
+        if (filteredPairs.isEmpty()) {
+            return response
+        }
+        val (times, temps) = filteredPairs.unzip()
+        return response.copy(
+            daily =
+                response.daily.copy(
+                    time = times,
+                    temperature_2m_mean = temps,
+                ),
+        )
     }
 }
