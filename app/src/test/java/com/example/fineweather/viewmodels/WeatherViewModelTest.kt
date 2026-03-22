@@ -3,9 +3,7 @@ package com.example.fineweather.viewmodels
 import android.util.Log
 import com.example.fineweather.data.local.entities.WeatherEntity
 import com.example.fineweather.data.models.FineWeatherData
-import com.example.fineweather.data.models.WeatherResponse
-import com.example.fineweather.data.models.Daily
-import com.example.fineweather.data.models.DailyUnits
+import com.example.fineweather.data.repositories.WeatherRepository.CurrentMonthStats
 import com.example.fineweather.data.repositories.GeoCodeRepository
 import com.example.fineweather.data.repositories.WeatherRepository
 import com.example.fineweather.utils.MainDispatcherRule
@@ -22,7 +20,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
-import java.time.LocalDate
 
 class WeatherViewModelTest {
 
@@ -93,7 +90,7 @@ class WeatherViewModelTest {
         coEvery { weatherRepository.getWeatherForecast(any(), any(), any()) } returns mockk()
         coEvery { weatherRepository.getWeatherHistory(any(), any(), any()) } returns mockk()
         every { weatherRepository.calculateAverageCurrentTemperature() } returns 7.0
-        every { weatherRepository.calculateAverageCurrentMonthlyTemperature() } returns Pair("March", 8.5)
+        every { weatherRepository.calculateCurrentMonthStats() } returns CurrentMonthStats("03", 8.5, 5)
         every { weatherRepository.calculateAverageForecastTemperature() } returns 9.1
         every { weatherRepository.calculateAverageHistoricMonthlyTemperature() } returns Pair("March", 6.0)
         coEvery { weatherRepository.insertWeather(any()) } returns Unit
@@ -128,7 +125,7 @@ class WeatherViewModelTest {
         coEvery { weatherRepository.getWeatherCurrent(any(), any(), any()) } returns mockk()
         coEvery { weatherRepository.getWeatherForecast(any(), any(), any()) } returns mockk()
         every { weatherRepository.calculateAverageCurrentTemperature() } returns 7.0
-        every { weatherRepository.calculateAverageCurrentMonthlyTemperature() } returns Pair("March", 8.5)
+        every { weatherRepository.calculateCurrentMonthStats() } returns CurrentMonthStats("03", 8.5, 5)
         every { weatherRepository.calculateAverageForecastTemperature() } returns 9.1
         coEvery { weatherRepository.insertWeather(any()) } returns Unit
 
@@ -159,7 +156,7 @@ class WeatherViewModelTest {
         coEvery { weatherRepository.getWeatherCurrent(any(), any(), any()) } returns mockk()
         coEvery { weatherRepository.getWeatherForecast(any(), any(), any()) } returns mockk()
         every { weatherRepository.calculateAverageCurrentTemperature() } returns 7.0
-        every { weatherRepository.calculateAverageCurrentMonthlyTemperature() } returns Pair("March", 8.5)
+        every { weatherRepository.calculateCurrentMonthStats() } returns CurrentMonthStats("03", 8.5, 5)
         every { weatherRepository.calculateAverageForecastTemperature() } returns 9.1
         coEvery { weatherRepository.insertWeather(any()) } returns Unit
 
@@ -194,7 +191,7 @@ class WeatherViewModelTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun fetchWeather_setsResolvedLocationAndForecastCount() = runTest {
+    fun fetchWeather_setsResolvedLocationAndCounters() = runTest {
         val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1", "Germany")
         val cached = buildEntity(
             id = data.id,
@@ -203,12 +200,11 @@ class WeatherViewModelTest {
             currentMonthAverage = 11.0,
             historicMonthlyAverage = 9.0,
         )
-        val forecastResponse = buildForecastResponse(days = 5)
 
         coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
         coEvery { geoCodeRepository.getGeoCode(any()) } returns data
         coEvery { weatherRepository.getCachedWeatherById(any()) } returns cached
-        coEvery { weatherRepository.getWeatherForecast(any(), any(), any()) } returns forecastResponse
+        coEvery { weatherRepository.getWeatherForecast(any(), any(), any()) } returns mockk()
         every { weatherRepository.calculateAverageForecastTemperature() } returns 12.0
         coEvery { weatherRepository.insertWeather(any()) } returns Unit
 
@@ -216,7 +212,6 @@ class WeatherViewModelTest {
         advanceUntilIdle()
 
         assertEquals("Berlin", viewModel.resolvedLocationName.value)
-        assertEquals(5, viewModel.forecastDayCount.value)
         assertEquals(2, viewModel.apiCallCount.value)
         assertEquals(2, viewModel.cacheHitCount.value)
     }
@@ -243,9 +238,32 @@ class WeatherViewModelTest {
         advanceUntilIdle()
 
         coVerify(exactly = 0) { weatherRepository.getWeatherForecast(any(), any(), any()) }
-        assertEquals(7, viewModel.forecastDayCount.value)
         assertEquals(1, viewModel.apiCallCount.value)
         assertEquals(3, viewModel.cacheHitCount.value)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun fetchWeather_setsNoDataWhenCurrentMonthIsEmpty() = runTest {
+        val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1")
+
+        coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
+        coEvery { geoCodeRepository.getGeoCode(any()) } returns data
+        coEvery { weatherRepository.getCachedWeatherById(any()) } returns null
+        coEvery { weatherRepository.getWeatherCurrent(any(), any(), any()) } returns mockk()
+        coEvery { weatherRepository.getWeatherForecast(any(), any(), any()) } returns mockk()
+        coEvery { weatherRepository.getWeatherHistory(any(), any(), any()) } returns mockk()
+        every { weatherRepository.calculateAverageCurrentTemperature() } returns 7.0
+        every { weatherRepository.calculateCurrentMonthStats() } returns CurrentMonthStats("03", null, 0)
+        every { weatherRepository.calculateAverageForecastTemperature() } returns 9.1
+        every { weatherRepository.calculateAverageHistoricMonthlyTemperature() } returns Pair("March", 6.0)
+        coEvery { weatherRepository.insertWeather(any()) } returns Unit
+
+        viewModel.fetchWeather("Berlin")
+        advanceUntilIdle()
+
+        assertEquals("No data yet", viewModel.resultCurrentMonthAverage.value)
+        assertEquals(0, viewModel.currentMonthDayCount.value)
     }
 
     private fun buildEntity(
@@ -269,20 +287,4 @@ class WeatherViewModelTest {
             historicMonthlyAverage = historicMonthlyAverage,
         )
 
-    private fun buildForecastResponse(days: Int): WeatherResponse {
-        val start = LocalDate.of(2026, 3, 1)
-        val times = (0 until days).map { start.plusDays(it.toLong()).toString() }
-        val temps = List(days) { 10.0 }
-        return WeatherResponse(
-            latitude = 0.0,
-            longitude = 0.0,
-            generationtime_ms = 0.0,
-            utc_offset_seconds = 0,
-            timezone = "UTC",
-            timezone_abbreviation = "UTC",
-            elevation = 0.0,
-            daily_units = DailyUnits(time = "iso8601", temperature_2m_mean = "°C"),
-            daily = Daily(time = times, temperature_2m_mean = temps),
-        )
-    }
 }

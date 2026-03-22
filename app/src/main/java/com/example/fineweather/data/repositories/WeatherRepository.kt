@@ -78,7 +78,13 @@ class WeatherRepository(
         return averageTemperature(cachedCurrentData?.daily?.temperature_2m_mean, "current")
     }
 
-    fun calculateAverageCurrentMonthlyTemperature(): Pair<String, Double> {
+    data class CurrentMonthStats(
+        val month: String,
+        val average: Double?,
+        val dayCount: Int,
+    )
+
+    fun calculateCurrentMonthStats(): CurrentMonthStats {
         requireNotNull(cachedCurrentData) { "No current data available" }
         val timeList = cachedCurrentData?.daily?.time
         val tempList = cachedCurrentData?.daily?.temperature_2m_mean
@@ -91,11 +97,15 @@ class WeatherRepository(
         val dailyDataCurrentMonth =
             dailyData.filter { pair -> pair.first.contains(("-$currentMonth-")) }
 
-        require(dailyDataCurrentMonth.isNotEmpty()) {
-            "No current-month weather data available"
+        if (dailyDataCurrentMonth.isEmpty()) {
+            return CurrentMonthStats(currentMonth, null, 0)
         }
 
-        return Pair(currentMonth, dailyDataCurrentMonth.map { it.second }.average())
+        return CurrentMonthStats(
+            currentMonth,
+            dailyDataCurrentMonth.map { it.second }.average(),
+            dailyDataCurrentMonth.size,
+        )
     }
 
     suspend fun getWeatherHistory(

@@ -59,13 +59,13 @@ import kotlin.math.abs
 @Composable
 fun WeatherScreen(viewModel: WeatherViewModel) {
     var location by rememberSaveable { mutableStateOf("") }
-    var showForecastWarning by rememberSaveable { mutableStateOf(false) }
+    var showCurrentMonthWarning by rememberSaveable { mutableStateOf(false) }
     val status by viewModel.status.collectAsState(initial = "Enter a city to see temperature averages")
     val resultForecast by viewModel.resultForecastAverage.collectAsState(initial = "")
     val resultCurrent by viewModel.resultCurrentAverage.collectAsState(initial = "")
     val resultHistoric by viewModel.resultHistoricAverage.collectAsState(initial = "")
     val resultCurrentMonth by viewModel.resultCurrentMonthAverage.collectAsState(initial = "")
-    val currentMonthDayCount by viewModel.forecastDayCount.collectAsState(initial = 0)
+    val currentMonthDayCount by viewModel.currentMonthDayCount.collectAsState(initial = 0)
     val apiCallCount by viewModel.apiCallCount.collectAsState(initial = 0)
     val cacheHitCount by viewModel.cacheHitCount.collectAsState(initial = 0)
     val resolvedLocation by viewModel.resolvedLocationName.collectAsState(initial = "")
@@ -81,7 +81,7 @@ fun WeatherScreen(viewModel: WeatherViewModel) {
         containerColor = MaterialTheme.colorScheme.surfaceVariant,
         contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    val showForecastWarningIcon = currentMonthDayCount in 1..6
+    val showCurrentMonthWarningIcon = currentMonthDayCount in 0..6 && resultCurrentMonth !== "-"
 
     LaunchedEffect(resolvedLocation) {
         if (resolvedLocation.isNotBlank() && resolvedLocation != location) {
@@ -139,8 +139,8 @@ fun WeatherScreen(viewModel: WeatherViewModel) {
                 val temperatureRows =
                     listOf(
                         TemperatureRowData("Last 31 days", resultCurrent, false),
-                        TemperatureRowData("This month so far", resultCurrentMonth, false),
-                        TemperatureRowData("Next 7 days (forecast)", resultForecast, showForecastWarningIcon),
+                        TemperatureRowData("This month so far", resultCurrentMonth, showCurrentMonthWarningIcon),
+                        TemperatureRowData("Next 7 days (forecast)", resultForecast, false),
                         TemperatureRowData("Historical (30y) for this month", resultHistoric, false),
                     )
                 temperatureRows.forEachIndexed { index, row ->
@@ -148,7 +148,7 @@ fun WeatherScreen(viewModel: WeatherViewModel) {
                         label = row.label,
                         value = row.value,
                         showWarning = row.showWarning,
-                        onWarningClick = if (row.showWarning) { { showForecastWarning = true } } else null,
+                        onWarningClick = if (row.showWarning) { { showCurrentMonthWarning = true } } else null,
                     )
                     if (index != temperatureRows.lastIndex) {
                         Box(
@@ -186,13 +186,17 @@ fun WeatherScreen(viewModel: WeatherViewModel) {
             text = {
                 Text(
                     text =
-                        "Forecast average is based on $currentMonthDayCount days of data. " +
-                            "Values can shift as the forecast horizon updates.",
+                        if (currentMonthDayCount == 0) {
+                            "This month has no data yet. Check back soon for a more stable average."
+                        } else {
+                            "This month's average is based on $currentMonthDayCount days of data. " +
+                                "Values can shift as more data arrives."
+                        },
                     fontFamily = nunitoSansFamily,
                 )
             },
             confirmButton = {
-                TextButton(onClick = { showForecastWarning = false }) {
+                TextButton(onClick = { showCurrentMonthWarning = false }) {
                     Text("OK", fontFamily = nunitoSansFamily)
                 }
             },
@@ -324,7 +328,8 @@ private fun isPlaceholderValue(value: String): Boolean {
             trimmed.equals("N/A", ignoreCase = true) ||
             trimmed.equals("Fetching...", ignoreCase = true) ||
             trimmed.equals("Error", ignoreCase = true) ||
-            trimmed.equals("Loading...", ignoreCase = true)
+            trimmed.equals("Loading...", ignoreCase = true) ||
+            trimmed.equals("No data yet", ignoreCase = true)
 }
 
 @Composable

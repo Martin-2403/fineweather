@@ -33,8 +33,8 @@ class WeatherViewModel(
     private val _resultHistoricAverage = MutableStateFlow("-")
     val resultHistoricAverage: StateFlow<String> = _resultHistoricAverage
 
-    private val _forecastDayCount = MutableStateFlow(0)
-    val forecastDayCount: StateFlow<Int> = _forecastDayCount
+    private val _currentMonthDayCount = MutableStateFlow(0)
+    val currentMonthDayCount: StateFlow<Int> = _currentMonthDayCount
 
     private val _apiCallCount = MutableStateFlow(0)
     val apiCallCount: StateFlow<Int> = _apiCallCount
@@ -54,7 +54,7 @@ class WeatherViewModel(
         if (location.trim().isEmpty()) {
             _status.value = "Enter a city to see temperature averages"
             setDataValues("-")
-            _forecastDayCount.value = 0
+            _currentMonthDayCount.value = 0
             _coordinates.value = Pair(0.0, 0.0)
             _resolvedLocationName.value = ""
             return
@@ -85,6 +85,7 @@ class WeatherViewModel(
                 _status.value = "City not found"
                 setDataValues("N/A")
                 _resolvedLocationName.value = ""
+                _currentMonthDayCount.value = 0
                 Log.e(
                     "WeatherAPI",
                     ex.message ?: "Error occurred while trying to geocode the location",
@@ -115,6 +116,7 @@ class WeatherViewModel(
                 "${formatDouble(data.currentAverage)}°C"
             _resultCurrentMonthAverage.value =
                 "${formatDouble(data.currentMonthAverage)}°C"
+            _currentMonthDayCount.value = java.time.LocalDate.now().dayOfMonth
         } else {
             fetchCurrentWeather(data)
         }
@@ -124,7 +126,6 @@ class WeatherViewModel(
             incrementCacheHits()
             data.forecastAverage = cachedLatest.forecastAverage
             _resultForecastAverage.value = "${formatDouble(data.forecastAverage)}°C"
-            _forecastDayCount.value = forecastDays
         } else {
             fetchForecastWeather(data)
         }
@@ -152,13 +153,20 @@ class WeatherViewModel(
             data.currentAverage = weatherRepository.calculateAverageCurrentTemperature()
             _resultCurrentAverage.value = "${formatDouble(data.currentAverage)}°C"
 
-            val historicData = weatherRepository.calculateAverageCurrentMonthlyTemperature()
-            data.currentMonthAverage = historicData.second
-            _resultCurrentMonthAverage.value = "${formatDouble(historicData.second)}°C"
+            val stats = weatherRepository.calculateCurrentMonthStats()
+            _currentMonthDayCount.value = stats.dayCount
+            data.currentMonthAverage = stats.average
+            _resultCurrentMonthAverage.value =
+                if (stats.average == null) {
+                    "No data yet"
+                } else {
+                    "${formatDouble(stats.average)}°C"
+                }
             persistWeatherCache(data, updateDate = true)
         }.onFailure { e ->
             _resultCurrentAverage.value = "Error"
             _resultCurrentMonthAverage.value = "Error"
+            _currentMonthDayCount.value = 0
             _status.value += "\nError fetching data: ${e.message}"
         }
     }
@@ -167,19 +175,16 @@ class WeatherViewModel(
         _resultForecastAverage.value = "Fetching..."
         runCatching {
             incrementApiCalls()
-            val response =
-                weatherRepository.getWeatherForecast(
-                    data.coordinates.first,
-                    data.coordinates.second,
-                    forecastDays,
-                )
-            _forecastDayCount.value = response.daily.time.size
+            weatherRepository.getWeatherForecast(
+                data.coordinates.first,
+                data.coordinates.second,
+                forecastDays,
+            )
             data.forecastAverage = weatherRepository.calculateAverageForecastTemperature()
             _resultForecastAverage.value = "${formatDouble(data.forecastAverage)}°C"
             persistWeatherCache(data)
         }.onFailure { e ->
             _resultForecastAverage.value = "Error"
-            _forecastDayCount.value = 0
             _status.value += "\nError fetching data: ${e.message}"
         }
     }
