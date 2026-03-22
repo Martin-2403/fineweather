@@ -65,11 +65,11 @@ class WeatherViewModel(
             try {
                 weatherRepository.cleanOutdatedWeatherDate()
                 val data = geoCodeRepository.getGeoCode(location.trim())
-                if (geoCodeRepository.wasLastLookupFromCache()) {
-                    incrementCacheHits()
-                } else {
-                    incrementApiCalls()
-                }
+//                if (geoCodeRepository.wasLastLookupFromCache()) {
+//                    incrementCacheHits()
+//                } else {
+//                    incrementApiCalls()
+//                }
                 _coordinates.value = data.coordinates
 
                 val resolvedLocationDisplay =

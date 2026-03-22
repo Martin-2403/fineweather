@@ -81,7 +81,11 @@ fun WeatherScreen(viewModel: WeatherViewModel) {
         containerColor = MaterialTheme.colorScheme.surfaceVariant,
         contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    val showCurrentMonthWarningIcon = currentMonthDayCount in 0..6 && resultCurrentMonth !== "-"
+    val showCurrentMonthWarningIcon =
+        currentMonthDayCount in 0..6
+                && resultCurrentMonth !== "-"
+                && resultCurrentMonth !== "N/A"
+
 
     LaunchedEffect(resolvedLocation) {
         if (resolvedLocation.isNotBlank() && resolvedLocation != location) {
@@ -139,16 +143,26 @@ fun WeatherScreen(viewModel: WeatherViewModel) {
                 val temperatureRows =
                     listOf(
                         TemperatureRowData("Last 31 days", resultCurrent, false),
-                        TemperatureRowData("This month so far", resultCurrentMonth, showCurrentMonthWarningIcon),
+                        TemperatureRowData(
+                            "This month so far",
+                            resultCurrentMonth,
+                            showCurrentMonthWarningIcon
+                        ),
                         TemperatureRowData("Next 7 days (forecast)", resultForecast, false),
-                        TemperatureRowData("Historical (30y) for this month", resultHistoric, false),
+                        TemperatureRowData(
+                            "Historical (30y) for this month",
+                            resultHistoric,
+                            false
+                        ),
                     )
                 temperatureRows.forEachIndexed { index, row ->
                     TemperatureRow(
                         label = row.label,
                         value = row.value,
                         showWarning = row.showWarning,
-                        onWarningClick = if (row.showWarning) { { showCurrentMonthWarning = true } } else null,
+                        onWarningClick = if (row.showWarning) {
+                            { showCurrentMonthWarning = true }
+                        } else null,
                     )
                     if (index != temperatureRows.lastIndex) {
                         Box(
@@ -190,7 +204,7 @@ fun WeatherScreen(viewModel: WeatherViewModel) {
                             "This month has no data yet. Check back soon for a more stable average."
                         } else {
                             "This month's average is based on $currentMonthDayCount days of data. " +
-                                "Values can shift as more data arrives."
+                                    "Values can shift as more data arrives."
                         },
                     fontFamily = nunitoSansFamily,
                 )
@@ -565,7 +579,12 @@ internal fun buildTrendCardValue(
         }
     return ValueWithIcons(
         text = "",
-        icons = IconStack(resId = resId, count = count, tint = tint, contentDescription = description),
+        icons = IconStack(
+            resId = resId,
+            count = count,
+            tint = tint,
+            contentDescription = description
+        ),
     )
 }
 
