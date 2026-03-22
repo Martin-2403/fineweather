@@ -19,6 +19,7 @@ class WeatherViewModel(
     private val weatherRepository: WeatherRepository,
     private val geoCodeRepository: GeoCodeRepository,
 ) : ViewModel() {
+    private val forecastDays = 7
     private val _resultForecastAverage = MutableStateFlow("-")
     val resultForecastAverage: StateFlow<String> = _resultForecastAverage
 
@@ -32,6 +33,18 @@ class WeatherViewModel(
     private val _resultHistoricAverage = MutableStateFlow("-")
     val resultHistoricAverage: StateFlow<String> = _resultHistoricAverage
 
+    private val _forecastDayCount = MutableStateFlow(0)
+    val forecastDayCount: StateFlow<Int> = _forecastDayCount
+
+    private val _apiCallCount = MutableStateFlow(0)
+    val apiCallCount: StateFlow<Int> = _apiCallCount
+
+    private val _cacheHitCount = MutableStateFlow(0)
+    val cacheHitCount: StateFlow<Int> = _cacheHitCount
+
+    private val _resolvedLocationName = MutableStateFlow("")
+    val resolvedLocationName: StateFlow<String> = _resolvedLocationName
+
     private val _status = MutableStateFlow("Enter a city to see temperature averages")
     val status: StateFlow<String> = _status
     private val _coordinates = MutableStateFlow(Pair(0.0, 0.0))
@@ -41,7 +54,9 @@ class WeatherViewModel(
         if (location.trim().isEmpty()) {
             _status.value = "Enter a city to see temperature averages"
             setDataValues("-")
+            _forecastDayCount.value = 0
             _coordinates.value = Pair(0.0, 0.0)
+            _resolvedLocationName.value = ""
             return
         }
         viewModelScope.launch {
@@ -50,15 +65,26 @@ class WeatherViewModel(
             try {
                 weatherRepository.cleanOutdatedWeatherDate()
                 val data = geoCodeRepository.getGeoCode(location.trim())
+                if (geoCodeRepository.wasLastLookupFromCache()) {
+                    incrementCacheHits()
+                } else {
+                    incrementApiCalls()
+                }
                 _coordinates.value = data.coordinates
 
+                val resolvedLocationDisplay =
+                    listOfNotNull(data.location, data.country)
+                        .filter { it.isNotBlank() }
+                        .joinToString(", ")
+                _resolvedLocationName.value = data.location
                 _status.value =
-                    "Set location: ${data.location}\nCoordinates: ${data.coordinates}"
+                    "Set location: $resolvedLocationDisplay\nCoordinates: ${data.coordinates}"
                 fetchWeatherForData(data)
                 Log.i("WeatherAPI", "temp difference: " + data.tempDifference.toString())
             } catch (ex: Exception) {
                 _status.value = "City not found"
                 setDataValues("N/A")
+                _resolvedLocationName.value = ""
                 Log.e(
                     "WeatherAPI",
                     ex.message ?: "Error occurred while trying to geocode the location",
@@ -82,6 +108,7 @@ class WeatherViewModel(
                     cachedLatest.currentMonthAverage != null
 
         if (isCurrentToday && hasCachedCurrent) {
+            incrementCacheHits()
             data.currentAverage = cachedLatest.currentAverage
             data.currentMonthAverage = cachedLatest.currentMonthAverage
             _resultCurrentAverage.value =
@@ -92,10 +119,19 @@ class WeatherViewModel(
             fetchCurrentWeather(data)
         }
 
-        fetchForecastWeather(data)
+        val hasCachedForecast = cachedLatest?.forecastAverage != null
+        if (isCurrentToday && hasCachedForecast) {
+            incrementCacheHits()
+            data.forecastAverage = cachedLatest.forecastAverage
+            _resultForecastAverage.value = "${formatDouble(data.forecastAverage)}°C"
+            _forecastDayCount.value = forecastDays
+        } else {
+            fetchForecastWeather(data)
+        }
 
         val hasCachedHistoric = cachedLatest?.historicMonthlyAverage != null
         if (hasCachedHistoric) {
+            incrementCacheHits()
             data.historicMonthlyAverage = cachedLatest.historicMonthlyAverage
             _resultHistoricAverage.value =
                 "${formatDouble(data.historicMonthlyAverage)}°C"
@@ -107,6 +143,7 @@ class WeatherViewModel(
     private suspend fun fetchCurrentWeather(data: FineWeatherData) {
         _resultCurrentMonthAverage.value = "Fetching..."
         runCatching {
+            incrementApiCalls()
             weatherRepository.getWeatherCurrent(
                 data.coordinates.first,
                 data.coordinates.second,
@@ -126,19 +163,23 @@ class WeatherViewModel(
         }
     }
 
-    private suspend fun fetchForecastWeather(data: FineWeatherData, forecastDays: Int = 7) {
+    private suspend fun fetchForecastWeather(data: FineWeatherData) {
         _resultForecastAverage.value = "Fetching..."
         runCatching {
-            weatherRepository.getWeatherForecast(
-                data.coordinates.first,
-                data.coordinates.second,
-                forecastDays
-            )
+            incrementApiCalls()
+            val response =
+                weatherRepository.getWeatherForecast(
+                    data.coordinates.first,
+                    data.coordinates.second,
+                    forecastDays,
+                )
+            _forecastDayCount.value = response.daily.time.size
             data.forecastAverage = weatherRepository.calculateAverageForecastTemperature()
             _resultForecastAverage.value = "${formatDouble(data.forecastAverage)}°C"
             persistWeatherCache(data)
         }.onFailure { e ->
             _resultForecastAverage.value = "Error"
+            _forecastDayCount.value = 0
             _status.value += "\nError fetching data: ${e.message}"
         }
     }
@@ -146,6 +187,7 @@ class WeatherViewModel(
     private suspend fun fetchHistoricWeather(data: FineWeatherData) {
         _resultHistoricAverage.value = "Fetching..."
         runCatching {
+            incrementApiCalls()
             weatherRepository.getWeatherHistory(
                 data.coordinates.first,
                 data.coordinates.second,
@@ -188,6 +230,14 @@ class WeatherViewModel(
                     data.historicMonthlyAverage ?: existing?.historicMonthlyAverage,
             )
         weatherRepository.insertWeather(entity)
+    }
+
+    private fun incrementApiCalls(count: Int = 1) {
+        _apiCallCount.value += count
+    }
+
+    private fun incrementCacheHits(count: Int = 1) {
+        _cacheHitCount.value += count
     }
 
 }

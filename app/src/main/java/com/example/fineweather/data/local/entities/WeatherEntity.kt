@@ -22,7 +22,13 @@ data class WeatherEntity(
 
 // In WeatherEntity.kt
 fun WeatherEntity.toUiModel(): FineWeatherData {
-    val data = FineWeatherData(this.locationName, Pair(this.latitude, this.longitude), this.id)
+    val data =
+        FineWeatherData(
+            this.locationName,
+            Pair(this.latitude, this.longitude),
+            this.id,
+            this.country,
+        )
     data.currentAverage = this.currentAverage
     data.currentMonthAverage = this.currentMonthAverage
     data.forecastAverage = this.forecastAverage

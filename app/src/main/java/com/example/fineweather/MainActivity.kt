@@ -60,7 +60,12 @@ fun WeatherApp() {
             )
         }
     val geoCodeRepository =
-        remember { GeoCodeRepository(openMeteoGeoCodeApi = OpenMeteoRetrofitClients.geocodingApi) }
+        remember {
+            GeoCodeRepository(
+                openMeteoGeoCodeApi = OpenMeteoRetrofitClients.geocodingApi,
+                geoCodeDao = db.geoCodeDao(),
+            )
+        }
 
     val viewModel: WeatherViewModel =
         viewModel(factory = WeatherViewModelFactory(weatherRepository, geoCodeRepository))

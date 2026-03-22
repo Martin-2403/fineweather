@@ -8,9 +8,9 @@ class FineWeatherData(
     val location: String,
     val coordinates: Pair<Double, Double>,
     val id: String,
+    val country: String? = null,
 ) {
     val timestamp: String = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
-    val country: String? = null
     var currentMonthAverage: Double? = null
     var currentAverage: Double? = null
     var forecastAverage: Double? = null

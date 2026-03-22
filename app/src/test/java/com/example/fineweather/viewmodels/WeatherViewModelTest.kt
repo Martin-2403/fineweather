@@ -3,6 +3,9 @@ package com.example.fineweather.viewmodels
 import android.util.Log
 import com.example.fineweather.data.local.entities.WeatherEntity
 import com.example.fineweather.data.models.FineWeatherData
+import com.example.fineweather.data.models.WeatherResponse
+import com.example.fineweather.data.models.Daily
+import com.example.fineweather.data.models.DailyUnits
 import com.example.fineweather.data.repositories.GeoCodeRepository
 import com.example.fineweather.data.repositories.WeatherRepository
 import com.example.fineweather.utils.MainDispatcherRule
@@ -19,6 +22,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import java.time.LocalDate
 
 class WeatherViewModelTest {
 
@@ -188,6 +192,62 @@ class WeatherViewModelTest {
         coVerify(exactly = 0) { weatherRepository.cleanOutdatedWeatherDate() }
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun fetchWeather_setsResolvedLocationAndForecastCount() = runTest {
+        val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1", "Germany")
+        val cached = buildEntity(
+            id = data.id,
+            date = data.timestamp,
+            currentAverage = 10.0,
+            currentMonthAverage = 11.0,
+            historicMonthlyAverage = 9.0,
+        )
+        val forecastResponse = buildForecastResponse(days = 5)
+
+        coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
+        coEvery { geoCodeRepository.getGeoCode(any()) } returns data
+        coEvery { weatherRepository.getCachedWeatherById(any()) } returns cached
+        coEvery { weatherRepository.getWeatherForecast(any(), any(), any()) } returns forecastResponse
+        every { weatherRepository.calculateAverageForecastTemperature() } returns 12.0
+        coEvery { weatherRepository.insertWeather(any()) } returns Unit
+
+        viewModel.fetchWeather("Berlin")
+        advanceUntilIdle()
+
+        assertEquals("Berlin", viewModel.resolvedLocationName.value)
+        assertEquals(5, viewModel.forecastDayCount.value)
+        assertEquals(2, viewModel.apiCallCount.value)
+        assertEquals(2, viewModel.cacheHitCount.value)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun fetchWeather_usesCachedForecastWhenAvailable() = runTest {
+        val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1", "Germany")
+        val cached = buildEntity(
+            id = data.id,
+            date = data.timestamp,
+            currentAverage = 10.0,
+            currentMonthAverage = 11.0,
+            forecastAverage = 12.0,
+            historicMonthlyAverage = 9.0,
+        )
+
+        coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
+        coEvery { geoCodeRepository.getGeoCode(any()) } returns data
+        coEvery { weatherRepository.getCachedWeatherById(any()) } returns cached
+        coEvery { weatherRepository.insertWeather(any()) } returns Unit
+
+        viewModel.fetchWeather("Berlin")
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { weatherRepository.getWeatherForecast(any(), any(), any()) }
+        assertEquals(7, viewModel.forecastDayCount.value)
+        assertEquals(1, viewModel.apiCallCount.value)
+        assertEquals(3, viewModel.cacheHitCount.value)
+    }
+
     private fun buildEntity(
         id: String,
         date: String,
@@ -208,4 +268,21 @@ class WeatherViewModelTest {
             forecastAverage = forecastAverage,
             historicMonthlyAverage = historicMonthlyAverage,
         )
+
+    private fun buildForecastResponse(days: Int): WeatherResponse {
+        val start = LocalDate.of(2026, 3, 1)
+        val times = (0 until days).map { start.plusDays(it.toLong()).toString() }
+        val temps = List(days) { 10.0 }
+        return WeatherResponse(
+            latitude = 0.0,
+            longitude = 0.0,
+            generationtime_ms = 0.0,
+            utc_offset_seconds = 0,
+            timezone = "UTC",
+            timezone_abbreviation = "UTC",
+            elevation = 0.0,
+            daily_units = DailyUnits(time = "iso8601", temperature_2m_mean = "°C"),
+            daily = Daily(time = times, temperature_2m_mean = temps),
+        )
+    }
 }

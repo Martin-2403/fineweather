@@ -23,14 +23,17 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -43,6 +46,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.clickable
 import com.example.fineweather.R
 import com.example.fineweather.nunitoSansFamily
 import com.example.fineweather.ui.models.IconStack
@@ -55,11 +59,16 @@ import kotlin.math.abs
 @Composable
 fun WeatherScreen(viewModel: WeatherViewModel) {
     var location by rememberSaveable { mutableStateOf("") }
+    var showForecastWarning by rememberSaveable { mutableStateOf(false) }
     val status by viewModel.status.collectAsState(initial = "Enter a city to see temperature averages")
     val resultForecast by viewModel.resultForecastAverage.collectAsState(initial = "")
     val resultCurrent by viewModel.resultCurrentAverage.collectAsState(initial = "")
     val resultHistoric by viewModel.resultHistoricAverage.collectAsState(initial = "")
     val resultCurrentMonth by viewModel.resultCurrentMonthAverage.collectAsState(initial = "")
+    val currentMonthDayCount by viewModel.forecastDayCount.collectAsState(initial = 0)
+    val apiCallCount by viewModel.apiCallCount.collectAsState(initial = 0)
+    val cacheHitCount by viewModel.cacheHitCount.collectAsState(initial = 0)
+    val resolvedLocation by viewModel.resolvedLocationName.collectAsState(initial = "")
     val statusCardValue = buildStatusCardValue(resultCurrentMonth, resultHistoric)
     val trendCardValue = buildTrendCardValue(resultForecast, resultCurrentMonth)
     val statusImageRes = resolveStatusImageRes(
@@ -72,6 +81,13 @@ fun WeatherScreen(viewModel: WeatherViewModel) {
         containerColor = MaterialTheme.colorScheme.surfaceVariant,
         contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
     )
+    val showForecastWarningIcon = currentMonthDayCount in 1..6
+
+    LaunchedEffect(resolvedLocation) {
+        if (resolvedLocation.isNotBlank() && resolvedLocation != location) {
+            location = resolvedLocation
+        }
+    }
 
     Column(
         modifier =
@@ -122,13 +138,18 @@ fun WeatherScreen(viewModel: WeatherViewModel) {
                 Spacer(modifier = Modifier.height(8.dp))
                 val temperatureRows =
                     listOf(
-                        "Last 31 days" to resultCurrent,
-                        "This month so far" to resultCurrentMonth,
-                        "Next 7 days (forecast)" to resultForecast,
-                        "Historical (30y) for this month" to resultHistoric,
+                        TemperatureRowData("Last 31 days", resultCurrent, false),
+                        TemperatureRowData("This month so far", resultCurrentMonth, false),
+                        TemperatureRowData("Next 7 days (forecast)", resultForecast, showForecastWarningIcon),
+                        TemperatureRowData("Historical (30y) for this month", resultHistoric, false),
                     )
-                temperatureRows.forEachIndexed { index, (label, value) ->
-                    TemperatureRow(label = label, value = value)
+                temperatureRows.forEachIndexed { index, row ->
+                    TemperatureRow(
+                        label = row.label,
+                        value = row.value,
+                        showWarning = row.showWarning,
+                        onWarningClick = if (row.showWarning) { { showForecastWarning = true } } else null,
+                    )
                     if (index != temperatureRows.lastIndex) {
                         Box(
                             modifier =
@@ -143,6 +164,39 @@ fun WeatherScreen(viewModel: WeatherViewModel) {
                 }
             }
         }
+        Spacer(modifier = Modifier.weight(1f))
+        Text(
+            text = "API calls: $apiCallCount • Cache hits: $cacheHitCount",
+            fontFamily = nunitoSansFamily,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+        )
+    }
+
+    if (showCurrentMonthWarning) {
+        AlertDialog(
+            onDismissRequest = { showCurrentMonthWarning = false },
+            title = {
+                Text(
+                    text = "Limited data so far",
+                    fontFamily = nunitoSansFamily,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            },
+            text = {
+                Text(
+                    text =
+                        "Forecast average is based on $currentMonthDayCount days of data. " +
+                            "Values can shift as the forecast horizon updates.",
+                    fontFamily = nunitoSansFamily,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showForecastWarning = false }) {
+                    Text("OK", fontFamily = nunitoSansFamily)
+                }
+            },
+        )
     }
 }
 
@@ -199,10 +253,18 @@ internal fun SearchBar(
     }
 }
 
+private data class TemperatureRowData(
+    val label: String,
+    val value: String,
+    val showWarning: Boolean,
+)
+
 @Composable
 private fun TemperatureRow(
     label: String,
     value: String,
+    showWarning: Boolean = false,
+    onWarningClick: (() -> Unit)? = null,
 ) {
     val isPlaceholder = isPlaceholderValue(value)
     Row(
@@ -212,13 +274,29 @@ private fun TemperatureRow(
                 .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = label,
-            fontFamily = nunitoSansFamily,
+        Row(
             modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = label,
+                fontFamily = nunitoSansFamily,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (showWarning && onWarningClick != null) {
+                Spacer(modifier = Modifier.width(6.dp))
+                Icon(
+                    painter = painterResource(R.drawable.warning),
+                    contentDescription = "Limited forecast data",
+                    tint = WarningIconTint,
+                    modifier =
+                        Modifier
+                            .size(16.dp)
+                            .clickable { onWarningClick() },
+                )
+            }
+        }
         Text(
             text = value,
             fontFamily = nunitoSansFamily,
@@ -409,6 +487,7 @@ private fun VerticalDividerLine() {
 private val WarmIconTint = Color(0xFFE53935)
 private val CoolIconTint = Color(0xFF1E88E5)
 private val NeutralIconTint = Color(0xFF43A047)
+private val WarningIconTint = Color(0xFFF9A825)
 
 internal fun buildStatusCardValue(
     currentMonth: String,
