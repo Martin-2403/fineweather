@@ -506,7 +506,7 @@ private fun VerticalDividerLine() {
 private val WarmIconTint = Color(0xFFE53935)
 private val CoolIconTint = Color(0xFF1E88E5)
 private val NeutralIconTint = Color(0xFF43A047)
-private val WarningIconTint = Color(0xFFF9A825)
+private val WarningIconTint = Color(0xFFE18D10)
 
 internal fun buildStatusCardValue(
     currentMonth: String,
