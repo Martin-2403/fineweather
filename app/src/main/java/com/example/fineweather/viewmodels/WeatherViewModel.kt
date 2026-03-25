@@ -7,6 +7,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.fineweather.data.models.FineWeatherData
+import com.example.fineweather.data.repositories.SettingsDefaults
+import com.example.fineweather.data.repositories.SettingsRepository
 import com.example.fineweather.data.repositories.GeoCodeRepository
 import com.example.fineweather.data.repositories.WeatherRepository
 import com.example.fineweather.data.local.entities.WeatherEntity
@@ -18,8 +20,15 @@ import kotlinx.coroutines.launch
 class WeatherViewModel(
     private val weatherRepository: WeatherRepository,
     private val geoCodeRepository: GeoCodeRepository,
+    private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
-    private val forecastDays = 7
+    companion object {
+        const val FORECAST_DAYS_SHORT = SettingsDefaults.FORECAST_DAYS_SHORT
+        const val FORECAST_DAYS_LONG = SettingsDefaults.FORECAST_DAYS_LONG
+    }
+
+    private val _forecastDays = MutableStateFlow(FORECAST_DAYS_SHORT)
+    val forecastDays: StateFlow<Int> = _forecastDays
     private val _resultForecastAverage = MutableStateFlow("-")
     val resultForecastAverage: StateFlow<String> = _resultForecastAverage
 
@@ -48,6 +57,21 @@ class WeatherViewModel(
     private val _status = MutableStateFlow("Enter a city to see temperature averages")
     val status: StateFlow<String> = _status
     private val _coordinates = MutableStateFlow(Pair(0.0, 0.0))
+    private var lastResolvedData: FineWeatherData? = null
+
+    init {
+        viewModelScope.launch {
+            settingsRepository.forecastDays.collect { days ->
+                val changed = _forecastDays.value != days
+                _forecastDays.value = days
+                if (changed) {
+                    lastResolvedData?.let { data ->
+                        fetchForecastWeather(data)
+                    }
+                }
+            }
+        }
+    }
 
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     fun fetchWeather(location: String) {
@@ -57,6 +81,7 @@ class WeatherViewModel(
             _currentMonthDayCount.value = 0
             _coordinates.value = Pair(0.0, 0.0)
             _resolvedLocationName.value = ""
+            lastResolvedData = null
             return
         }
         viewModelScope.launch {
@@ -71,6 +96,7 @@ class WeatherViewModel(
 //                    incrementApiCalls()
 //                }
                 _coordinates.value = data.coordinates
+                lastResolvedData = data
 
                 val resolvedLocationDisplay =
                     listOfNotNull(data.location, data.country)
@@ -122,7 +148,8 @@ class WeatherViewModel(
         }
 
         val hasCachedForecast = cachedLatest?.forecastAverage != null
-        if (isCurrentToday && hasCachedForecast) {
+        val cachedForecastMatchesDays = cachedLatest?.forecastDays == _forecastDays.value
+        if (isCurrentToday && hasCachedForecast && cachedForecastMatchesDays) {
             incrementCacheHits()
             data.forecastAverage = cachedLatest.forecastAverage
             _resultForecastAverage.value = "${formatDouble(data.forecastAverage)}°C"
@@ -178,11 +205,11 @@ class WeatherViewModel(
             weatherRepository.getWeatherForecast(
                 data.coordinates.first,
                 data.coordinates.second,
-                forecastDays,
+                _forecastDays.value,
             )
             data.forecastAverage = weatherRepository.calculateAverageForecastTemperature()
             _resultForecastAverage.value = "${formatDouble(data.forecastAverage)}°C"
-            persistWeatherCache(data)
+            persistWeatherCache(data, forecastDaysOverride = _forecastDays.value)
         }.onFailure { e ->
             _resultForecastAverage.value = "Error"
             _status.value += "\nError fetching data: ${e.message}"
@@ -212,8 +239,16 @@ class WeatherViewModel(
     private suspend fun persistWeatherCache(
         data: FineWeatherData,
         updateDate: Boolean = false,
+        forecastDaysOverride: Int? = null,
     ) {
         val existing = weatherRepository.getCachedWeatherById(data.id)
+        val resolvedForecastAverage = data.forecastAverage ?: existing?.forecastAverage
+        val resolvedForecastDays =
+            if (data.forecastAverage != null && forecastDaysOverride != null) {
+                forecastDaysOverride
+            } else {
+                existing?.forecastDays ?: forecastDaysOverride ?: _forecastDays.value
+            }
         val resolvedDate =
             if (updateDate) {
                 data.timestamp
@@ -230,7 +265,8 @@ class WeatherViewModel(
                 longitude = data.coordinates.second,
                 currentAverage = data.currentAverage ?: existing?.currentAverage,
                 currentMonthAverage = data.currentMonthAverage ?: existing?.currentMonthAverage,
-                forecastAverage = data.forecastAverage ?: existing?.forecastAverage,
+                forecastAverage = resolvedForecastAverage,
+                forecastDays = resolvedForecastDays,
                 historicMonthlyAverage =
                     data.historicMonthlyAverage ?: existing?.historicMonthlyAverage,
             )
@@ -245,16 +281,33 @@ class WeatherViewModel(
         _cacheHitCount.value += count
     }
 
+    fun setForecastDays(days: Int) {
+        require(days == FORECAST_DAYS_SHORT || days == FORECAST_DAYS_LONG) {
+            "Forecast days must be $FORECAST_DAYS_SHORT or $FORECAST_DAYS_LONG"
+        }
+        if (_forecastDays.value == days) {
+            return
+        }
+        _forecastDays.value = days
+        viewModelScope.launch {
+            settingsRepository.setForecastDays(days)
+            lastResolvedData?.let { data ->
+                fetchForecastWeather(data)
+            }
+        }
+    }
+
 }
 
 class WeatherViewModelFactory(
     private val weatherRepository: WeatherRepository,
     private val geoCodeRepository: GeoCodeRepository,
+    private val settingsRepository: SettingsRepository,
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(WeatherViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return WeatherViewModel(weatherRepository, geoCodeRepository) as T
+            return WeatherViewModel(weatherRepository, geoCodeRepository, settingsRepository) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

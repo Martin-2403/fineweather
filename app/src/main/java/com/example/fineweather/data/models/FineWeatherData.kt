@@ -32,7 +32,7 @@ class FineWeatherData(
             }
 }
 
-// Hilfsfunktion um aus den API-Daten eine Entity zu bauen
+// Helper function to build a FineWeatherData object from an entity
 fun FineWeatherData.toEntity(locationId: Long): WeatherEntity =
     WeatherEntity(
         id = this.id,
@@ -43,6 +43,7 @@ fun FineWeatherData.toEntity(locationId: Long): WeatherEntity =
         currentAverage = this.currentAverage,
         currentMonthAverage = this.currentMonthAverage,
         forecastAverage = this.forecastAverage,
+        forecastDays = this.forecastTimePeriod,
         historicMonthlyAverage = this.historicMonthlyAverage,
         country = this.country,
     )

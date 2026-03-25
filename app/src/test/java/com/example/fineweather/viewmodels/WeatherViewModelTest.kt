@@ -5,6 +5,7 @@ import com.example.fineweather.data.local.entities.WeatherEntity
 import com.example.fineweather.data.models.FineWeatherData
 import com.example.fineweather.data.repositories.WeatherRepository.CurrentMonthStats
 import com.example.fineweather.data.repositories.GeoCodeRepository
+import com.example.fineweather.data.repositories.SettingsRepository
 import com.example.fineweather.data.repositories.WeatherRepository
 import com.example.fineweather.utils.MainDispatcherRule
 import io.mockk.coEvery
@@ -14,6 +15,8 @@ import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -28,6 +31,7 @@ class WeatherViewModelTest {
 
     private lateinit var weatherRepository: WeatherRepository
     private lateinit var geoCodeRepository: GeoCodeRepository
+    private lateinit var settingsRepository: SettingsRepository
     private lateinit var viewModel: WeatherViewModel
 
     @Before
@@ -37,7 +41,8 @@ class WeatherViewModelTest {
         every { Log.e(any(), any()) } returns 0
         weatherRepository = mockk(relaxed = true)
         geoCodeRepository = mockk(relaxed = true)
-        viewModel = WeatherViewModel(weatherRepository, geoCodeRepository)
+        settingsRepository = FakeSettingsRepository()
+        viewModel = WeatherViewModel(weatherRepository, geoCodeRepository, settingsRepository)
     }
 
     @org.junit.After
@@ -244,6 +249,63 @@ class WeatherViewModelTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
+    fun fetchWeather_usesUpdatedForecastDaysWhenSet() = runTest {
+        val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1")
+
+        coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
+        coEvery { geoCodeRepository.getGeoCode(any()) } returns data
+        coEvery { weatherRepository.getCachedWeatherById(any()) } returns null
+        coEvery { weatherRepository.getWeatherCurrent(any(), any(), any()) } returns mockk()
+        coEvery { weatherRepository.getWeatherForecast(any(), any(), any()) } returns mockk()
+        coEvery { weatherRepository.getWeatherHistory(any(), any(), any()) } returns mockk()
+        every { weatherRepository.calculateAverageCurrentTemperature() } returns 7.0
+        every { weatherRepository.calculateCurrentMonthStats() } returns CurrentMonthStats("03", 8.5, 5)
+        every { weatherRepository.calculateAverageForecastTemperature() } returns 9.1
+        every { weatherRepository.calculateAverageHistoricMonthlyTemperature() } returns Pair("March", 6.0)
+        coEvery { weatherRepository.insertWeather(any()) } returns Unit
+
+        viewModel.setForecastDays(WeatherViewModel.FORECAST_DAYS_LONG)
+        viewModel.fetchWeather("Berlin")
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) {
+            weatherRepository.getWeatherForecast(any(), any(), WeatherViewModel.FORECAST_DAYS_LONG)
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun fetchWeather_ignoresCachedForecastWhenDaysMismatch() = runTest {
+        val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1", "Germany")
+        val cached = buildEntity(
+            id = data.id,
+            date = data.timestamp,
+            currentAverage = 10.0,
+            currentMonthAverage = 11.0,
+            forecastAverage = 12.0,
+            forecastDays = WeatherViewModel.FORECAST_DAYS_SHORT,
+            historicMonthlyAverage = 9.0,
+        )
+
+        coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
+        coEvery { geoCodeRepository.getGeoCode(any()) } returns data
+        coEvery { weatherRepository.getCachedWeatherById(any()) } returns cached
+        coEvery { weatherRepository.getWeatherCurrent(any(), any(), any()) } returns mockk()
+        coEvery { weatherRepository.getWeatherForecast(any(), any(), any()) } returns mockk()
+        every { weatherRepository.calculateAverageCurrentTemperature() } returns 7.0
+        every { weatherRepository.calculateCurrentMonthStats() } returns CurrentMonthStats("03", 8.5, 5)
+        every { weatherRepository.calculateAverageForecastTemperature() } returns 9.1
+        coEvery { weatherRepository.insertWeather(any()) } returns Unit
+
+        viewModel.setForecastDays(WeatherViewModel.FORECAST_DAYS_LONG)
+        viewModel.fetchWeather("Berlin")
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { weatherRepository.getWeatherForecast(any(), any(), any()) }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
     fun fetchWeather_setsNoDataWhenCurrentMonthIsEmpty() = runTest {
         val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1")
 
@@ -272,6 +334,7 @@ class WeatherViewModelTest {
         currentAverage: Double? = null,
         currentMonthAverage: Double? = null,
         forecastAverage: Double? = null,
+        forecastDays: Int = WeatherViewModel.FORECAST_DAYS_SHORT,
         historicMonthlyAverage: Double? = null,
     ): WeatherEntity =
         WeatherEntity(
@@ -284,7 +347,19 @@ class WeatherViewModelTest {
             currentAverage = currentAverage,
             currentMonthAverage = currentMonthAverage,
             forecastAverage = forecastAverage,
+            forecastDays = forecastDays,
             historicMonthlyAverage = historicMonthlyAverage,
         )
+
+    private class FakeSettingsRepository(
+        initialDays: Int = WeatherViewModel.FORECAST_DAYS_SHORT,
+    ) : SettingsRepository {
+        private val state = MutableStateFlow(initialDays)
+        override val forecastDays: Flow<Int> = state
+
+        override suspend fun setForecastDays(days: Int) {
+            state.value = days
+        }
+    }
 
 }

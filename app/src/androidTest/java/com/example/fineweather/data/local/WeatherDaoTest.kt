@@ -74,6 +74,7 @@ class WeatherDaoTest {
             currentAverage = 10.0,
             currentMonthAverage = 11.0,
             forecastAverage = 12.0,
+            forecastDays = 7,
             historicMonthlyAverage = 9.0,
         )
 }

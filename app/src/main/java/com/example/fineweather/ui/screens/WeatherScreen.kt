@@ -57,7 +57,10 @@ import kotlin.math.abs
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
-fun WeatherScreen(viewModel: WeatherViewModel) {
+fun WeatherScreen(
+    viewModel: WeatherViewModel,
+    modifier: Modifier = Modifier,
+) {
     var location by rememberSaveable { mutableStateOf("") }
     var showCurrentMonthWarning by rememberSaveable { mutableStateOf(false) }
     val status by viewModel.status.collectAsState(initial = "Enter a city to see temperature averages")
@@ -65,6 +68,9 @@ fun WeatherScreen(viewModel: WeatherViewModel) {
     val resultCurrent by viewModel.resultCurrentAverage.collectAsState(initial = "")
     val resultHistoric by viewModel.resultHistoricAverage.collectAsState(initial = "")
     val resultCurrentMonth by viewModel.resultCurrentMonthAverage.collectAsState(initial = "")
+    val forecastDays by viewModel.forecastDays.collectAsState(
+        initial = WeatherViewModel.FORECAST_DAYS_SHORT,
+    )
     val currentMonthDayCount by viewModel.currentMonthDayCount.collectAsState(initial = 0)
     val apiCallCount by viewModel.apiCallCount.collectAsState(initial = 0)
     val cacheHitCount by viewModel.cacheHitCount.collectAsState(initial = 0)
@@ -95,7 +101,7 @@ fun WeatherScreen(viewModel: WeatherViewModel) {
 
     Column(
         modifier =
-            Modifier
+            modifier
                 .padding(16.dp)
                 .fillMaxSize(),
         verticalArrangement = Arrangement.Top,
@@ -148,7 +154,11 @@ fun WeatherScreen(viewModel: WeatherViewModel) {
                             resultCurrentMonth,
                             showCurrentMonthWarningIcon
                         ),
-                        TemperatureRowData("Next 7 days (forecast)", resultForecast, false),
+                        TemperatureRowData(
+                            "Next $forecastDays days (forecast)",
+                            resultForecast,
+                            false,
+                        ),
                         TemperatureRowData(
                             "Historical (30y) for this month",
                             resultHistoric,
