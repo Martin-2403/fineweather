@@ -3,8 +3,10 @@ package com.example.fineweather.viewmodels
 import android.util.Log
 import com.example.fineweather.data.local.entities.WeatherEntity
 import com.example.fineweather.data.models.FineWeatherData
+import com.example.fineweather.data.models.HistoricReference
 import com.example.fineweather.data.repositories.WeatherRepository.CurrentMonthStats
 import com.example.fineweather.data.repositories.GeoCodeRepository
+import com.example.fineweather.data.repositories.SettingsDefaults
 import com.example.fineweather.data.repositories.SettingsRepository
 import com.example.fineweather.data.repositories.WeatherRepository
 import com.example.fineweather.utils.MainDispatcherRule
@@ -335,6 +337,7 @@ class WeatherViewModelTest {
         currentMonthAverage: Double? = null,
         forecastAverage: Double? = null,
         forecastDays: Int = WeatherViewModel.FORECAST_DAYS_SHORT,
+        historicReference: HistoricReference = SettingsDefaults.DEFAULT_HISTORIC_REFERENCE,
         historicMonthlyAverage: Double? = null,
     ): WeatherEntity =
         WeatherEntity(
@@ -346,19 +349,59 @@ class WeatherViewModelTest {
             longitude = 2.0,
             currentAverage = currentAverage,
             currentMonthAverage = currentMonthAverage,
-            forecastAverage = forecastAverage,
-            forecastDays = forecastDays,
-            historicMonthlyAverage = historicMonthlyAverage,
+            forecastAverage7 = if (forecastDays == WeatherViewModel.FORECAST_DAYS_SHORT) {
+                forecastAverage
+            } else {
+                null
+            },
+            forecastAverage14 = if (forecastDays == WeatherViewModel.FORECAST_DAYS_LONG) {
+                forecastAverage
+            } else {
+                null
+            },
+            forecastDate7 = if (forecastDays == WeatherViewModel.FORECAST_DAYS_SHORT &&
+                forecastAverage != null
+            ) {
+                date
+            } else {
+                null
+            },
+            forecastDate14 = if (forecastDays == WeatherViewModel.FORECAST_DAYS_LONG &&
+                forecastAverage != null
+            ) {
+                date
+            } else {
+                null
+            },
+            historicMonthlyAverageClassic =
+                if (historicReference == HistoricReference.CLASSIC) {
+                    historicMonthlyAverage
+                } else {
+                    null
+                },
+            historicMonthlyAverageCurrent =
+                if (historicReference == HistoricReference.CURRENT) {
+                    historicMonthlyAverage
+                } else {
+                    null
+                },
         )
 
     private class FakeSettingsRepository(
         initialDays: Int = WeatherViewModel.FORECAST_DAYS_SHORT,
+        initialReference: HistoricReference = SettingsDefaults.DEFAULT_HISTORIC_REFERENCE,
     ) : SettingsRepository {
         private val state = MutableStateFlow(initialDays)
+        private val referenceState = MutableStateFlow(initialReference)
         override val forecastDays: Flow<Int> = state
+        override val historicReference: Flow<HistoricReference> = referenceState
 
         override suspend fun setForecastDays(days: Int) {
             state.value = days
+        }
+
+        override suspend fun setHistoricReference(reference: HistoricReference) {
+            referenceState.value = reference
         }
     }
 

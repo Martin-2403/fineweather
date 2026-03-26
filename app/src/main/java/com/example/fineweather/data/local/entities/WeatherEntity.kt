@@ -16,9 +16,12 @@ data class WeatherEntity(
     val longitude: Double,
     val currentAverage: Double?,
     val currentMonthAverage: Double?,
-    val forecastAverage: Double?,
-    val forecastDays: Int,
-    val historicMonthlyAverage: Double?,
+    val forecastAverage7: Double?,
+    val forecastAverage14: Double?,
+    val forecastDate7: String?,
+    val forecastDate14: String?,
+    val historicMonthlyAverageClassic: Double?,
+    val historicMonthlyAverageCurrent: Double?,
 )
 
 // In WeatherEntity.kt
@@ -32,8 +35,8 @@ fun WeatherEntity.toUiModel(): FineWeatherData {
         )
     data.currentAverage = this.currentAverage
     data.currentMonthAverage = this.currentMonthAverage
-    data.forecastAverage = this.forecastAverage
-    data.forecastTimePeriod = this.forecastDays
-    data.historicMonthlyAverage = this.historicMonthlyAverage
+    data.forecastAverage = this.forecastAverage14 ?: this.forecastAverage7
+    data.historicMonthlyAverage =
+        this.historicMonthlyAverageCurrent ?: this.historicMonthlyAverageClassic
     return data
 }

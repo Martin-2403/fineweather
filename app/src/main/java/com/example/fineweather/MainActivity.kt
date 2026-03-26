@@ -111,6 +111,9 @@ fun WeatherApp() {
     val forecastDays by settingsViewModel.forecastDays.collectAsState(
         initial = SettingsDefaults.DEFAULT_FORECAST_DAYS,
     )
+    val historicReference by settingsViewModel.historicReference.collectAsState(
+        initial = SettingsDefaults.DEFAULT_HISTORIC_REFERENCE,
+    )
 
     Scaffold(
         topBar = {
@@ -171,7 +174,9 @@ fun WeatherApp() {
             AppScreen.SETTINGS ->
                 SettingsScreen(
                     forecastDays = forecastDays,
+                    historicReference = historicReference,
                     onForecastDaysChange = settingsViewModel::setForecastDays,
+                    onHistoricReferenceChange = settingsViewModel::setHistoricReference,
                     modifier = Modifier.padding(innerPadding),
                 )
         }

@@ -5,6 +5,7 @@ import com.example.fineweather.api.OpenMeteoArchiveApiService
 import com.example.fineweather.api.OpenMeteoWeatherApiService
 import com.example.fineweather.data.local.doa.WeatherDao
 import com.example.fineweather.data.local.entities.WeatherEntity
+import com.example.fineweather.data.models.HistoricReference
 import com.example.fineweather.data.models.WeatherResponse
 import com.example.fineweather.utils.getCurrentMonthName
 import com.example.fineweather.utils.getCurrentMonthString
@@ -111,10 +112,10 @@ class WeatherRepository(
     suspend fun getWeatherHistory(
         latitude: Double,
         longitude: Double,
-        timeSpan: Int,
+        reference: HistoricReference,
     ): WeatherResponse {
         try {
-            val range = buildHistoricDateRange(timeSpan)
+            val range = buildHistoricDateRange(reference)
             val historicData =
                 openMeteoArchiveApi.getHistoricData(
                     latitude = latitude,
@@ -214,6 +215,25 @@ class WeatherRepository(
         val startYear = now.year - timeSpan
         val endYear = now.year - 1
         val month = now.monthValue
+        val start = LocalDate.of(startYear, month, 1)
+        val end = LocalDate.of(endYear, month, YearMonth.of(endYear, month).lengthOfMonth())
+        return DateRange(start = start.toString(), end = end.toString())
+    }
+
+    internal fun buildHistoricDateRange(
+        reference: HistoricReference,
+        now: LocalDate = LocalDate.now(),
+    ): DateRange {
+        val month = now.monthValue
+        val (startYear, endYear) =
+            when (reference) {
+                HistoricReference.CLASSIC -> 1961 to 1990
+                HistoricReference.CURRENT -> {
+                    val end = HistoricReference.latestCompleteDecadeEndYear(now)
+                    val start = end - 29
+                    start to end
+                }
+            }
         val start = LocalDate.of(startYear, month, 1)
         val end = LocalDate.of(endYear, month, YearMonth.of(endYear, month).lengthOfMonth())
         return DateRange(start = start.toString(), end = end.toString())

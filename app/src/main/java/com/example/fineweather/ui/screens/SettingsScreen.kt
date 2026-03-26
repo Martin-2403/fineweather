@@ -3,30 +3,52 @@ package com.example.fineweather.ui.screens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.fineweather.nunitoSansFamily
+import com.example.fineweather.data.models.HistoricReference
 import com.example.fineweather.data.repositories.SettingsDefaults
+import com.example.fineweather.nunitoSansFamily
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     forecastDays: Int,
+    historicReference: HistoricReference,
     onForecastDaysChange: (Int) -> Unit,
+    onHistoricReferenceChange: (HistoricReference) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val isFourteenDay = forecastDays == SettingsDefaults.FORECAST_DAYS_LONG
+    var referenceMenuExpanded by remember { mutableStateOf(false) }
+    val referenceOptions =
+        listOf(
+            HistoricReference.CLASSIC to "Historical baseline",
+            HistoricReference.CURRENT to "Current reference",
+        )
 
     Column(
         modifier =
@@ -55,7 +77,7 @@ fun SettingsScreen(
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Text(
-                        text = "Forecast length",
+                        text = "Use longer forecast",
                         fontFamily = nunitoSansFamily,
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.SemiBold,
@@ -81,14 +103,95 @@ fun SettingsScreen(
                     modifier = Modifier.testTag("forecastDaysToggle"),
                 )
             }
-            //Spacer(modifier = Modifier.height(4.dp))
             Text(
                 modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
-                text = "Switch to 14 days for a longer forecast average. Forecasts longer than 7 days are more uncertain.",
+                text = "Switch to 14 days for a longer forecast average. " +
+                        "Forecasts longer than 7 days are more uncertain.",
                 fontFamily = nunitoSansFamily,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
             )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        Card(
+            colors =
+                CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                ),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+            ) {
+                Text(
+                    text = "Historic reference",
+                    fontFamily = nunitoSansFamily,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                ExposedDropdownMenuBox(
+                    expanded = referenceMenuExpanded,
+                    onExpandedChange = { referenceMenuExpanded = !referenceMenuExpanded },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                ) {
+                    val referenceLabel =
+                        referenceOptions.firstOrNull { it.first == historicReference }
+                            ?.let { "${it.second}: ${historicReference.displayLabel()}" }
+                            ?: historicReference.displayLabel()
+                    OutlinedTextField(
+                        value = referenceLabel,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = {
+                            Text("Historic timeframe", fontFamily = nunitoSansFamily)
+                        },
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = referenceMenuExpanded)
+                        },
+                        modifier =
+                            Modifier
+                                .menuAnchor(
+                                    type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
+                                    enabled = true
+                                )
+                                .fillMaxWidth()
+                                .testTag("historicReferenceDropdown"),
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(
+                            fontFamily = nunitoSansFamily,
+                        ),
+                    )
+                    ExposedDropdownMenu(
+                        expanded = referenceMenuExpanded,
+                        onDismissRequest = { referenceMenuExpanded = false },
+                    ) {
+                        referenceOptions.forEach { (option, description) ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = "$description: ${option.displayLabel()} ",
+                                        fontFamily = nunitoSansFamily,
+                                    )
+                                },
+                                onClick = {
+                                    onHistoricReferenceChange(option)
+                                    referenceMenuExpanded = false
+                                },
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Use the current World Meteorological Organization reference 30‑year normal for comparing conditions to the present‑day climate, and the historical baseline (1961–1990) when assessing long‑term climate change trends relative to a stable past reference period.",
+                    fontFamily = nunitoSansFamily,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                )
+            }
         }
     }
 }

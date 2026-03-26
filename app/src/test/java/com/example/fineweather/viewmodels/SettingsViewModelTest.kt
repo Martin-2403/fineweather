@@ -1,5 +1,6 @@
 package com.example.fineweather.viewmodels
 
+import com.example.fineweather.data.models.HistoricReference
 import com.example.fineweather.data.repositories.SettingsDefaults
 import com.example.fineweather.data.repositories.SettingsRepository
 import com.example.fineweather.utils.MainDispatcherRule
@@ -26,19 +27,40 @@ class SettingsViewModelTest {
         assertEquals(SettingsDefaults.DEFAULT_FORECAST_DAYS, viewModel.forecastDays.value)
 
         viewModel.setForecastDays(SettingsDefaults.FORECAST_DAYS_LONG)
-        advanceUntilIdle()
+        //advanceUntilIdle()
 
         assertEquals(SettingsDefaults.FORECAST_DAYS_LONG, viewModel.forecastDays.value)
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun setHistoricReference_updatesState() = runTest {
+        val repository = FakeSettingsRepository()
+        val viewModel = SettingsViewModel(repository)
+
+        assertEquals(SettingsDefaults.DEFAULT_HISTORIC_REFERENCE, viewModel.historicReference.value)
+
+        viewModel.setHistoricReference(HistoricReference.CURRENT)
+        advanceUntilIdle()
+
+        assertEquals(HistoricReference.CURRENT, viewModel.historicReference.value)
+    }
+
     private class FakeSettingsRepository(
         initialDays: Int = SettingsDefaults.DEFAULT_FORECAST_DAYS,
+        initialReference: HistoricReference = SettingsDefaults.DEFAULT_HISTORIC_REFERENCE,
     ) : SettingsRepository {
         private val state = MutableStateFlow(initialDays)
+        private val referenceState = MutableStateFlow(initialReference)
         override val forecastDays: Flow<Int> = state
+        override val historicReference: Flow<HistoricReference> = referenceState
 
         override suspend fun setForecastDays(days: Int) {
             state.value = days
+        }
+
+        override suspend fun setHistoricReference(reference: HistoricReference) {
+            referenceState.value = reference
         }
     }
 }

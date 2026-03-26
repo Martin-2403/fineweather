@@ -11,7 +11,7 @@ import com.example.fineweather.data.local.entities.WeatherEntity
 
 @Database(
     entities = [WeatherEntity::class, GeoCodeEntity::class],
-    version = 4,
+    version = 6,
     exportSchema = false
 )
 abstract class WeatherDatabase : RoomDatabase() {

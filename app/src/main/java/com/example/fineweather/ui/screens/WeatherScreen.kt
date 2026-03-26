@@ -114,6 +114,7 @@ fun WeatherScreen(
             shape = cardShape,
         )
 
+        Spacer(modifier = Modifier.height(8.dp))
 
         SearchBar(
             location = location,

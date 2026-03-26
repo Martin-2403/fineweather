@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.assertIsDisplayed
+import com.example.fineweather.data.models.HistoricReference
 import com.example.fineweather.ui.theme.FineWeatherTheme
 import com.example.fineweather.data.repositories.SettingsDefaults
 import org.junit.Rule
@@ -20,12 +21,15 @@ class SettingsScreenTest {
     @Test
     fun toggleSwitch_updatesForecastDays() {
         val daysState = mutableStateOf(SettingsDefaults.FORECAST_DAYS_SHORT)
+        val referenceState = mutableStateOf(HistoricReference.CLASSIC)
 
         composeTestRule.setContent {
             FineWeatherTheme {
                 SettingsScreen(
                     forecastDays = daysState.value,
+                    historicReference = referenceState.value,
                     onForecastDaysChange = { daysState.value = it },
+                    onHistoricReferenceChange = { referenceState.value = it },
                 )
             }
         }
@@ -36,6 +40,32 @@ class SettingsScreenTest {
         composeTestRule.onNodeWithText("14 days").assertIsDisplayed()
         composeTestRule.runOnIdle {
             assertEquals(SettingsDefaults.FORECAST_DAYS_LONG, daysState.value)
+        }
+    }
+
+    @Test
+    fun dropdown_updatesHistoricReference() {
+        val daysState = mutableStateOf(SettingsDefaults.FORECAST_DAYS_SHORT)
+        val referenceState = mutableStateOf(HistoricReference.CLASSIC)
+        val targetLabel =
+            "${HistoricReference.CURRENT.displayLabel()} • Current reference"
+
+        composeTestRule.setContent {
+            FineWeatherTheme {
+                SettingsScreen(
+                    forecastDays = daysState.value,
+                    historicReference = referenceState.value,
+                    onForecastDaysChange = { daysState.value = it },
+                    onHistoricReferenceChange = { referenceState.value = it },
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithTag("historicReferenceDropdown").performClick()
+        composeTestRule.onNodeWithText(targetLabel).performClick()
+
+        composeTestRule.runOnIdle {
+            assertEquals(HistoricReference.CURRENT, referenceState.value)
         }
     }
 }

@@ -73,8 +73,11 @@ class WeatherDaoTest {
             longitude = 2.0,
             currentAverage = 10.0,
             currentMonthAverage = 11.0,
-            forecastAverage = 12.0,
-            forecastDays = 7,
-            historicMonthlyAverage = 9.0,
+            forecastAverage7 = 12.0,
+            forecastAverage14 = null,
+            forecastDate7 = date,
+            forecastDate14 = null,
+            historicMonthlyAverageClassic = 9.0,
+            historicMonthlyAverageCurrent = null,
         )
 }

@@ -3,6 +3,7 @@ package com.example.fineweather.viewmodels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.fineweather.data.models.HistoricReference
 import com.example.fineweather.data.repositories.SettingsDefaults
 import com.example.fineweather.data.repositories.SettingsRepository
 import kotlinx.coroutines.flow.SharingStarted
@@ -21,6 +22,13 @@ class SettingsViewModel(
             initialValue = SettingsDefaults.DEFAULT_FORECAST_DAYS,
         )
 
+    val historicReference: StateFlow<HistoricReference> =
+        settingsRepository.historicReference.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = SettingsDefaults.DEFAULT_HISTORIC_REFERENCE,
+        )
+
     fun setForecastDays(days: Int) {
         require(days == SettingsDefaults.FORECAST_DAYS_SHORT ||
                 days == SettingsDefaults.FORECAST_DAYS_LONG
@@ -30,6 +38,12 @@ class SettingsViewModel(
         }
         viewModelScope.launch {
             settingsRepository.setForecastDays(days)
+        }
+    }
+
+    fun setHistoricReference(reference: HistoricReference) {
+        viewModelScope.launch {
+            settingsRepository.setHistoricReference(reference)
         }
     }
 }
