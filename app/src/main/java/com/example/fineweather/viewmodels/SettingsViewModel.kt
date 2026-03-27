@@ -18,14 +18,14 @@ class SettingsViewModel(
     val forecastDays: StateFlow<Int> =
         settingsRepository.forecastDays.stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
+            started = SharingStarted.Eagerly,
             initialValue = SettingsDefaults.DEFAULT_FORECAST_DAYS,
         )
 
     val historicReference: StateFlow<HistoricReference> =
         settingsRepository.historicReference.stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
+            started = SharingStarted.Eagerly,
             initialValue = SettingsDefaults.DEFAULT_HISTORIC_REFERENCE,
         )
 

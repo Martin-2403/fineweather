@@ -7,6 +7,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.ksp)
+    id("jacoco")
 }
 
 android {
@@ -49,6 +50,9 @@ android {
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "2.0.2"
+    }
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
     }
 }
 
@@ -99,4 +103,62 @@ dependencies {
 
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+}
+
+tasks.register<JacocoReport>("jacocoTestReport") {
+    dependsOn("testDebugUnitTest")
+
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+
+    val coverageExclusions =
+        listOf(
+            "**/R.class",
+            "**/R$*.class",
+            "**/BuildConfig.*",
+            "**/Manifest*.*",
+            "**/*Test*.*",
+            "**/ui/**",
+            "**/MainActivity*",
+            "**/ComposableSingletons*",
+            "**/AppScreen*",
+            "**/utils/GeocoderUtil*",
+            "**/api/*ApiService*",
+            "**/data/local/WeatherDatabase*",
+            "**/data/local/SettingsDataStoreKt*",
+            "**/data/repositories/DataStoreSettingsRepository*",
+            "**/viewmodels/WeatherViewModel$1*",
+            "**/viewmodels/WeatherViewModel$2*",
+            "**/*_Impl*.*",
+            "**/*_Factory*.*",
+            "**/*_MembersInjector*.*",
+            "**/*\$Lambda\$*.*",
+            "**/*\$inlined\$*.*",
+            "**/*\$Companion*.*",
+        )
+
+    val kotlinClasses =
+        fileTree(
+            "${layout.buildDirectory.get()}/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes",
+        ) {
+        exclude(coverageExclusions)
+    }
+    val javaClasses = fileTree("${layout.buildDirectory.get()}/intermediates/javac/debug/classes") {
+        exclude(coverageExclusions)
+    }
+
+    classDirectories.setFrom(files(kotlinClasses, javaClasses))
+    sourceDirectories.setFrom(
+        files(
+            "src/main/java",
+            "src/main/kotlin",
+        ),
+    )
+    executionData.setFrom(
+        fileTree(layout.buildDirectory) {
+            include("jacoco/testDebugUnitTest.exec")
+        },
+    )
 }

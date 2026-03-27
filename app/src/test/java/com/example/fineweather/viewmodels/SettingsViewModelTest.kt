@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Rule
 import org.junit.Test
 
@@ -27,7 +28,7 @@ class SettingsViewModelTest {
         assertEquals(SettingsDefaults.DEFAULT_FORECAST_DAYS, viewModel.forecastDays.value)
 
         viewModel.setForecastDays(SettingsDefaults.FORECAST_DAYS_LONG)
-        //advanceUntilIdle()
+        advanceUntilIdle()
 
         assertEquals(SettingsDefaults.FORECAST_DAYS_LONG, viewModel.forecastDays.value)
     }
@@ -44,6 +45,37 @@ class SettingsViewModelTest {
         advanceUntilIdle()
 
         assertEquals(HistoricReference.CURRENT, viewModel.historicReference.value)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun setForecastDays_rejectsInvalidValues() = runTest {
+        val repository = FakeSettingsRepository()
+        val viewModel = SettingsViewModel(repository)
+
+        assertThrows(IllegalArgumentException::class.java) {
+            viewModel.setForecastDays(999)
+        }
+    }
+
+    @Test
+    fun settingsViewModelFactory_createsViewModel() {
+        val repository = FakeSettingsRepository()
+        val factory = SettingsViewModelFactory(repository)
+
+        val viewModel = factory.create(SettingsViewModel::class.java)
+
+        assertEquals(SettingsViewModel::class.java, viewModel::class.java)
+    }
+
+    @Test
+    fun settingsViewModelFactory_throwsForUnknownClass() {
+        val repository = FakeSettingsRepository()
+        val factory = SettingsViewModelFactory(repository)
+
+        assertThrows(IllegalArgumentException::class.java) {
+            factory.create(WeatherViewModel::class.java)
+        }
     }
 
     private class FakeSettingsRepository(

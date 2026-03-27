@@ -147,7 +147,7 @@ fun SettingsScreen(
                         onValueChange = {},
                         readOnly = true,
                         label = {
-                            Text("Historic timeframe", fontFamily = nunitoSansFamily)
+                            Text("Timeframe", fontFamily = nunitoSansFamily)
                         },
                         trailingIcon = {
                             ExposedDropdownMenuDefaults.TrailingIcon(expanded = referenceMenuExpanded)

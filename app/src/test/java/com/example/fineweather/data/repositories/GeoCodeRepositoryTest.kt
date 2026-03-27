@@ -82,4 +82,54 @@ class GeoCodeRepositoryTest {
         assertTrue(!repository.wasLastLookupFromCache())
         coVerify(exactly = 1) { dao.insert(match { it.query == "munich" && it.locationId == "loc-2" }) }
     }
+
+    @Test
+    fun getGeoCode_normalizesWhitespaceAndCasingForCacheLookup() = runTest {
+        val cached =
+            GeoCodeEntity(
+                query = "new york",
+                locationId = "loc-3",
+                name = "New York",
+                country = "USA",
+                latitude = 40.71,
+                longitude = -74.0,
+            )
+        coEvery { dao.getByQuery("new york") } returns cached
+
+        val result = repository.getGeoCode("  NEW   york  ")
+
+        assertEquals("New York", result.location)
+        assertEquals("USA", result.country)
+        assertEquals(Pair(40.71, -74.0), result.coordinates)
+        coVerify(exactly = 1) { dao.getByQuery("new york") }
+    }
+
+    @Test
+    fun getGeoCode_usesFallbackWhenApiReturnsNullEntry() = runTest {
+        @Suppress("UNCHECKED_CAST")
+        val response =
+            GeoCodingResponse(
+                results = listOf(null) as List<GeocodingResult>,
+                generationtime_ms = 0.0,
+            )
+        coEvery { dao.getByQuery("unknown") } returns null
+        coEvery { api.getGeoCoding(name = "Unknown", count = any(), language = any(), format = any()) } returns response
+
+        val result = repository.getGeoCode("Unknown")
+
+        assertEquals("n/a", result.location)
+        assertEquals("n/a", result.id)
+        assertEquals(Pair(0.0, 0.0), result.coordinates)
+        coVerify(exactly = 1) { dao.insert(match { it.name == "n/a" && it.locationId == "n/a" }) }
+    }
+
+    @Test
+    fun getGeoCode_throwsWhenApiFails() = runTest {
+        coEvery { dao.getByQuery("rome") } returns null
+        coEvery { api.getGeoCoding(any(), any(), any(), any()) } throws RuntimeException("boom")
+
+        val thrown = runCatching { repository.getGeoCode("Rome") }.exceptionOrNull()
+
+        assertTrue(thrown is Exception)
+    }
 }
