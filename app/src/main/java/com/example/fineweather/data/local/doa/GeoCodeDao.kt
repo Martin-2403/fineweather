@@ -8,7 +8,7 @@ import com.example.fineweather.data.local.entities.GeoCodeEntity
 
 @Dao
 interface GeoCodeDao {
-    @Query("SELECT * FROM geocode_cache WHERE query = :query LIMIT 1")
+    @Query("SELECT * FROM geocode_cache WHERE `query` = :query LIMIT 1")
     suspend fun getByQuery(query: String): GeoCodeEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

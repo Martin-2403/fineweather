@@ -22,14 +22,17 @@ class SettingsScreenTest {
     fun toggleSwitch_updatesForecastDays() {
         val daysState = mutableStateOf(SettingsDefaults.FORECAST_DAYS_SHORT)
         val referenceState = mutableStateOf(HistoricReference.CLASSIC)
+        val languageState = mutableStateOf(SettingsDefaults.DEFAULT_SEARCH_LANGUAGE)
 
         composeTestRule.setContent {
             FineWeatherTheme {
                 SettingsScreen(
                     forecastDays = daysState.value,
                     historicReference = referenceState.value,
+                    searchLanguage = languageState.value,
                     onForecastDaysChange = { daysState.value = it },
                     onHistoricReferenceChange = { referenceState.value = it },
+                    onSearchLanguageChange = { languageState.value = it },
                 )
             }
         }
@@ -47,6 +50,7 @@ class SettingsScreenTest {
     fun dropdown_updatesHistoricReference() {
         val daysState = mutableStateOf(SettingsDefaults.FORECAST_DAYS_SHORT)
         val referenceState = mutableStateOf(HistoricReference.CLASSIC)
+        val languageState = mutableStateOf(SettingsDefaults.DEFAULT_SEARCH_LANGUAGE)
         val targetLabel =
             "${HistoricReference.CURRENT.displayLabel()} • Current reference"
 
@@ -55,8 +59,10 @@ class SettingsScreenTest {
                 SettingsScreen(
                     forecastDays = daysState.value,
                     historicReference = referenceState.value,
+                    searchLanguage = languageState.value,
                     onForecastDaysChange = { daysState.value = it },
                     onHistoricReferenceChange = { referenceState.value = it },
+                    onSearchLanguageChange = { languageState.value = it },
                 )
             }
         }

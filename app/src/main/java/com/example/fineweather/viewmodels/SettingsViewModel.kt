@@ -29,6 +29,13 @@ class SettingsViewModel(
             initialValue = SettingsDefaults.DEFAULT_HISTORIC_REFERENCE,
         )
 
+    val searchLanguage: StateFlow<String> =
+        settingsRepository.searchLanguage.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = SettingsDefaults.DEFAULT_SEARCH_LANGUAGE,
+        )
+
     fun setForecastDays(days: Int) {
         require(days == SettingsDefaults.FORECAST_DAYS_SHORT ||
                 days == SettingsDefaults.FORECAST_DAYS_LONG
@@ -44,6 +51,12 @@ class SettingsViewModel(
     fun setHistoricReference(reference: HistoricReference) {
         viewModelScope.launch {
             settingsRepository.setHistoricReference(reference)
+        }
+    }
+
+    fun setSearchLanguage(language: String) {
+        viewModelScope.launch {
+            settingsRepository.setSearchLanguage(language)
         }
     }
 }

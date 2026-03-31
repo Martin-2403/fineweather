@@ -14,16 +14,26 @@ class GeoCodeRepository(
     private var cachedGeoCodeData: GeocodingResult? = null
     private var lastLookupFromCache: Boolean = false
 
-    suspend fun getGeoCode(name: String): FineWeatherData {
+    suspend fun getGeoCode(
+        name: String,
+        language: String,
+    ): FineWeatherData {
         try {
-            val normalized = normalizeQuery(name)
-            geoCodeDao.getByQuery(normalized)?.let { cached ->
+            val normalizedLanguage = normalizeLanguage(language)
+            val languageLocale = Locale.forLanguageTag(normalizedLanguage)
+            val normalized = normalizeQuery(name, languageLocale)
+            val cacheKey = buildCacheKey(normalized, normalizedLanguage)
+            val cached = geoCodeDao.getByQuery(cacheKey) ?: geoCodeDao.getByQuery(normalized)
+            cached?.let { cachedEntry ->
                 lastLookupFromCache = true
+                if (cachedEntry.query != cacheKey) {
+                    geoCodeDao.insert(cachedEntry.copy(query = cacheKey))
+                }
                 return FineWeatherData(
-                    cached.name,
-                    Pair(cached.latitude, cached.longitude),
-                    cached.locationId,
-                    cached.country,
+                    cachedEntry.name,
+                    Pair(cachedEntry.latitude, cachedEntry.longitude),
+                    cachedEntry.locationId,
+                    cachedEntry.country,
                 )
             }
 
@@ -31,13 +41,14 @@ class GeoCodeRepository(
                 openMeteoGeoCodeApi
                     .getGeoCoding(
                         name = name,
+                        language = normalizedLanguage,
                     ).results
                     .first()
             lastLookupFromCache = false
             val resolved = cachedGeoCodeData
             val entity =
                 GeoCodeEntity(
-                    query = normalized,
+                    query = cacheKey,
                     locationId = resolved?.id ?: "n/a",
                     name = resolved?.name ?: "n/a",
                     country = resolved?.country,
@@ -61,8 +72,21 @@ class GeoCodeRepository(
 
     fun wasLastLookupFromCache(): Boolean = lastLookupFromCache
 
-    private fun normalizeQuery(input: String): String =
+    private fun normalizeQuery(
+        input: String,
+        locale: Locale,
+    ): String =
+        input.trim()
+            .lowercase(locale)
+            .replace(Regex("\\s+"), " ")
+
+    private fun normalizeLanguage(input: String): String =
         input.trim()
             .lowercase(Locale.ROOT)
-            .replace(Regex("\\s+"), " ")
+            .ifBlank { SettingsDefaults.DEFAULT_SEARCH_LANGUAGE }
+
+    private fun buildCacheKey(
+        normalizedQuery: String,
+        normalizedLanguage: String,
+    ): String = "${normalizedLanguage}|${normalizedQuery}"
 }

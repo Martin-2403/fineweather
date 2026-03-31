@@ -58,6 +58,20 @@ class SettingsViewModelTest {
         }
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun setSearchLanguage_updatesState() = runTest {
+        val repository = FakeSettingsRepository()
+        val viewModel = SettingsViewModel(repository)
+
+        assertEquals(SettingsDefaults.DEFAULT_SEARCH_LANGUAGE, viewModel.searchLanguage.value)
+
+        viewModel.setSearchLanguage("fr")
+        advanceUntilIdle()
+
+        assertEquals("fr", viewModel.searchLanguage.value)
+    }
+
     @Test
     fun settingsViewModelFactory_createsViewModel() {
         val repository = FakeSettingsRepository()
@@ -81,11 +95,14 @@ class SettingsViewModelTest {
     private class FakeSettingsRepository(
         initialDays: Int = SettingsDefaults.DEFAULT_FORECAST_DAYS,
         initialReference: HistoricReference = SettingsDefaults.DEFAULT_HISTORIC_REFERENCE,
+        initialLanguage: String = SettingsDefaults.DEFAULT_SEARCH_LANGUAGE,
     ) : SettingsRepository {
         private val state = MutableStateFlow(initialDays)
         private val referenceState = MutableStateFlow(initialReference)
+        private val languageState = MutableStateFlow(initialLanguage)
         override val forecastDays: Flow<Int> = state
         override val historicReference: Flow<HistoricReference> = referenceState
+        override val searchLanguage: Flow<String> = languageState
 
         override suspend fun setForecastDays(days: Int) {
             state.value = days
@@ -93,6 +110,10 @@ class SettingsViewModelTest {
 
         override suspend fun setHistoricReference(reference: HistoricReference) {
             referenceState.value = reference
+        }
+
+        override suspend fun setSearchLanguage(language: String) {
+            languageState.value = language
         }
     }
 }

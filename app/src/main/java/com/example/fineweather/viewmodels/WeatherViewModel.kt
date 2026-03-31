@@ -32,6 +32,7 @@ class WeatherViewModel(
     val forecastDays: StateFlow<Int> = _forecastDays
     private val _historicReference = MutableStateFlow(SettingsDefaults.DEFAULT_HISTORIC_REFERENCE)
     val historicReference: StateFlow<HistoricReference> = _historicReference
+    private val _searchLanguage = MutableStateFlow(SettingsDefaults.DEFAULT_SEARCH_LANGUAGE)
     private val _resultForecastAverage = MutableStateFlow("-")
     val resultForecastAverage: StateFlow<String> = _resultForecastAverage
 
@@ -85,6 +86,11 @@ class WeatherViewModel(
                 }
             }
         }
+        viewModelScope.launch {
+            settingsRepository.searchLanguage.collect { language ->
+                _searchLanguage.value = language
+            }
+        }
     }
 
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
@@ -103,7 +109,10 @@ class WeatherViewModel(
             setDataValues("Loading...")
             try {
                 weatherRepository.cleanOutdatedWeatherDate()
-                val data = geoCodeRepository.getGeoCode(location.trim())
+                val data = geoCodeRepository.getGeoCode(
+                    name = location.trim(),
+                    language = _searchLanguage.value,
+                )
 //                if (geoCodeRepository.wasLastLookupFromCache()) {
 //                    incrementCacheHits()
 //                } else {
@@ -318,8 +327,6 @@ class WeatherViewModel(
         historicReferenceOverride: HistoricReference? = null,
     ) {
         val existing = weatherRepository.getCachedWeatherById(data.id)
-        val resolvedForecastDays = forecastDaysOverride
-        val resolvedHistoricReference = historicReferenceOverride
         val resolvedDate =
             if (updateDate) {
                 data.timestamp
@@ -327,31 +334,31 @@ class WeatherViewModel(
                 existing?.date ?: data.timestamp
             }
         val forecastAverage7 =
-            if (resolvedForecastDays == FORECAST_DAYS_SHORT && data.forecastAverage != null) {
+            if (forecastDaysOverride == FORECAST_DAYS_SHORT && data.forecastAverage != null) {
                 data.forecastAverage
             } else {
                 existing?.forecastAverage7
             }
         val forecastAverage14 =
-            if (resolvedForecastDays == FORECAST_DAYS_LONG && data.forecastAverage != null) {
+            if (forecastDaysOverride == FORECAST_DAYS_LONG && data.forecastAverage != null) {
                 data.forecastAverage
             } else {
                 existing?.forecastAverage14
             }
         val forecastDate7 =
-            if (resolvedForecastDays == FORECAST_DAYS_SHORT && data.forecastAverage != null) {
+            if (forecastDaysOverride == FORECAST_DAYS_SHORT && data.forecastAverage != null) {
                 data.timestamp
             } else {
                 existing?.forecastDate7
             }
         val forecastDate14 =
-            if (resolvedForecastDays == FORECAST_DAYS_LONG && data.forecastAverage != null) {
+            if (forecastDaysOverride == FORECAST_DAYS_LONG && data.forecastAverage != null) {
                 data.timestamp
             } else {
                 existing?.forecastDate14
             }
         val historicClassic =
-            if (resolvedHistoricReference == HistoricReference.CLASSIC &&
+            if (historicReferenceOverride == HistoricReference.CLASSIC &&
                 data.historicMonthlyAverage != null
             ) {
                 data.historicMonthlyAverage
@@ -359,7 +366,7 @@ class WeatherViewModel(
                 existing?.historicMonthlyAverageClassic
             }
         val historicCurrent =
-            if (resolvedHistoricReference == HistoricReference.CURRENT &&
+            if (historicReferenceOverride == HistoricReference.CURRENT &&
                 data.historicMonthlyAverage != null
             ) {
                 data.historicMonthlyAverage

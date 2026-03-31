@@ -114,6 +114,9 @@ fun WeatherApp() {
     val historicReference by settingsViewModel.historicReference.collectAsState(
         initial = SettingsDefaults.DEFAULT_HISTORIC_REFERENCE,
     )
+    val searchLanguage by settingsViewModel.searchLanguage.collectAsState(
+        initial = SettingsDefaults.DEFAULT_SEARCH_LANGUAGE,
+    )
 
     Scaffold(
         topBar = {
@@ -175,8 +178,10 @@ fun WeatherApp() {
                 SettingsScreen(
                     forecastDays = forecastDays,
                     historicReference = historicReference,
+                    searchLanguage = searchLanguage,
                     onForecastDaysChange = settingsViewModel::setForecastDays,
                     onHistoricReferenceChange = settingsViewModel::setHistoricReference,
+                    onSearchLanguageChange = settingsViewModel::setSearchLanguage,
                     modifier = Modifier.padding(innerPadding),
                 )
         }

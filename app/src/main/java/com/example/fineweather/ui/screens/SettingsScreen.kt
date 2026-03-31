@@ -38,17 +38,21 @@ import com.example.fineweather.nunitoSansFamily
 fun SettingsScreen(
     forecastDays: Int,
     historicReference: HistoricReference,
+    searchLanguage: String,
     onForecastDaysChange: (Int) -> Unit,
     onHistoricReferenceChange: (HistoricReference) -> Unit,
+    onSearchLanguageChange: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val isFourteenDay = forecastDays == SettingsDefaults.FORECAST_DAYS_LONG
     var referenceMenuExpanded by remember { mutableStateOf(false) }
+    var languageMenuExpanded by remember { mutableStateOf(false) }
     val referenceOptions =
         listOf(
             HistoricReference.CLASSIC to "Historical baseline",
             HistoricReference.CURRENT to "Current reference",
         )
+    val languageOptions = SettingsDefaults.SEARCH_LANGUAGE_OPTIONS
 
     Column(
         modifier =
@@ -111,6 +115,87 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
             )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        Card(
+            colors =
+                CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                ),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+            ) {
+                Text(
+                    text = "Search language",
+                    fontFamily = nunitoSansFamily,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                ExposedDropdownMenuBox(
+                    expanded = languageMenuExpanded,
+                    onExpandedChange = { languageMenuExpanded = !languageMenuExpanded },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    val languageLabel =
+                        languageOptions.firstOrNull { it.code == searchLanguage }
+                            ?.displayLabel()
+                            ?: searchLanguage
+                    OutlinedTextField(
+                        value = languageLabel,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = {
+                            Text("Language", fontFamily = nunitoSansFamily)
+                        },
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = languageMenuExpanded)
+                        },
+                        modifier =
+                            Modifier
+                                .menuAnchor(
+                                    type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
+                                    enabled = true
+                                )
+                                .fillMaxWidth()
+                                .testTag("searchLanguageDropdown"),
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(
+                            fontFamily = nunitoSansFamily,
+                        ),
+                    )
+                    ExposedDropdownMenu(
+                        expanded = languageMenuExpanded,
+                        onDismissRequest = { languageMenuExpanded = false },
+                    ) {
+                        languageOptions.forEach { option ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = option.displayLabel(),
+                                        fontFamily = nunitoSansFamily,
+                                    )
+                                },
+                                onClick = {
+                                    onSearchLanguageChange(option.code)
+                                    languageMenuExpanded = false
+                                },
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Search results are localized when available. If a translation is not " +
+                            "available, the API falls back to English or the native location name.",
+                    fontFamily = nunitoSansFamily,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
