@@ -17,11 +17,13 @@ import com.example.fineweather.utils.formatDouble
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 class WeatherViewModel(
     private val weatherRepository: WeatherRepository,
     private val geoCodeRepository: GeoCodeRepository,
     private val settingsRepository: SettingsRepository,
+    private val nowProvider: () -> LocalDate = { LocalDate.now() },
 ) : ViewModel() {
     companion object {
         const val FORECAST_DAYS_SHORT = SettingsDefaults.FORECAST_DAYS_SHORT
@@ -163,9 +165,15 @@ class WeatherViewModel(
             data.currentMonthAverage = cachedLatest.currentMonthAverage
             _resultCurrentAverage.value =
                 "${formatDouble(data.currentAverage)}°C"
-            _resultCurrentMonthAverage.value =
-                "${formatDouble(data.currentMonthAverage)}°C"
-            _currentMonthDayCount.value = java.time.LocalDate.now().dayOfMonth
+            if (isFirstDayOfMonth()) {
+                data.currentMonthAverage = null
+                _resultCurrentMonthAverage.value = "N/A"
+                _currentMonthDayCount.value = 0
+            } else {
+                _resultCurrentMonthAverage.value =
+                    "${formatDouble(data.currentMonthAverage)}°C"
+                _currentMonthDayCount.value = nowProvider().dayOfMonth
+            }
         } else {
             fetchCurrentWeather(data)
         }
@@ -222,14 +230,20 @@ class WeatherViewModel(
             _resultCurrentAverage.value = "${formatDouble(data.currentAverage)}°C"
 
             val stats = weatherRepository.calculateCurrentMonthStats()
-            _currentMonthDayCount.value = stats.dayCount
-            data.currentMonthAverage = stats.average
-            _resultCurrentMonthAverage.value =
-                if (stats.average == null) {
-                    "No data yet"
-                } else {
-                    "${formatDouble(stats.average)}°C"
-                }
+            if (isFirstDayOfMonth()) {
+                _currentMonthDayCount.value = 0
+                data.currentMonthAverage = null
+                _resultCurrentMonthAverage.value = "N/A"
+            } else {
+                _currentMonthDayCount.value = stats.dayCount
+                data.currentMonthAverage = stats.average
+                _resultCurrentMonthAverage.value =
+                    if (stats.average == null) {
+                        "No data yet"
+                    } else {
+                        "${formatDouble(stats.average)}°C"
+                    }
+            }
             persistWeatherCache(data, updateDate = true)
         }.onFailure { e ->
             _resultCurrentAverage.value = "Error"
@@ -333,6 +347,18 @@ class WeatherViewModel(
             } else {
                 existing?.date ?: data.timestamp
             }
+        val resolvedCurrentAverage =
+            if (updateDate) {
+                data.currentAverage
+            } else {
+                data.currentAverage ?: existing?.currentAverage
+            }
+        val resolvedCurrentMonthAverage =
+            if (updateDate) {
+                data.currentMonthAverage
+            } else {
+                data.currentMonthAverage ?: existing?.currentMonthAverage
+            }
         val forecastAverage7 =
             if (forecastDaysOverride == FORECAST_DAYS_SHORT && data.forecastAverage != null) {
                 data.forecastAverage
@@ -381,8 +407,8 @@ class WeatherViewModel(
                 country = data.country,
                 latitude = data.coordinates.first,
                 longitude = data.coordinates.second,
-                currentAverage = data.currentAverage ?: existing?.currentAverage,
-                currentMonthAverage = data.currentMonthAverage ?: existing?.currentMonthAverage,
+                currentAverage = resolvedCurrentAverage,
+                currentMonthAverage = resolvedCurrentMonthAverage,
                 forecastAverage7 = forecastAverage7,
                 forecastAverage14 = forecastAverage14,
                 forecastDate7 = forecastDate7,
@@ -399,6 +425,10 @@ class WeatherViewModel(
 
     private fun incrementCacheHits(count: Int = 1) {
         _cacheHitCount.value += count
+    }
+
+    private fun isFirstDayOfMonth(now: LocalDate = nowProvider()): Boolean {
+        return now.dayOfMonth == 1
     }
 
     fun setForecastDays(days: Int) {

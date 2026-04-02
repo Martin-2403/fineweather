@@ -42,8 +42,7 @@ class GeoCodeRepository(
                     .getGeoCoding(
                         name = name,
                         language = normalizedLanguage,
-                    ).results
-                    .first()
+                    ).results.maxByOrNull { it.population }!!
             lastLookupFromCache = false
             val resolved = cachedGeoCodeData
             val entity =

@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -38,6 +39,7 @@ class WeatherViewModelTest {
     private lateinit var geoCodeRepository: GeoCodeRepository
     private lateinit var settingsRepository: SettingsRepository
     private lateinit var viewModel: WeatherViewModel
+    private val fixedNow = LocalDate.of(2026, 4, 2)
 
     @Before
     fun setup() {
@@ -47,7 +49,13 @@ class WeatherViewModelTest {
         weatherRepository = mockk(relaxed = true)
         geoCodeRepository = mockk(relaxed = true)
         settingsRepository = FakeSettingsRepository()
-        viewModel = WeatherViewModel(weatherRepository, geoCodeRepository, settingsRepository)
+        viewModel =
+            WeatherViewModel(
+                weatherRepository,
+                geoCodeRepository,
+                settingsRepository,
+                nowProvider = { fixedNow },
+            )
     }
 
     @org.junit.After
@@ -460,7 +468,13 @@ class WeatherViewModelTest {
     @Test
     fun settingsUpdates_fetchWhenCacheMissing() = runTest {
         val settingsRepository = FakeSettingsRepository()
-        viewModel = WeatherViewModel(weatherRepository, geoCodeRepository, settingsRepository)
+        viewModel =
+            WeatherViewModel(
+                weatherRepository,
+                geoCodeRepository,
+                settingsRepository,
+                nowProvider = { fixedNow },
+            )
         val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1", "Germany")
         val cached = buildEntity(
             id = data.id,
@@ -503,7 +517,13 @@ class WeatherViewModelTest {
                 initialDays = WeatherViewModel.FORECAST_DAYS_LONG,
                 initialReference = HistoricReference.CURRENT,
             )
-        viewModel = WeatherViewModel(weatherRepository, geoCodeRepository, settingsRepository)
+        viewModel =
+            WeatherViewModel(
+                weatherRepository,
+                geoCodeRepository,
+                settingsRepository,
+                nowProvider = { fixedNow },
+            )
         val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1", "Germany")
         val cached = buildEntity(
             id = data.id,
@@ -540,7 +560,13 @@ class WeatherViewModelTest {
     @Test
     fun fetchWeather_usesCurrentHistoricCacheWhenReferenceCurrent() = runTest {
         val settingsRepository = FakeSettingsRepository(initialReference = HistoricReference.CURRENT)
-        viewModel = WeatherViewModel(weatherRepository, geoCodeRepository, settingsRepository)
+        viewModel =
+            WeatherViewModel(
+                weatherRepository,
+                geoCodeRepository,
+                settingsRepository,
+                nowProvider = { fixedNow },
+            )
         val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1", "Germany")
         val cached = buildEntity(
             id = data.id,
@@ -567,7 +593,13 @@ class WeatherViewModelTest {
     @Test
     fun fetchWeather_persistsHistoricCurrentWhenAvailable() = runTest {
         val settingsRepository = FakeSettingsRepository(initialReference = HistoricReference.CURRENT)
-        viewModel = WeatherViewModel(weatherRepository, geoCodeRepository, settingsRepository)
+        viewModel =
+            WeatherViewModel(
+                weatherRepository,
+                geoCodeRepository,
+                settingsRepository,
+                nowProvider = { fixedNow },
+            )
         val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1")
 
         coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
@@ -616,7 +648,13 @@ class WeatherViewModelTest {
     @Test
     fun settingsUpdates_handleNullCache() = runTest {
         val settingsRepository = FakeSettingsRepository()
-        viewModel = WeatherViewModel(weatherRepository, geoCodeRepository, settingsRepository)
+        viewModel =
+            WeatherViewModel(
+                weatherRepository,
+                geoCodeRepository,
+                settingsRepository,
+                nowProvider = { fixedNow },
+            )
         val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1")
 
         coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
@@ -677,7 +715,13 @@ class WeatherViewModelTest {
     @Test
     fun settingsUpdates_useCachedValuesWhenAvailable() = runTest {
         val settingsRepository = FakeSettingsRepository()
-        viewModel = WeatherViewModel(weatherRepository, geoCodeRepository, settingsRepository)
+        viewModel =
+            WeatherViewModel(
+                weatherRepository,
+                geoCodeRepository,
+                settingsRepository,
+                nowProvider = { fixedNow },
+            )
         val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1", "Germany")
         val cached = buildEntity(
             id = data.id,
@@ -722,7 +766,13 @@ class WeatherViewModelTest {
     @Test
     fun setForecastDays_noopWhenSame() {
         val countingRepository = CountingSettingsRepository()
-        viewModel = WeatherViewModel(weatherRepository, geoCodeRepository, countingRepository)
+        viewModel =
+            WeatherViewModel(
+                weatherRepository,
+                geoCodeRepository,
+                countingRepository,
+                nowProvider = { fixedNow },
+            )
 
         viewModel.setForecastDays(WeatherViewModel.FORECAST_DAYS_SHORT)
 
