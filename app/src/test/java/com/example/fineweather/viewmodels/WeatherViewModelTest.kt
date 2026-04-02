@@ -133,7 +133,7 @@ class WeatherViewModelTest {
         val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1")
         val cachedHistoric = buildEntity(
             id = data.id,
-            date = java.time.LocalDate.now().minusDays(1).toString(),
+            date = LocalDate.now().minusDays(1).toString(),
             historicMonthlyAverage = 5.0,
         )
 
@@ -162,7 +162,7 @@ class WeatherViewModelTest {
         val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1")
         val cached = buildEntity(
             id = data.id,
-            date = java.time.LocalDate.now().minusDays(1).toString(),
+            date = LocalDate.now().minusDays(1).toString(),
             currentAverage = 10.0,
             currentMonthAverage = 11.0,
             historicMonthlyAverage = 9.0,
@@ -688,7 +688,7 @@ class WeatherViewModelTest {
         val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1")
         val cached = buildEntity(
             id = data.id,
-            date = java.time.LocalDate.now().minusDays(1).toString(),
+            date = LocalDate.now().minusDays(1).toString(),
             currentAverage = 10.0,
             currentMonthAverage = 11.0,
             forecastAverage = 12.0,
