@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardColors
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.AlertDialog
@@ -28,6 +29,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -46,9 +50,13 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import com.example.fineweather.R
 import com.example.fineweather.nunitoSansFamily
+import com.example.fineweather.data.models.GeoPlace
 import com.example.fineweather.ui.models.IconStack
 import com.example.fineweather.ui.models.ValueWithIcons
 import com.example.fineweather.viewmodels.WeatherViewModel
@@ -63,7 +71,8 @@ fun WeatherScreen(
 ) {
     var location by rememberSaveable { mutableStateOf("") }
     var showCurrentMonthWarning by rememberSaveable { mutableStateOf(false) }
-    val status by viewModel.status.collectAsState(initial = "Enter a city to see temperature averages")
+    var selectedTab by rememberSaveable { mutableStateOf(WeatherTab.RESULTS) }
+    val status by viewModel.status.collectAsState(initial = "Enter a location to see temperature averages")
     val resultForecast by viewModel.resultForecastAverage.collectAsState(initial = "")
     val resultCurrent by viewModel.resultCurrentAverage.collectAsState(initial = "")
     val resultHistoric by viewModel.resultHistoricAverage.collectAsState(initial = "")
@@ -75,6 +84,10 @@ fun WeatherScreen(
     val apiCallCount by viewModel.apiCallCount.collectAsState(initial = 0)
     val cacheHitCount by viewModel.cacheHitCount.collectAsState(initial = 0)
     val resolvedLocation by viewModel.resolvedLocationName.collectAsState(initial = "")
+    val places by viewModel.places.collectAsState(initial = emptyList())
+    val favoritePlace by viewModel.favorite.collectAsState(initial = null)
+    val selectedPlace by viewModel.selectedPlace.collectAsState(initial = null)
+    val isFavoriteSelected = favoritePlace?.id != null && favoritePlace?.id == selectedPlace?.id
     val statusCardValue = buildStatusCardValue(resultCurrentMonth, resultHistoric)
     val trendCardValue = buildTrendCardValue(resultForecast, resultCurrentMonth)
     val statusImageRes = resolveStatusImageRes(
@@ -102,7 +115,7 @@ fun WeatherScreen(
     Column(
         modifier =
             modifier
-                .padding(16.dp)
+                .padding(12.dp)
                 .fillMaxSize(),
         verticalArrangement = Arrangement.Top,
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -119,73 +132,156 @@ fun WeatherScreen(
         SearchBar(
             location = location,
             onLocationChange = { location = it },
-            onSearch = { viewModel.fetchWeather(location) },
+            onSearch = {
+                selectedTab = WeatherTab.RESULTS
+                viewModel.fetchWeather(location)
+            },
             onClear = {
                 location = ""
+                selectedTab = WeatherTab.RESULTS
                 viewModel.fetchWeather("")
             },
+            isFavorite = isFavoriteSelected,
+            canFavorite = selectedPlace != null,
+            onToggleFavorite = { viewModel.toggleFavorite() },
         )
 
         Spacer(modifier = Modifier.height(8.dp))
-        StatusDisplay(status)
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            WeatherTab.entries.forEachIndexed { index, tab ->
+                SegmentedButton(
+                    selected = selectedTab == tab,
+                    onClick = { selectedTab = tab },
+                    shape = SegmentedButtonDefaults.itemShape(index, WeatherTab.entries.size),
+                    icon = {},
+                    contentPadding = SegmentedButtonDefaults.ContentPadding
+
+                ) {
+                    Text(
+                        text = tab.label,
+                        fontFamily = nunitoSansFamily,
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                }
+            }
+        }
         Spacer(modifier = Modifier.height(8.dp))
-        Card(
-            shape = cardShape,
-            colors = cardColors,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Column(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
-            ) {
-                Text(
-                    "Average temperatures",
-                    fontFamily = nunitoSansFamily,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                val temperatureRows =
-                    listOf(
-                        TemperatureRowData("Last 31 days", resultCurrent, false),
-                        TemperatureRowData(
-                            "This month so far",
-                            resultCurrentMonth,
-                            showCurrentMonthWarningIcon
-                        ),
-                        TemperatureRowData(
-                            "Next $forecastDays days (forecast)",
-                            resultForecast,
-                            false,
-                        ),
-                        TemperatureRowData(
-                            "Historical (30y) for this month",
-                            resultHistoric,
-                            false
-                        ),
-                    )
-                temperatureRows.forEachIndexed { index, row ->
-                    TemperatureRow(
-                        label = row.label,
-                        value = row.value,
-                        showWarning = row.showWarning,
-                        onWarningClick = if (row.showWarning) {
-                            { showCurrentMonthWarning = true }
-                        } else null,
-                    )
-                    if (index != temperatureRows.lastIndex) {
-                        Box(
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .height(1.dp)
-                                    .background(
-                                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f),
-                                    ),
+        when (selectedTab) {
+            WeatherTab.RESULTS -> {
+                Card(
+                    shape = cardShape,
+                    colors = cardColors,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .border(
+                                1.dp,
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f),
+                                cardShape,
+                            ),
+                ) {
+                    Column(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        StatusDisplay(status)
+                        DividerLine()
+                        Text(
+                            "Average temperatures",
+                            fontFamily = nunitoSansFamily,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
                         )
+                        val temperatureRows =
+                            listOf(
+                                TemperatureRowData("Last 31 days", resultCurrent, false),
+                                TemperatureRowData(
+                                    "This month so far",
+                                    resultCurrentMonth,
+                                    showCurrentMonthWarningIcon,
+                                ),
+                                TemperatureRowData(
+                                    "Next $forecastDays days (forecast)",
+                                    resultForecast,
+                                    false,
+                                ),
+                                TemperatureRowData(
+                                    "Historical (30y) for this month",
+                                    resultHistoric,
+                                    false,
+                                ),
+                            )
+                        temperatureRows.forEachIndexed { index, row ->
+                            TemperatureRow(
+                                label = row.label,
+                                value = row.value,
+                                showWarning = row.showWarning,
+                                onWarningClick = if (row.showWarning) {
+                                    { showCurrentMonthWarning = true }
+                                } else null,
+                            )
+                            if (index != temperatureRows.lastIndex) {
+                                Box(
+                                    modifier =
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .height(1.dp)
+                                            .background(
+                                                MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                                    alpha = 0.15f
+                                                ),
+                                            ),
+                                )
+                            }
+                        }
                     }
+                }
+            }
+
+            WeatherTab.FAVORITE -> {
+                if (favoritePlace == null) {
+                    EmptySectionCard(
+                        title = "Favorite",
+                        message = "No favorite yet. Tap the star next to the search bar to save one.",
+                        shape = cardShape,
+                        colors = cardColors,
+                    )
+                } else {
+                    PlacesCard(
+                        title = "Favorite",
+                        places = listOf(favoritePlace) as List<GeoPlace>,
+                        onPlaceClick = { place ->
+                            selectedTab = WeatherTab.RESULTS
+                            viewModel.selectPlace(place)
+                        },
+                        shape = cardShape,
+                        colors = cardColors,
+                    )
+                }
+            }
+
+            WeatherTab.PLACES -> {
+                if (places.isEmpty()) {
+                    EmptySectionCard(
+                        title = "Places",
+                        message = "Search to see alternate matches here.",
+                        shape = cardShape,
+                        colors = cardColors,
+                    )
+                } else {
+                    PlacesCard(
+                        title = "Places",
+                        places = places,
+                        onPlaceClick = { place ->
+                            selectedTab = WeatherTab.RESULTS
+                            viewModel.selectPlace(place)
+                        },
+                        shape = cardShape,
+                        colors = cardColors,
+                    )
                 }
             }
         }
@@ -235,6 +331,9 @@ internal fun SearchBar(
     onLocationChange: (String) -> Unit,
     onSearch: () -> Unit,
     onClear: () -> Unit,
+    isFavorite: Boolean,
+    canFavorite: Boolean,
+    onToggleFavorite: () -> Unit,
 ) {
     OutlinedTextField(
         value = location,
@@ -247,6 +346,31 @@ internal fun SearchBar(
         },
         singleLine = true,
         shape = RoundedCornerShape(12.dp),
+        leadingIcon = {
+            IconButton(
+                onClick = onToggleFavorite,
+                enabled = canFavorite,
+                modifier = Modifier.testTag("favoriteButton"),
+            ) {
+                val starRes =
+                    if (isFavorite) {
+                        R.drawable.star_filled
+                    } else {
+                        R.drawable.star_outline
+                    }
+                val tint =
+                    if (canFavorite) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                    }
+                Icon(
+                    painter = painterResource(id = starRes),
+                    contentDescription = "Toggle favorite",
+                    tint = tint,
+                )
+            }
+        },
         trailingIcon = {
             IconButton(
                 onClick = onClear,
@@ -299,8 +423,7 @@ private fun TemperatureRow(
     Row(
         modifier =
             Modifier
-                .fillMaxWidth()
-                .padding(vertical = 6.dp),
+                .fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(
@@ -357,24 +480,161 @@ private fun isPlaceholderValue(value: String): Boolean {
             trimmed.equals("No data yet", ignoreCase = true)
 }
 
+private enum class WeatherTab(val label: String) {
+    RESULTS("Results"),
+    FAVORITE("Favorite"),
+    PLACES("Places"),
+}
+
 @Composable
 private fun StatusDisplay(status: String) {
-    Card(
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        ),
-        modifier = Modifier.fillMaxWidth(),
+    val bannerShape = RoundedCornerShape(10.dp)
+    Column(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.onSurface, bannerShape)
+                .border(
+                    1.dp,
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
+                    bannerShape,
+                )
+                .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Text(
-            textAlign = TextAlign.Center,
             text = status,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp),
+            modifier = Modifier.fillMaxWidth(),
             fontFamily = nunitoSansFamily,
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.background,
+            lineHeight = 20.sp,
+        )
+    }
+}
+
+@Composable
+private fun EmptySectionCard(
+    title: String,
+    message: String,
+    shape: RoundedCornerShape,
+    colors: CardColors,
+) {
+    Card(
+        shape = shape,
+        colors = colors,
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .border(
+                    1.dp,
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f),
+                    shape,
+                ),
+    ) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = title,
+                fontFamily = nunitoSansFamily,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = message,
+                fontFamily = nunitoSansFamily,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlacesCard(
+    title: String,
+    places: List<GeoPlace>,
+    onPlaceClick: (GeoPlace) -> Unit,
+    shape: RoundedCornerShape,
+    colors: CardColors,
+) {
+    Card(
+        shape = shape,
+        colors = colors,
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .border(
+                    1.dp,
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f),
+                    shape,
+                ),
+    ) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp)
+                    .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = title,
+                fontFamily = nunitoSansFamily,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            DividerLine()
+            places.forEachIndexed { index, place ->
+                PlaceListItem(place = place, onClick = { onPlaceClick(place) })
+                if (index != places.lastIndex) {
+                    DividerLine()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlaceListItem(
+    place: GeoPlace,
+    onClick: () -> Unit,
+) {
+    val subtitle = place.displaySubtitle()
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable { onClick() }
+                .padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = place.displayName(),
+                fontFamily = nunitoSansFamily,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            if (subtitle.isNotBlank()) {
+                Text(
+                    text = subtitle,
+                    fontFamily = nunitoSansFamily,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Icon(
+            painter = painterResource(id = R.drawable.arrow_right),
+            contentDescription = "Select place",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp),
         )
     }
 }
@@ -417,7 +677,10 @@ private fun StatusHeaderCard(
         Column(modifier = Modifier.fillMaxWidth()) {
             EarthStatus(
                 imageRes = imageRes,
-                modifier = Modifier.fillMaxWidth(),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                //.height(140.dp),
             )
             DividerLine()
             Row(
@@ -449,7 +712,7 @@ private fun StatusTrendCell(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier.padding(12.dp),
+        modifier = modifier.padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(

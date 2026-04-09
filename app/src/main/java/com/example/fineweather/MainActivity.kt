@@ -6,16 +6,21 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.annotation.RequiresApi
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
@@ -23,6 +28,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -30,12 +36,14 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.fineweather.api.OpenMeteoRetrofitClients
 import com.example.fineweather.data.local.settingsDataStore
 import com.example.fineweather.data.local.WeatherDatabase
 import com.example.fineweather.data.repositories.GeoCodeRepository
 import com.example.fineweather.data.repositories.DataStoreSettingsRepository
+import com.example.fineweather.data.repositories.DataStoreFavoriteRepository
 import com.example.fineweather.data.repositories.SettingsDefaults
 import com.example.fineweather.data.repositories.SettingsRepository
 import com.example.fineweather.data.repositories.WeatherRepository
@@ -68,7 +76,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun WeatherApp() {
@@ -95,6 +102,10 @@ fun WeatherApp() {
         remember {
             DataStoreSettingsRepository(context.settingsDataStore)
         }
+    val favoriteRepository =
+        remember {
+            DataStoreFavoriteRepository(context.settingsDataStore)
+        }
 
     val weatherViewModel: WeatherViewModel =
         viewModel(
@@ -103,6 +114,7 @@ fun WeatherApp() {
                     weatherRepository,
                     geoCodeRepository,
                     settingsRepository,
+                    favoriteRepository,
                 ),
         )
     val settingsViewModel: SettingsViewModel =
@@ -123,47 +135,21 @@ fun WeatherApp() {
         topBar = {
             when (currentScreen) {
                 AppScreen.WEATHER ->
-                    TopAppBar(
-                        title = {
-                            Text(
-                                text = "FineWeather",
-                                fontFamily = nunitoSansFamily,
-                                style = MaterialTheme.typography.titleLarge,
-                            )
-                        },
-                        actions = {
-                            IconButton(
-                                onClick = { currentScreen = AppScreen.SETTINGS },
-                                modifier = Modifier.testTag("settingsButton"),
-                            ) {
-                                Icon(
-                                    painter = painterResource(id = R.drawable.settings),
-                                    contentDescription = "Open settings",
-                                )
-                            }
-                        },
+                    CompactTopBar(
+                        title = "FineWeather",
+                        actionIconRes = R.drawable.settings,
+                        actionContentDescription = "Open settings",
+                        actionTestTag = "settingsButton",
+                        onAction = { currentScreen = AppScreen.SETTINGS },
                     )
 
                 AppScreen.SETTINGS ->
-                    TopAppBar(
-                        title = {
-                            Text(
-                                text = "Settings",
-                                fontFamily = nunitoSansFamily,
-                                style = MaterialTheme.typography.titleLarge,
-                            )
-                        },
-                        actions = {
-                            IconButton(
-                                onClick = { currentScreen = AppScreen.WEATHER },
-                                modifier = Modifier.testTag("backToWeatherButton"),
-                            ) {
-                                Icon(
-                                    painter = painterResource(id = R.drawable.search),
-                                    contentDescription = "Back to weather",
-                                )
-                            }
-                        },
+                    CompactTopBar(
+                        title = "Settings",
+                        actionIconRes = R.drawable.search,
+                        actionContentDescription = "Back to weather",
+                        actionTestTag = "backToWeatherButton",
+                        onAction = { currentScreen = AppScreen.WEATHER },
                     )
             }
         },
@@ -197,4 +183,41 @@ fun WeatherApp() {
 private enum class AppScreen {
     WEATHER,
     SETTINGS,
+}
+
+@Composable
+private fun CompactTopBar(
+    title: String,
+    actionIconRes: Int,
+    actionContentDescription: String,
+    actionTestTag: String,
+    onAction: () -> Unit,
+) {
+    Surface(tonalElevation = 2.dp) {
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .height(48.dp)
+                    .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = title,
+                fontFamily = nunitoSansFamily,
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            IconButton(
+                onClick = onAction,
+                modifier = Modifier.testTag(actionTestTag),
+            ) {
+                Icon(
+                    painter = painterResource(id = actionIconRes),
+                    contentDescription = actionContentDescription,
+                )
+            }
+        }
+    }
 }

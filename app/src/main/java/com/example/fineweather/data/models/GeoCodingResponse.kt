@@ -1,7 +1,7 @@
 package com.example.fineweather.data.models
 
 data class GeoCodingResponse(
-    val results: List<GeocodingResult>,
+    val results: List<GeocodingResult?>,
     val generationtime_ms: Double
 
 )
