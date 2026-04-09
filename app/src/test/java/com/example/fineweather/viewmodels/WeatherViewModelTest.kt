@@ -3,8 +3,11 @@ package com.example.fineweather.viewmodels
 import android.util.Log
 import com.example.fineweather.data.local.entities.WeatherEntity
 import com.example.fineweather.data.models.FineWeatherData
+import com.example.fineweather.data.models.GeoPlace
+import com.example.fineweather.data.models.GeocodeSelection
 import com.example.fineweather.data.models.HistoricReference
 import com.example.fineweather.data.repositories.WeatherRepository.CurrentMonthStats
+import com.example.fineweather.data.repositories.FavoriteRepository
 import com.example.fineweather.data.repositories.GeoCodeRepository
 import com.example.fineweather.data.repositories.SettingsDefaults
 import com.example.fineweather.data.repositories.SettingsRepository
@@ -38,6 +41,7 @@ class WeatherViewModelTest {
     private lateinit var weatherRepository: WeatherRepository
     private lateinit var geoCodeRepository: GeoCodeRepository
     private lateinit var settingsRepository: SettingsRepository
+    private lateinit var favoriteRepository: FavoriteRepository
     private lateinit var viewModel: WeatherViewModel
     private val fixedNow = LocalDate.of(2026, 4, 2)
 
@@ -49,11 +53,13 @@ class WeatherViewModelTest {
         weatherRepository = mockk(relaxed = true)
         geoCodeRepository = mockk(relaxed = true)
         settingsRepository = FakeSettingsRepository()
+        favoriteRepository = FakeFavoriteRepository()
         viewModel =
             WeatherViewModel(
                 weatherRepository,
                 geoCodeRepository,
                 settingsRepository,
+                favoriteRepository,
                 nowProvider = { fixedNow },
             )
     }
@@ -76,7 +82,7 @@ class WeatherViewModelTest {
         )
 
         coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
-        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns data
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns buildSelectionFromData(data)
         coEvery { weatherRepository.getCachedWeatherById(any()) } returns cached
         coEvery { weatherRepository.getWeatherForecast(any(), any(), any()) } returns mockk()
         every { weatherRepository.calculateAverageForecastTemperature() } returns 12.34
@@ -102,7 +108,7 @@ class WeatherViewModelTest {
         val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1")
 
         coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
-        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns data
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns buildSelectionFromData(data)
         coEvery { weatherRepository.getCachedWeatherById(any()) } returns null
         coEvery { weatherRepository.getWeatherCurrent(any(), any(), any()) } returns mockk()
         coEvery { weatherRepository.getWeatherForecast(any(), any(), any()) } returns mockk()
@@ -138,7 +144,7 @@ class WeatherViewModelTest {
         )
 
         coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
-        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns data
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns buildSelectionFromData(data)
         coEvery { weatherRepository.getCachedWeatherById(any()) } returns cachedHistoric
         coEvery { weatherRepository.getWeatherCurrent(any(), any(), any()) } returns mockk()
         coEvery { weatherRepository.getWeatherForecast(any(), any(), any()) } returns mockk()
@@ -169,7 +175,7 @@ class WeatherViewModelTest {
         )
 
         coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
-        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns data
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns buildSelectionFromData(data)
         coEvery { weatherRepository.getCachedWeatherById(any()) } returns cached
         coEvery { weatherRepository.getWeatherCurrent(any(), any(), any()) } returns mockk()
         coEvery { weatherRepository.getWeatherForecast(any(), any(), any()) } returns mockk()
@@ -220,7 +226,7 @@ class WeatherViewModelTest {
         )
 
         coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
-        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns data
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns buildSelectionFromData(data)
         coEvery { weatherRepository.getCachedWeatherById(any()) } returns cached
         coEvery { weatherRepository.getWeatherForecast(any(), any(), any()) } returns mockk()
         every { weatherRepository.calculateAverageForecastTemperature() } returns 12.0
@@ -254,7 +260,7 @@ class WeatherViewModelTest {
         )
 
         coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
-        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns data
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns buildSelectionFromData(data)
         coEvery { weatherRepository.getCachedWeatherById(any()) } returns cached
         coEvery { weatherRepository.insertWeather(any()) } returns Unit
 
@@ -272,7 +278,7 @@ class WeatherViewModelTest {
         val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1")
 
         coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
-        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns data
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns buildSelectionFromData(data)
         coEvery { weatherRepository.getCachedWeatherById(any()) } returns null
         coEvery { weatherRepository.getWeatherCurrent(any(), any(), any()) } returns mockk()
         coEvery { weatherRepository.getWeatherForecast(any(), any(), any()) } returns mockk()
@@ -307,7 +313,7 @@ class WeatherViewModelTest {
         )
 
         coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
-        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns data
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns buildSelectionFromData(data)
         coEvery { weatherRepository.getCachedWeatherById(any()) } returns cached
         coEvery { weatherRepository.getWeatherCurrent(any(), any(), any()) } returns mockk()
         coEvery { weatherRepository.getWeatherForecast(any(), any(), any()) } returns mockk()
@@ -329,7 +335,7 @@ class WeatherViewModelTest {
         val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1")
 
         coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
-        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns data
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns buildSelectionFromData(data)
         coEvery { weatherRepository.getCachedWeatherById(any()) } returns null
         coEvery { weatherRepository.getWeatherCurrent(any(), any(), any()) } returns mockk()
         coEvery { weatherRepository.getWeatherForecast(any(), any(), any()) } returns mockk()
@@ -361,7 +367,7 @@ class WeatherViewModelTest {
         )
 
         coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
-        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns data
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns buildSelectionFromData(data)
         coEvery { weatherRepository.getCachedWeatherById(any()) } returns cached
         coEvery { weatherRepository.insertWeather(any()) } returns Unit
 
@@ -402,7 +408,7 @@ class WeatherViewModelTest {
         val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1")
 
         coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
-        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns data
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns buildSelectionFromData(data)
         coEvery { weatherRepository.getCachedWeatherById(any()) } returns null
         coEvery { weatherRepository.getWeatherCurrent(any(), any(), any()) } throws RuntimeException("boom")
         coEvery { weatherRepository.getWeatherForecast(any(), any(), any()) } returns mockk()
@@ -424,7 +430,7 @@ class WeatherViewModelTest {
         val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1")
 
         coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
-        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns data
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns buildSelectionFromData(data)
         coEvery { weatherRepository.getCachedWeatherById(any()) } returns null
         coEvery { weatherRepository.getWeatherCurrent(any(), any(), any()) } returns mockk()
         coEvery { weatherRepository.getWeatherForecast(any(), any(), any()) } throws RuntimeException("boom")
@@ -447,7 +453,7 @@ class WeatherViewModelTest {
         val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1")
 
         coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
-        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns data
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns buildSelectionFromData(data)
         coEvery { weatherRepository.getCachedWeatherById(any()) } returns null
         coEvery { weatherRepository.getWeatherCurrent(any(), any(), any()) } returns mockk()
         coEvery { weatherRepository.getWeatherForecast(any(), any(), any()) } returns mockk()
@@ -473,6 +479,7 @@ class WeatherViewModelTest {
                 weatherRepository,
                 geoCodeRepository,
                 settingsRepository,
+                favoriteRepository,
                 nowProvider = { fixedNow },
             )
         val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1", "Germany")
@@ -488,7 +495,7 @@ class WeatherViewModelTest {
         )
 
         coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
-        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns data
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns buildSelectionFromData(data)
         coEvery { weatherRepository.getCachedWeatherById(any()) } returns cached
         coEvery { weatherRepository.getWeatherForecast(any(), any(), any()) } returns mockk()
         coEvery { weatherRepository.getWeatherHistory(any(), any(), any()) } returns mockk()
@@ -522,6 +529,7 @@ class WeatherViewModelTest {
                 weatherRepository,
                 geoCodeRepository,
                 settingsRepository,
+                favoriteRepository,
                 nowProvider = { fixedNow },
             )
         val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1", "Germany")
@@ -541,7 +549,7 @@ class WeatherViewModelTest {
         )
 
         coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
-        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns data
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns buildSelectionFromData(data)
         coEvery { weatherRepository.getCachedWeatherById(any()) } returns cached
         coEvery { weatherRepository.insertWeather(any()) } returns Unit
 
@@ -565,6 +573,7 @@ class WeatherViewModelTest {
                 weatherRepository,
                 geoCodeRepository,
                 settingsRepository,
+                favoriteRepository,
                 nowProvider = { fixedNow },
             )
         val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1", "Germany")
@@ -579,7 +588,7 @@ class WeatherViewModelTest {
         )
 
         coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
-        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns data
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns buildSelectionFromData(data)
         coEvery { weatherRepository.getCachedWeatherById(any()) } returns cached
         coEvery { weatherRepository.insertWeather(any()) } returns Unit
 
@@ -598,12 +607,13 @@ class WeatherViewModelTest {
                 weatherRepository,
                 geoCodeRepository,
                 settingsRepository,
+                favoriteRepository,
                 nowProvider = { fixedNow },
             )
         val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1")
 
         coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
-        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns data
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns buildSelectionFromData(data)
         coEvery { weatherRepository.getCachedWeatherById(any()) } returns null
         coEvery { weatherRepository.getWeatherCurrent(any(), any(), any()) } returns mockk()
         coEvery { weatherRepository.getWeatherForecast(any(), any(), any()) } returns mockk()
@@ -627,7 +637,7 @@ class WeatherViewModelTest {
         val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1")
 
         coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
-        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns data
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns buildSelectionFromData(data)
         coEvery { weatherRepository.getCachedWeatherById(any()) } returns null
         coEvery { weatherRepository.getWeatherCurrent(any(), any(), any()) } returns mockk()
         coEvery { weatherRepository.getWeatherForecast(any(), any(), any()) } returns mockk()
@@ -653,12 +663,13 @@ class WeatherViewModelTest {
                 weatherRepository,
                 geoCodeRepository,
                 settingsRepository,
+                favoriteRepository,
                 nowProvider = { fixedNow },
             )
         val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1")
 
         coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
-        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns data
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns buildSelectionFromData(data)
         coEvery { weatherRepository.getCachedWeatherById(any()) } returns null
         coEvery { weatherRepository.getWeatherForecast(any(), any(), any()) } returns mockk()
         coEvery { weatherRepository.getWeatherHistory(any(), any(), any()) } returns mockk()
@@ -696,7 +707,7 @@ class WeatherViewModelTest {
         )
 
         coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
-        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns data
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns buildSelectionFromData(data)
         coEvery { weatherRepository.getCachedWeatherById(any()) } returns cached
         coEvery { weatherRepository.getWeatherCurrent(any(), any(), any()) } throws RuntimeException("boom")
         coEvery { weatherRepository.getWeatherForecast(any(), any(), any()) } returns mockk()
@@ -720,6 +731,7 @@ class WeatherViewModelTest {
                 weatherRepository,
                 geoCodeRepository,
                 settingsRepository,
+                favoriteRepository,
                 nowProvider = { fixedNow },
             )
         val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1", "Germany")
@@ -739,7 +751,7 @@ class WeatherViewModelTest {
         )
 
         coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
-        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns data
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns buildSelectionFromData(data)
         coEvery { weatherRepository.getCachedWeatherById(any()) } returns cached
         coEvery { weatherRepository.getWeatherForecast(any(), any(), any()) } returns mockk()
         coEvery { weatherRepository.insertWeather(any()) } returns Unit
@@ -771,6 +783,7 @@ class WeatherViewModelTest {
                 weatherRepository,
                 geoCodeRepository,
                 countingRepository,
+                favoriteRepository,
                 nowProvider = { fixedNow },
             )
 
@@ -781,7 +794,13 @@ class WeatherViewModelTest {
 
     @Test
     fun weatherViewModelFactory_createsViewModel() {
-        val factory = WeatherViewModelFactory(weatherRepository, geoCodeRepository, settingsRepository)
+        val factory =
+            WeatherViewModelFactory(
+                weatherRepository,
+                geoCodeRepository,
+                settingsRepository,
+                favoriteRepository,
+            )
 
         val created = factory.create(WeatherViewModel::class.java)
 
@@ -790,7 +809,13 @@ class WeatherViewModelTest {
 
     @Test
     fun weatherViewModelFactory_createsWithExtras() {
-        val factory = WeatherViewModelFactory(weatherRepository, geoCodeRepository, settingsRepository)
+        val factory =
+            WeatherViewModelFactory(
+                weatherRepository,
+                geoCodeRepository,
+                settingsRepository,
+                favoriteRepository,
+            )
 
         val created = factory.create(WeatherViewModel::class.java, CreationExtras.Empty)
 
@@ -799,7 +824,13 @@ class WeatherViewModelTest {
 
     @Test
     fun weatherViewModelFactory_createsWithKClassExtras() {
-        val factory = WeatherViewModelFactory(weatherRepository, geoCodeRepository, settingsRepository)
+        val factory =
+            WeatherViewModelFactory(
+                weatherRepository,
+                geoCodeRepository,
+                settingsRepository,
+                favoriteRepository,
+            )
 
         val created = factory.create(WeatherViewModel::class, CreationExtras.Empty)
 
@@ -808,7 +839,13 @@ class WeatherViewModelTest {
 
     @Test
     fun weatherViewModelFactory_throwsForUnknownClass() {
-        val factory = WeatherViewModelFactory(weatherRepository, geoCodeRepository, settingsRepository)
+        val factory =
+            WeatherViewModelFactory(
+                weatherRepository,
+                geoCodeRepository,
+                settingsRepository,
+                favoriteRepository,
+            )
 
         assertThrows(IllegalArgumentException::class.java) {
             factory.create(SettingsViewModel::class.java)
@@ -871,6 +908,35 @@ class WeatherViewModelTest {
                     null
                 },
         )
+
+    private fun buildSelectionFromData(
+        data: FineWeatherData,
+        admin1: String? = null,
+    ): GeocodeSelection {
+        val place =
+            GeoPlace(
+                id = data.id,
+                name = data.location,
+                country = data.country,
+                admin1 = admin1,
+                latitude = data.coordinates.first,
+                longitude = data.coordinates.second,
+            )
+        return GeocodeSelection(primary = place, candidates = emptyList())
+    }
+
+    private class FakeFavoriteRepository : FavoriteRepository {
+        private val state = MutableStateFlow<GeoPlace?>(null)
+        override val favorite = state
+
+        override suspend fun setFavorite(place: GeoPlace) {
+            state.value = place
+        }
+
+        override suspend fun clearFavorite() {
+            state.value = null
+        }
+    }
 
     private class FakeSettingsRepository(
         initialDays: Int = WeatherViewModel.FORECAST_DAYS_SHORT,

@@ -7,7 +7,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.fineweather.data.models.FineWeatherData
+import com.example.fineweather.data.models.GeoPlace
+import com.example.fineweather.data.models.toFineWeatherData
 import com.example.fineweather.data.models.HistoricReference
+import com.example.fineweather.data.repositories.FavoriteRepository
 import com.example.fineweather.data.repositories.SettingsDefaults
 import com.example.fineweather.data.repositories.SettingsRepository
 import com.example.fineweather.data.repositories.GeoCodeRepository
@@ -15,7 +18,9 @@ import com.example.fineweather.data.repositories.WeatherRepository
 import com.example.fineweather.data.local.entities.WeatherEntity
 import com.example.fineweather.utils.formatDouble
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -23,6 +28,7 @@ class WeatherViewModel(
     private val weatherRepository: WeatherRepository,
     private val geoCodeRepository: GeoCodeRepository,
     private val settingsRepository: SettingsRepository,
+    private val favoriteRepository: FavoriteRepository,
     private val nowProvider: () -> LocalDate = { LocalDate.now() },
 ) : ViewModel() {
     companion object {
@@ -37,23 +43,16 @@ class WeatherViewModel(
     private val _searchLanguage = MutableStateFlow(SettingsDefaults.DEFAULT_SEARCH_LANGUAGE)
     private val _resultForecastAverage = MutableStateFlow("-")
     val resultForecastAverage: StateFlow<String> = _resultForecastAverage
-
     private val _resultCurrentAverage = MutableStateFlow("-")
     val resultCurrentAverage: StateFlow<String> = _resultCurrentAverage
-
-    private val _resultCurrentMonthAverage =
-        MutableStateFlow("-")
+    private val _resultCurrentMonthAverage = MutableStateFlow("-")
     val resultCurrentMonthAverage: StateFlow<String> = _resultCurrentMonthAverage
-
     private val _resultHistoricAverage = MutableStateFlow("-")
     val resultHistoricAverage: StateFlow<String> = _resultHistoricAverage
-
     private val _currentMonthDayCount = MutableStateFlow(0)
     val currentMonthDayCount: StateFlow<Int> = _currentMonthDayCount
-
     private val _apiCallCount = MutableStateFlow(0)
     val apiCallCount: StateFlow<Int> = _apiCallCount
-
     private val _cacheHitCount = MutableStateFlow(0)
     val cacheHitCount: StateFlow<Int> = _cacheHitCount
 
@@ -64,6 +63,16 @@ class WeatherViewModel(
     val status: StateFlow<String> = _status
     private val _coordinates = MutableStateFlow(Pair(0.0, 0.0))
     private var lastResolvedData: FineWeatherData? = null
+    private val _places = MutableStateFlow<List<GeoPlace>>(emptyList())
+    val places: StateFlow<List<GeoPlace>> = _places
+    private val _selectedPlace = MutableStateFlow<GeoPlace?>(null)
+    val selectedPlace: StateFlow<GeoPlace?> = _selectedPlace
+    val favorite: StateFlow<GeoPlace?> =
+        favoriteRepository.favorite.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = null,
+        )
 
     init {
         viewModelScope.launch {
@@ -98,11 +107,13 @@ class WeatherViewModel(
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     fun fetchWeather(location: String) {
         if (location.trim().isEmpty()) {
-            _status.value = "Enter a city to see temperature averages"
+            _status.value = "Enter a location to see temperature averages"
             setDataValues("-")
             _currentMonthDayCount.value = 0
             _coordinates.value = Pair(0.0, 0.0)
             _resolvedLocationName.value = ""
+            _places.value = emptyList()
+            _selectedPlace.value = null
             lastResolvedData = null
             return
         }
@@ -111,25 +122,29 @@ class WeatherViewModel(
             setDataValues("Loading...")
             try {
                 weatherRepository.cleanOutdatedWeatherDate()
-                val data = geoCodeRepository.getGeoCode(
+                val selection = geoCodeRepository.getGeoCode(
                     name = location.trim(),
                     language = _searchLanguage.value,
                 )
-//                if (geoCodeRepository.wasLastLookupFromCache()) {
-//                    incrementCacheHits()
-//                } else {
-//                    incrementApiCalls()
-//                }
+                val primaryPlace = selection.primary
+                _selectedPlace.value = primaryPlace
+                _places.value = selection.candidates
+                val data = primaryPlace.toFineWeatherData()
+
                 _coordinates.value = data.coordinates
                 lastResolvedData = data
 
                 val resolvedLocationDisplay =
-                    listOfNotNull(data.location, data.country)
+                    listOfNotNull(
+                        primaryPlace.name,
+                        primaryPlace.admin1?.takeIf { it.isNotBlank() },
+                        primaryPlace.country?.takeIf { it.isNotBlank() },
+                    )
                         .filter { it.isNotBlank() }
                         .joinToString(", ")
-                _resolvedLocationName.value = data.location
+                _resolvedLocationName.value = primaryPlace.name
                 _status.value =
-                    "Set location: $resolvedLocationDisplay\nCoordinates: ${data.coordinates}"
+                    "$resolvedLocationDisplay ${data.coordinates}"
                 fetchWeatherForData(data)
                 Log.i("WeatherAPI", "temp difference: " + data.tempDifference.toString())
             } catch (ex: Exception) {
@@ -137,6 +152,8 @@ class WeatherViewModel(
                 setDataValues("N/A")
                 _resolvedLocationName.value = ""
                 _currentMonthDayCount.value = 0
+                _places.value = emptyList()
+                _selectedPlace.value = null
                 Log.e(
                     "WeatherAPI",
                     ex.message ?: "Error occurred while trying to geocode the location",
@@ -249,7 +266,42 @@ class WeatherViewModel(
             _resultCurrentAverage.value = "Error"
             _resultCurrentMonthAverage.value = "Error"
             _currentMonthDayCount.value = 0
-            _status.value += "\nError fetching data: ${e.message}"
+            Log.e(
+                "WeatherAPI",
+                e.message ?: "Error occurred while trying to fetch the current weather",
+            )
+        }
+    }
+
+    fun selectPlace(place: GeoPlace) {
+        viewModelScope.launch {
+            val data = place.toFineWeatherData()
+            val display =
+                listOfNotNull(
+                    place.name,
+                    place.admin1?.takeIf { it.isNotBlank() },
+                    place.country?.takeIf { it.isNotBlank() },
+                )
+                    .filter { it.isNotBlank() }
+                    .joinToString(", ")
+            _selectedPlace.value = place
+            _resolvedLocationName.value = place.name
+            _status.value =
+                "$display\nCoordinates: ${data.coordinates}"
+            lastResolvedData = data
+            fetchWeatherForData(data)
+        }
+    }
+
+    fun toggleFavorite() {
+        val selected = _selectedPlace.value ?: return
+        viewModelScope.launch {
+            val currentFavorite = favorite.value
+            if (currentFavorite?.id == selected.id) {
+                favoriteRepository.clearFavorite()
+            } else {
+                favoriteRepository.setFavorite(selected)
+            }
         }
     }
 
@@ -267,7 +319,11 @@ class WeatherViewModel(
             persistWeatherCache(data, forecastDaysOverride = _forecastDays.value)
         }.onFailure { e ->
             _resultForecastAverage.value = "Error"
-            _status.value += "\nError fetching data: ${e.message}"
+
+            Log.e(
+                "WeatherAPI",
+                e.message ?: "Error occurred while trying to fetch the forecast",
+            )
         }
     }
 
@@ -287,7 +343,10 @@ class WeatherViewModel(
             persistWeatherCache(data, historicReferenceOverride = _historicReference.value)
         }.onFailure { e ->
             _resultHistoricAverage.value = "Error"
-            _status.value += "\nError fetching data: ${e.message}"
+            Log.e(
+                "WeatherAPI",
+                e.message ?: "Error occurred while trying to fetch the historic weather",
+            )
         }
     }
 
@@ -450,11 +509,17 @@ class WeatherViewModelFactory(
     private val weatherRepository: WeatherRepository,
     private val geoCodeRepository: GeoCodeRepository,
     private val settingsRepository: SettingsRepository,
+    private val favoriteRepository: FavoriteRepository,
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(WeatherViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return WeatherViewModel(weatherRepository, geoCodeRepository, settingsRepository) as T
+            return WeatherViewModel(
+                weatherRepository,
+                geoCodeRepository,
+                settingsRepository,
+                favoriteRepository,
+            ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

@@ -2,7 +2,7 @@ package com.example.fineweather.data.repositories
 
 import com.example.fineweather.api.OpenMeteoGeoCodeApiService
 import com.example.fineweather.data.local.doa.GeoCodeDao
-import com.example.fineweather.data.local.entities.GeoCodeEntity
+import com.example.fineweather.data.local.entities.GeoCodeCacheEntity
 import com.example.fineweather.data.models.GeoCodingResponse
 import com.example.fineweather.data.models.GeocodingResult
 import io.mockk.coEvery
@@ -22,22 +22,25 @@ class GeoCodeRepositoryTest {
     @Test
     fun getGeoCode_returnsCachedResultWhenAvailable() = runTest {
         val cached =
-            GeoCodeEntity(
+            GeoCodeCacheEntity(
                 query = "en|berlin",
                 locationId = "loc-1",
+                rank = 0,
                 name = "Berlin",
                 country = "Germany",
+                admin1 = null,
                 latitude = 52.52,
                 longitude = 13.405,
             )
-        coEvery { dao.getByQuery("en|berlin") } returns cached
+        coEvery { dao.getByQuery("en|berlin") } returns listOf(cached)
 
         val result = repository.getGeoCode("Berlin", "en")
 
-        assertEquals("Berlin", result.location)
-        assertEquals("Germany", result.country)
-        assertEquals(Pair(52.52, 13.405), result.coordinates)
-        assertTrue(repository.wasLastLookupFromCache())
+        assertEquals("Berlin", result.primary.name)
+        assertEquals("Germany", result.primary.country)
+        assertEquals(52.52, result.primary.latitude, 0.0001)
+        assertEquals(13.405, result.primary.longitude, 0.0001)
+        assertTrue(result.candidates.isEmpty())
         coVerify(exactly = 0) { api.getGeoCoding(any(), any(), any(), any()) }
     }
 
@@ -46,7 +49,7 @@ class GeoCodeRepositoryTest {
         val response =
             GeoCodingResponse(
                 results =
-                    listOf(
+                    listOf<GeocodingResult?>(
                         GeocodingResult(
                             id = "loc-2",
                             name = "Munich",
@@ -71,37 +74,51 @@ class GeoCodeRepositoryTest {
                     ),
                 generationtime_ms = 0.0,
             )
-        coEvery { dao.getByQuery("en|munich") } returns null
-        coEvery { dao.getByQuery("munich") } returns null
+        coEvery { dao.getByQuery("en|munich") } returns emptyList()
+        coEvery { dao.getByQuery("munich") } returns emptyList()
         coEvery { api.getGeoCoding(name = "Munich", count = any(), language = any(), format = any()) } returns response
 
         val result = repository.getGeoCode("Munich", "en")
 
-        assertEquals("Munich", result.location)
-        assertEquals("Germany", result.country)
-        assertEquals(Pair(48.137, 11.575), result.coordinates)
-        assertTrue(!repository.wasLastLookupFromCache())
-        coVerify(exactly = 1) { dao.insert(match { it.query == "en|munich" && it.locationId == "loc-2" }) }
+        assertEquals("Munich", result.primary.name)
+        assertEquals("Germany", result.primary.country)
+        assertEquals(48.137, result.primary.latitude, 0.0001)
+        assertEquals(11.575, result.primary.longitude, 0.0001)
+        assertTrue(result.candidates.isEmpty())
+        coVerify(exactly = 1) { dao.deleteByQuery("en|munich") }
+        coVerify(exactly = 1) {
+            dao.insertAll(
+                match {
+                    it.size == 1 &&
+                        it[0].query == "en|munich" &&
+                        it[0].locationId == "loc-2" &&
+                        it[0].rank == 0
+                },
+            )
+        }
     }
 
     @Test
     fun getGeoCode_normalizesWhitespaceAndCasingForCacheLookup() = runTest {
         val cached =
-            GeoCodeEntity(
+            GeoCodeCacheEntity(
                 query = "en|new york",
                 locationId = "loc-3",
+                rank = 0,
                 name = "New York",
                 country = "USA",
+                admin1 = null,
                 latitude = 40.71,
                 longitude = -74.0,
             )
-        coEvery { dao.getByQuery("en|new york") } returns cached
+        coEvery { dao.getByQuery("en|new york") } returns listOf(cached)
 
         val result = repository.getGeoCode("  NEW   york  ", "en")
 
-        assertEquals("New York", result.location)
-        assertEquals("USA", result.country)
-        assertEquals(Pair(40.71, -74.0), result.coordinates)
+        assertEquals("New York", result.primary.name)
+        assertEquals("USA", result.primary.country)
+        assertEquals(40.71, result.primary.latitude, 0.0001)
+        assertEquals(-74.0, result.primary.longitude, 0.0001)
         coVerify(exactly = 1) { dao.getByQuery("en|new york") }
     }
 
@@ -110,25 +127,34 @@ class GeoCodeRepositoryTest {
         @Suppress("UNCHECKED_CAST")
         val response =
             GeoCodingResponse(
-                results = listOf(null) as List<GeocodingResult>,
+                results = listOf(null),
                 generationtime_ms = 0.0,
             )
-        coEvery { dao.getByQuery("en|unknown") } returns null
-        coEvery { dao.getByQuery("unknown") } returns null
+        coEvery { dao.getByQuery("en|unknown") } returns emptyList()
+        coEvery { dao.getByQuery("unknown") } returns emptyList()
         coEvery { api.getGeoCoding(name = "Unknown", count = any(), language = any(), format = any()) } returns response
 
         val result = repository.getGeoCode("Unknown", "en")
 
-        assertEquals("n/a", result.location)
-        assertEquals("n/a", result.id)
-        assertEquals(Pair(0.0, 0.0), result.coordinates)
-        coVerify(exactly = 1) { dao.insert(match { it.name == "n/a" && it.locationId == "n/a" }) }
+        assertEquals("n/a", result.primary.name)
+        assertEquals("n/a", result.primary.id)
+        assertEquals(0.0, result.primary.latitude, 0.0001)
+        assertEquals(0.0, result.primary.longitude, 0.0001)
+        coVerify(exactly = 1) {
+            dao.insertAll(
+                match {
+                    it.size == 1 &&
+                        it[0].name == "n/a" &&
+                        it[0].locationId == "n/a"
+                },
+            )
+        }
     }
 
     @Test
     fun getGeoCode_throwsWhenApiFails() = runTest {
-        coEvery { dao.getByQuery("en|rome") } returns null
-        coEvery { dao.getByQuery("rome") } returns null
+        coEvery { dao.getByQuery("en|rome") } returns emptyList()
+        coEvery { dao.getByQuery("rome") } returns emptyList()
         coEvery { api.getGeoCoding(any(), any(), any(), any()) } throws RuntimeException("boom")
 
         val thrown = runCatching { repository.getGeoCode("Rome", "en") }.exceptionOrNull()
