@@ -314,14 +314,14 @@ fun WeatherScreen(
                 }
             }
 
-            WeatherTab.HISTORY -> {
-                EmptySectionCard(
-                    title = "Homonyms",
-                    message = "Search to see alternate matches here.",
-                    shape = cardShape,
-                    colors = cardColors,
-                )
-            }
+//            WeatherTab.HISTORY -> {
+//                EmptySectionCard(
+//                    title = "Homonyms",
+//                    message = "Search to see alternate matches here.",
+//                    shape = cardShape,
+//                    colors = cardColors,
+//                )
+//            }
         }
 
         Spacer(modifier = Modifier.weight(1f))
@@ -538,7 +538,7 @@ private enum class WeatherTab(val label: String) {
     SEARCH("Search"),
     FAVORITE("Favorite"),
     HOMONYMS("Homonyms"),
-    HISTORY("History"),
+    //HISTORY("History"),
 }
 
 @Composable
@@ -737,7 +737,7 @@ private fun StatusHeaderCard(
                         .height(IntrinsicSize.Min),
             ) {
                 StatusTrendCell(
-                    label = "Status",
+                    label = "Divergence",
                     value = statusCardValue,
                     modifier = Modifier.weight(3f),
                 )
@@ -841,10 +841,10 @@ internal fun buildStatusCardValue(
     val delta = currentValue - historicValue
     val absDelta = abs(delta)
     val formattedDelta = String.format(Locale.US, "%.2f", absDelta)
-    val sign = if (delta >= 0) "+" else "-"
+    val sign = if (delta > 0) "+" else if (delta < 0) "-" else ""
 
     if (absDelta < 1.0) {
-        return ValueWithIcons("Ok ($sign$formattedDelta°C)", null)
+        return ValueWithIcons("$sign$formattedDelta°C", null)
     }
     val count =
         when {
