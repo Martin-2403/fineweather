@@ -2,9 +2,11 @@ package com.example.fineweather.ui.screens
 
 import android.os.Build
 import androidx.annotation.RequiresApi
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,20 +47,28 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
 import com.example.fineweather.R
 import com.example.fineweather.nunitoSansFamily
 import com.example.fineweather.data.models.GeoPlace
 import com.example.fineweather.ui.models.IconStack
 import com.example.fineweather.ui.models.ValueWithIcons
+import com.example.fineweather.ui.theme.HazyBlue
+import com.example.fineweather.ui.theme.LightTeal
+import com.example.fineweather.ui.theme.SoftMist
+import com.example.fineweather.ui.theme.TealInk
 import com.example.fineweather.viewmodels.WeatherViewModel
 import java.util.Locale
 import kotlin.math.abs
@@ -71,7 +81,7 @@ fun WeatherScreen(
 ) {
     var location by rememberSaveable { mutableStateOf("") }
     var showCurrentMonthWarning by rememberSaveable { mutableStateOf(false) }
-    var selectedTab by rememberSaveable { mutableStateOf(WeatherTab.RESULTS) }
+    var selectedTab by rememberSaveable { mutableStateOf(WeatherTab.SEARCH) }
     val status by viewModel.status.collectAsState(initial = "Enter a location to see temperature averages")
     val resultForecast by viewModel.resultForecastAverage.collectAsState(initial = "")
     val resultCurrent by viewModel.resultCurrentAverage.collectAsState(initial = "")
@@ -104,6 +114,13 @@ fun WeatherScreen(
         currentMonthDayCount in 0..6
                 && resultCurrentMonth !== "-"
                 && resultCurrentMonth !== "N/A"
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val isDarkTheme = isSystemInDarkTheme()
+    val segmentedSelectedContainer = LightTeal
+    val segmentedSelectedContent = HazyBlue
+    val segmentedUnselectedContainer = SoftMist
+    val segmentedUnselectedContent = TealInk
 
 
     LaunchedEffect(resolvedLocation) {
@@ -129,24 +146,6 @@ fun WeatherScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        SearchBar(
-            location = location,
-            onLocationChange = { location = it },
-            onSearch = {
-                selectedTab = WeatherTab.RESULTS
-                viewModel.fetchWeather(location)
-            },
-            onClear = {
-                location = ""
-                selectedTab = WeatherTab.RESULTS
-                viewModel.fetchWeather("")
-            },
-            isFavorite = isFavoriteSelected,
-            canFavorite = selectedPlace != null,
-            onToggleFavorite = { viewModel.toggleFavorite() },
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
             WeatherTab.entries.forEachIndexed { index, tab ->
                 SegmentedButton(
@@ -154,20 +153,31 @@ fun WeatherScreen(
                     onClick = { selectedTab = tab },
                     shape = SegmentedButtonDefaults.itemShape(index, WeatherTab.entries.size),
                     icon = {},
-                    contentPadding = SegmentedButtonDefaults.ContentPadding
-
-                ) {
+                    contentPadding = SegmentedButtonDefaults.ContentPadding,
+                    colors = SegmentedButtonDefaults.colors(
+                        activeContainerColor = segmentedSelectedContainer,
+                        activeContentColor = segmentedSelectedContent,
+                        inactiveContainerColor = segmentedUnselectedContainer,
+                        inactiveContentColor = segmentedUnselectedContent,
+                    ),
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = if (isDarkTheme) HazyBlue else MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                    ),                ) {
                     Text(
                         text = tab.label,
                         fontFamily = nunitoSansFamily,
                         style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
         }
+
         Spacer(modifier = Modifier.height(8.dp))
+
         when (selectedTab) {
-            WeatherTab.RESULTS -> {
+            WeatherTab.SEARCH -> {
                 Card(
                     shape = cardShape,
                     colors = cardColors,
@@ -187,6 +197,25 @@ fun WeatherScreen(
                                 .padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
+                        SearchBar(
+                            location = location,
+                            onLocationChange = { location = it },
+                            onSearch = {
+                                focusManager.clearFocus()
+                                keyboardController?.hide()
+                                selectedTab = WeatherTab.SEARCH
+                                viewModel.fetchWeather(location)
+                            },
+                            onClear = {
+                                keyboardController?.hide()
+                                location = ""
+                                selectedTab = WeatherTab.SEARCH
+                                viewModel.fetchWeather("")
+                            },
+                            isFavorite = isFavoriteSelected,
+                            canFavorite = selectedPlace != null,
+                            onToggleFavorite = { viewModel.toggleFavorite() },
+                        )
                         StatusDisplay(status)
                         DividerLine()
                         Text(
@@ -254,7 +283,7 @@ fun WeatherScreen(
                         title = "Favorite",
                         places = listOf(favoritePlace) as List<GeoPlace>,
                         onPlaceClick = { place ->
-                            selectedTab = WeatherTab.RESULTS
+                            selectedTab = WeatherTab.SEARCH
                             viewModel.selectPlace(place)
                         },
                         shape = cardShape,
@@ -263,20 +292,20 @@ fun WeatherScreen(
                 }
             }
 
-            WeatherTab.PLACES -> {
+            WeatherTab.HOMONYMS -> {
                 if (places.isEmpty()) {
                     EmptySectionCard(
-                        title = "Places",
+                        title = "Homonyms",
                         message = "Search to see alternate matches here.",
                         shape = cardShape,
                         colors = cardColors,
                     )
                 } else {
                     PlacesCard(
-                        title = "Places",
+                        title = "Homonyms",
                         places = places,
                         onPlaceClick = { place ->
-                            selectedTab = WeatherTab.RESULTS
+                            selectedTab = WeatherTab.SEARCH
                             viewModel.selectPlace(place)
                         },
                         shape = cardShape,
@@ -284,8 +313,19 @@ fun WeatherScreen(
                     )
                 }
             }
+
+            WeatherTab.HISTORY -> {
+                EmptySectionCard(
+                    title = "Homonyms",
+                    message = "Search to see alternate matches here.",
+                    shape = cardShape,
+                    colors = cardColors,
+                )
+            }
         }
+
         Spacer(modifier = Modifier.weight(1f))
+
         Text(
             text = "API calls: $apiCallCount • Cache hits: $cacheHitCount",
             fontFamily = nunitoSansFamily,
@@ -345,6 +385,8 @@ internal fun SearchBar(
             )
         },
         singleLine = true,
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(onSearch = { onSearch() }),
         shape = RoundedCornerShape(12.dp),
         leadingIcon = {
             IconButton(
@@ -387,8 +429,9 @@ internal fun SearchBar(
                 .fillMaxWidth()
                 .testTag("searchField"),
     )
-    Spacer(modifier = Modifier.height(8.dp))
     Row {
+        val isDarkTheme = isSystemInDarkTheme()
+
         ElevatedButton(
             onClick = onSearch,
             colors = ButtonDefaults.elevatedButtonColors(
@@ -396,12 +439,23 @@ internal fun SearchBar(
                 contentColor = MaterialTheme.colorScheme.onPrimary,
             ),
             elevation = ButtonDefaults.buttonElevation(
-                defaultElevation = 8.dp
+                defaultElevation = if (isDarkTheme) 16.dp else 12.dp,
+                pressedElevation = if (isDarkTheme) 20.dp else 14.dp,
+
+                ),
+            border = BorderStroke(
+                width = 1.dp,
+                color = if (isDarkTheme) HazyBlue else MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
             ),
             modifier = Modifier
-                .weight(1f),
+                .weight(2f),
         ) {
-            Text("Get weather averages", fontFamily = nunitoSansFamily)
+            Text(
+                "Search",
+                fontFamily = nunitoSansFamily,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }
@@ -481,9 +535,10 @@ private fun isPlaceholderValue(value: String): Boolean {
 }
 
 private enum class WeatherTab(val label: String) {
-    RESULTS("Results"),
+    SEARCH("Search"),
     FAVORITE("Favorite"),
-    PLACES("Places"),
+    HOMONYMS("Homonyms"),
+    HISTORY("History"),
 }
 
 @Composable
@@ -492,23 +547,15 @@ private fun StatusDisplay(status: String) {
     Column(
         modifier =
             Modifier
-                .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.onSurface, bannerShape)
-                .border(
-                    1.dp,
-                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
-                    bannerShape,
-                )
-                .padding(12.dp),
+                .fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Text(
             text = status,
             modifier = Modifier.fillMaxWidth(),
             fontFamily = nunitoSansFamily,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.background,
-            lineHeight = 20.sp,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -631,7 +678,7 @@ private fun PlaceListItem(
             }
         }
         Icon(
-            painter = painterResource(id = R.drawable.arrow_right),
+            painter = painterResource(id = R.drawable.search),
             contentDescription = "Select place",
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(18.dp),
@@ -793,11 +840,15 @@ internal fun buildStatusCardValue(
     }
     val delta = currentValue - historicValue
     val absDelta = abs(delta)
+    val formattedDelta = String.format(Locale.US, "%.2f", absDelta)
+    val sign = if (delta >= 0) "+" else "-"
+
     if (absDelta < 1.0) {
-        return ValueWithIcons("Normal (+/- 1°C)", null)
+        return ValueWithIcons("Ok ($sign$formattedDelta°C)", null)
     }
     val count =
         when {
+            absDelta < 1.0 -> 0
             absDelta < 2.0 -> 1
             absDelta < 3.0 -> 2
             else -> 3
@@ -808,8 +859,6 @@ internal fun buildStatusCardValue(
         } else {
             Triple(R.drawable.frost, CoolIconTint, "Colder than average")
         }
-    val formattedDelta = String.format(Locale.US, "%.2f", absDelta)
-    val sign = if (delta >= 0) "+" else "-"
     return ValueWithIcons(
         "$sign$formattedDelta°C",
         IconStack(resId = resId, count = count, tint = tint, contentDescription = description),

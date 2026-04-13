@@ -24,7 +24,8 @@ class GeoCodeRepository(
             val normalized = normalizeQuery(name, languageLocale)
             val cacheKey = buildCacheKey(normalized, normalizedLanguage)
             val cached = geoCodeDao.getByQuery(cacheKey)
-            val fallbackCached = if (cached.isEmpty()) geoCodeDao.getByQuery(normalized) else emptyList()
+            val fallbackCached =
+                if (cached.isEmpty()) geoCodeDao.getByQuery(normalized) else emptyList()
             val cachedEntries = if (cached.isNotEmpty()) cached else fallbackCached
             if (cachedEntries.isNotEmpty()) {
                 if (cachedEntries.first().query != cacheKey) {
@@ -33,7 +34,7 @@ class GeoCodeRepository(
                 }
                 return GeocodeSelection(
                     primary = cachedEntries.first().toGeoPlace(),
-                    candidates = cachedEntries.drop(1).map { it.toGeoPlace() },
+                    candidates = cachedEntries.map { it.toGeoPlace() },
                 )
             }
 
@@ -60,9 +61,7 @@ class GeoCodeRepository(
             val primaryPlace = primary?.toGeoPlace() ?: fallbackGeoPlace()
 
             val candidates =
-                sorted
-                    .filterNot { it.id == primaryPlace.id }
-                    .map { it.toGeoPlace() }
+                sorted.map { it.toGeoPlace() }
             return GeocodeSelection(
                 primary = primaryPlace,
                 candidates = candidates,
