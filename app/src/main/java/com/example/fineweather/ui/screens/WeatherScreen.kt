@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -46,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -77,6 +79,8 @@ import kotlin.math.abs
 @Composable
 fun WeatherScreen(
     viewModel: WeatherViewModel,
+    showInfo: Boolean,
+    onDismissInfo: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var location by rememberSaveable { mutableStateOf("") }
@@ -95,9 +99,9 @@ fun WeatherScreen(
     val cacheHitCount by viewModel.cacheHitCount.collectAsState(initial = 0)
     val resolvedLocation by viewModel.resolvedLocationName.collectAsState(initial = "")
     val places by viewModel.places.collectAsState(initial = emptyList())
-    val favoritePlace by viewModel.favorite.collectAsState(initial = null)
+    val favorites by viewModel.favorites.collectAsState(initial = emptyList())
     val selectedPlace by viewModel.selectedPlace.collectAsState(initial = null)
-    val isFavoriteSelected = favoritePlace?.id != null && favoritePlace?.id == selectedPlace?.id
+    val isFavoriteSelected = favorites.any { it.id == selectedPlace?.id }
     val statusCardValue = buildStatusCardValue(resultCurrentMonth, resultHistoric)
     val trendCardValue = buildTrendCardValue(resultForecast, resultCurrentMonth)
     val statusImageRes = resolveStatusImageRes(
@@ -162,8 +166,11 @@ fun WeatherScreen(
                     ),
                     border = BorderStroke(
                         width = 1.dp,
-                        color = if (isDarkTheme) HazyBlue else MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
-                    ),                ) {
+                        color = if (isDarkTheme) HazyBlue else MaterialTheme.colorScheme.primary.copy(
+                            alpha = 0.3f
+                        ),
+                    ),
+                ) {
                     Text(
                         text = tab.label,
                         fontFamily = nunitoSansFamily,
@@ -194,7 +201,8 @@ fun WeatherScreen(
                         modifier =
                             Modifier
                                 .fillMaxWidth()
-                                .padding(12.dp),
+                                .padding(12.dp)
+                                .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         SearchBar(
@@ -271,21 +279,22 @@ fun WeatherScreen(
             }
 
             WeatherTab.FAVORITE -> {
-                if (favoritePlace == null) {
+                if (favorites.isEmpty()) {
                     EmptySectionCard(
-                        title = "Favorite",
-                        message = "No favorite yet. Tap the star next to the search bar to save one.",
+                        title = "Favorites",
+                        message = "No favorites yet. Tap the star next to the search bar to save one.",
                         shape = cardShape,
                         colors = cardColors,
                     )
                 } else {
                     PlacesCard(
-                        title = "Favorite",
-                        places = listOf(favoritePlace) as List<GeoPlace>,
+                        title = "Favorites",
+                        places = favorites,
                         onPlaceClick = { place ->
                             selectedTab = WeatherTab.SEARCH
                             viewModel.selectPlace(place)
                         },
+                        onPlaceRemove = { place -> viewModel.removeFavorite(place.id) },
                         shape = cardShape,
                         colors = cardColors,
                     )
@@ -361,6 +370,12 @@ fun WeatherScreen(
                     Text("OK", fontFamily = nunitoSansFamily)
                 }
             },
+        )
+    }
+
+    if (showInfo) {
+        InfoOverlay(
+            onDismiss = onDismissInfo,
         )
     }
 }
@@ -536,14 +551,13 @@ private fun isPlaceholderValue(value: String): Boolean {
 
 private enum class WeatherTab(val label: String) {
     SEARCH("Search"),
-    FAVORITE("Favorite"),
+    FAVORITE("Favorites"),
     HOMONYMS("Homonyms"),
     //HISTORY("History"),
 }
 
 @Composable
 private fun StatusDisplay(status: String) {
-    val bannerShape = RoundedCornerShape(10.dp)
     Column(
         modifier =
             Modifier
@@ -607,6 +621,7 @@ private fun PlacesCard(
     title: String,
     places: List<GeoPlace>,
     onPlaceClick: (GeoPlace) -> Unit,
+    onPlaceRemove: ((GeoPlace) -> Unit)? = null,
     shape: RoundedCornerShape,
     colors: CardColors,
 ) {
@@ -638,7 +653,11 @@ private fun PlacesCard(
             )
             DividerLine()
             places.forEachIndexed { index, place ->
-                PlaceListItem(place = place, onClick = { onPlaceClick(place) })
+                PlaceListItem(
+                    place = place,
+                    onClick = { onPlaceClick(place) },
+                    onRemove = onPlaceRemove?.let { remove -> { remove(place) } },
+                )
                 if (index != places.lastIndex) {
                     DividerLine()
                 }
@@ -651,17 +670,36 @@ private fun PlacesCard(
 private fun PlaceListItem(
     place: GeoPlace,
     onClick: () -> Unit,
+    onRemove: (() -> Unit)? = null,
 ) {
     val subtitle = place.displaySubtitle()
     Row(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .clickable { onClick() }
                 .padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(modifier = Modifier.weight(1f)) {
+        if (onRemove != null) {
+            IconButton(
+                onClick = onRemove,
+                modifier = Modifier.testTag("removeFavoriteButton"),
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.delete_24),
+                    contentDescription = "Remove favorite",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            Spacer(modifier = Modifier.width(4.dp))
+        }
+        Column(
+            modifier =
+                Modifier
+                    .weight(1f)
+                    .clickable { onClick() },
+        ) {
             Text(
                 text = place.displayName(),
                 fontFamily = nunitoSansFamily,
@@ -681,7 +719,9 @@ private fun PlaceListItem(
             painter = painterResource(id = R.drawable.search),
             contentDescription = "Select place",
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(18.dp),
+            modifier = Modifier
+                .size(18.dp)
+                .clickable { onClick() },
         )
     }
 }
@@ -748,6 +788,195 @@ private fun StatusHeaderCard(
                     modifier = Modifier.weight(2f),
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun InfoOverlay(
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier =
+            modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.55f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors =
+                CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                ),
+            modifier =
+                Modifier
+                    .padding(25.dp)
+                    .fillMaxWidth()
+        ) {
+            Column(
+                modifier =
+                    Modifier
+                        .padding(16.dp)
+                        .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(
+                    text = "Welcome to FineWeather",
+                    fontFamily = nunitoSansFamily,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                EarthStatusStack()
+                Text(
+                    text = "FineWeather compares recent temperature averages with historic averages and the forecast average so you can watch climate changes in real time. \n\nFeatures:",
+                    fontFamily = nunitoSansFamily,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Column(modifier = Modifier.padding(start = 0.dp)) {
+                    Row {
+                        Text(text = "\u2022")
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "Search a city or place to see the temperature averages of the last 31 days, this month so far, and the forecast average temperature.",
+                            fontFamily = nunitoSansFamily,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Row {
+                        Text(text = "\u2022")
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "The divergence is calculated by comparing this month to the 30 year baseline, " +
+                                    "and Trend compares the forecast average to this months average.",
+                            fontFamily = nunitoSansFamily,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Row {
+                        Text(text = "\u2022")
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "Use favorites (star icon) to pin places and look them up in the favorites tab. Click homonyms to switch between places with the same or a similar name.",
+                            fontFamily = nunitoSansFamily,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+                    Row {
+                        Text(text = "\u2022")
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "Settings lets you change the forecast range and historic reference. Furthermore the search language can be changed there.",
+                            fontFamily = nunitoSansFamily,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    ElevatedButton(
+                        onClick = onDismiss,
+                        border = BorderStroke(1.dp, SoftMist)
+                    ) {
+                        Text(
+                            text = "Got it",
+                            fontFamily = nunitoSansFamily,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EarthStatusStack() {
+    Box(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(180.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        EarthStatusPhotoCard(
+            imageRes = R.drawable.cold,
+            label = "Cold",
+            modifier =
+                Modifier
+                    .align(Alignment.CenterStart)
+                    .offset(x = 12.dp, y = 8.dp)
+                    .graphicsLayer(rotationZ = -8f),
+        )
+        EarthStatusPhotoCard(
+            imageRes = R.drawable.equal,
+            label = "Normal",
+            modifier =
+                Modifier
+                    .align(Alignment.Center)
+                    .offset(y = (-6).dp)
+                    .graphicsLayer(rotationZ = 0f),
+        )
+        EarthStatusPhotoCard(
+            imageRes = R.drawable.warm,
+            label = "Warm",
+            modifier =
+                Modifier
+                    .align(Alignment.CenterEnd)
+                    .offset(x = (-12).dp, y = 10.dp)
+                    .graphicsLayer(rotationZ = 7f),
+        )
+    }
+}
+
+@Composable
+private fun EarthStatusPhotoCard(
+    imageRes: Int,
+    label: String,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        shape = RoundedCornerShape(18.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+            ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+        modifier =
+            modifier
+                .width(122.dp)
+                .border(1.dp, MaterialTheme.colorScheme.onSurfaceVariant),
+    ) {
+        Column(
+            modifier = Modifier.padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Image(
+                painter = painterResource(id = imageRes),
+                contentDescription = label,
+                contentScale = ContentScale.Crop,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(96.dp),
+            )
+            Text(
+                text = label,
+                fontFamily = nunitoSansFamily,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(horizontal = 4.dp),
+            )
         }
     }
 }
@@ -848,7 +1077,6 @@ internal fun buildStatusCardValue(
     }
     val count =
         when {
-            absDelta < 1.0 -> 0
             absDelta < 2.0 -> 1
             absDelta < 3.0 -> 2
             else -> 3

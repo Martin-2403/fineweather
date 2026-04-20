@@ -19,10 +19,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,7 +46,7 @@ import com.example.fineweather.data.local.settingsDataStore
 import com.example.fineweather.data.local.WeatherDatabase
 import com.example.fineweather.data.repositories.GeoCodeRepository
 import com.example.fineweather.data.repositories.DataStoreSettingsRepository
-import com.example.fineweather.data.repositories.DataStoreFavoriteRepository
+import com.example.fineweather.data.repositories.RoomFavoriteRepository
 import com.example.fineweather.data.repositories.SettingsDefaults
 import com.example.fineweather.data.repositories.SettingsRepository
 import com.example.fineweather.data.repositories.WeatherRepository
@@ -104,7 +107,7 @@ fun WeatherApp() {
         }
     val favoriteRepository =
         remember {
-            DataStoreFavoriteRepository(context.settingsDataStore)
+            RoomFavoriteRepository(db.favoriteDao())
         }
 
     val weatherViewModel: WeatherViewModel =
@@ -130,6 +133,17 @@ fun WeatherApp() {
     val searchLanguage by settingsViewModel.searchLanguage.collectAsState(
         initial = SettingsDefaults.DEFAULT_SEARCH_LANGUAGE,
     )
+    val hasSeenInfo by settingsViewModel.hasSeenInfo.collectAsState(initial = false)
+    var showInfo by rememberSaveable { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(hasSeenInfo) {
+        if (hasSeenInfo == false) {
+            showInfo = true
+        } else if (hasSeenInfo == true) {
+            showInfo = false
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -141,6 +155,10 @@ fun WeatherApp() {
                         actionContentDescription = "Open settings",
                         actionTestTag = "settingsButton",
                         onAction = { currentScreen = AppScreen.SETTINGS },
+                        secondaryActionIconRes = R.drawable.info,
+                        secondaryActionContentDescription = "Open info",
+                        secondaryActionTestTag = "infoButton",
+                        onSecondaryAction = { showInfo = true },
                     )
 
                 AppScreen.SETTINGS ->
@@ -153,7 +171,13 @@ fun WeatherApp() {
                     )
             }
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
+        LaunchedEffect(snackbarHostState) {
+            weatherViewModel.snackbarMessages.collect { message ->
+                snackbarHostState.showSnackbar(message)
+            }
+        }
         if (currentScreen == AppScreen.SETTINGS) {
             BackHandler {
                 currentScreen = AppScreen.WEATHER
@@ -163,6 +187,11 @@ fun WeatherApp() {
             AppScreen.WEATHER ->
                 WeatherScreen(
                     viewModel = weatherViewModel,
+                    showInfo = showInfo,
+                    onDismissInfo = {
+                        showInfo = false
+                        settingsViewModel.setHasSeenInfo(true)
+                    },
                     modifier = Modifier.padding(innerPadding),
                 )
 
@@ -192,6 +221,10 @@ private fun CompactTopBar(
     actionContentDescription: String,
     actionTestTag: String,
     onAction: () -> Unit,
+    secondaryActionIconRes: Int? = null,
+    secondaryActionContentDescription: String? = null,
+    secondaryActionTestTag: String? = null,
+    onSecondaryAction: (() -> Unit)? = null,
 ) {
     Surface(tonalElevation = 2.dp) {
         Row(
@@ -209,6 +242,22 @@ private fun CompactTopBar(
                 style = MaterialTheme.typography.titleMedium,
             )
             Spacer(modifier = Modifier.weight(1f))
+            if (secondaryActionIconRes != null && onSecondaryAction != null) {
+                IconButton(
+                    onClick = onSecondaryAction,
+                    modifier =
+                        if (secondaryActionTestTag != null) {
+                            Modifier.testTag(secondaryActionTestTag)
+                        } else {
+                            Modifier
+                        },
+                ) {
+                    Icon(
+                        painter = painterResource(id = secondaryActionIconRes),
+                        contentDescription = secondaryActionContentDescription,
+                    )
+                }
+            }
             IconButton(
                 onClick = onAction,
                 modifier = Modifier.testTag(actionTestTag),

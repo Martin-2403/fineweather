@@ -10,6 +10,7 @@ import com.example.fineweather.data.models.FineWeatherData
 import com.example.fineweather.data.models.GeoPlace
 import com.example.fineweather.data.models.toFineWeatherData
 import com.example.fineweather.data.models.HistoricReference
+import com.example.fineweather.data.repositories.FavoriteAddResult
 import com.example.fineweather.data.repositories.FavoriteRepository
 import com.example.fineweather.data.repositories.SettingsDefaults
 import com.example.fineweather.data.repositories.SettingsRepository
@@ -18,6 +19,8 @@ import com.example.fineweather.data.repositories.WeatherRepository
 import com.example.fineweather.data.local.entities.WeatherEntity
 import com.example.fineweather.utils.formatDouble
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -67,12 +70,14 @@ class WeatherViewModel(
     val places: StateFlow<List<GeoPlace>> = _places
     private val _selectedPlace = MutableStateFlow<GeoPlace?>(null)
     val selectedPlace: StateFlow<GeoPlace?> = _selectedPlace
-    val favorite: StateFlow<GeoPlace?> =
-        favoriteRepository.favorite.stateIn(
+    val favorites: StateFlow<List<GeoPlace>> =
+        favoriteRepository.favorites.stateIn(
             scope = viewModelScope,
             started = SharingStarted.Eagerly,
-            initialValue = null,
+            initialValue = emptyList(),
         )
+    private val _snackbarMessages = MutableSharedFlow<String>()
+    val snackbarMessages = _snackbarMessages.asSharedFlow()
 
     init {
         viewModelScope.launch {
@@ -296,12 +301,23 @@ class WeatherViewModel(
     fun toggleFavorite() {
         val selected = _selectedPlace.value ?: return
         viewModelScope.launch {
-            val currentFavorite = favorite.value
-            if (currentFavorite?.id == selected.id) {
-                favoriteRepository.clearFavorite()
-            } else {
-                favoriteRepository.setFavorite(selected)
+            val isFavorite = favorites.value.any { it.id == selected.id }
+            if (isFavorite) {
+                favoriteRepository.removeFavorite(selected.id)
+                return@launch
             }
+            val result = favoriteRepository.addFavorite(selected)
+            if (result == FavoriteAddResult.LIMIT_REACHED) {
+                _snackbarMessages.emit(
+                    "Favorites limit reached (10). Remove one to add another.",
+                )
+            }
+        }
+    }
+
+    fun removeFavorite(placeId: String) {
+        viewModelScope.launch {
+            favoriteRepository.removeFavorite(placeId)
         }
     }
 

@@ -72,6 +72,21 @@ class SettingsViewModelTest {
         assertEquals("fr", viewModel.searchLanguage.value)
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun setHasSeenInfo_updatesState() = runTest {
+        val repository = FakeSettingsRepository()
+        val viewModel = SettingsViewModel(repository)
+
+        advanceUntilIdle()
+        assertEquals(false, viewModel.hasSeenInfo.value)
+
+        viewModel.setHasSeenInfo(true)
+        advanceUntilIdle()
+
+        assertEquals(true, viewModel.hasSeenInfo.value)
+    }
+
     @Test
     fun settingsViewModelFactory_createsViewModel() {
         val repository = FakeSettingsRepository()
@@ -96,13 +111,16 @@ class SettingsViewModelTest {
         initialDays: Int = SettingsDefaults.DEFAULT_FORECAST_DAYS,
         initialReference: HistoricReference = SettingsDefaults.DEFAULT_HISTORIC_REFERENCE,
         initialLanguage: String = SettingsDefaults.DEFAULT_SEARCH_LANGUAGE,
+        initialHasSeenInfo: Boolean = false,
     ) : SettingsRepository {
         private val state = MutableStateFlow(initialDays)
         private val referenceState = MutableStateFlow(initialReference)
         private val languageState = MutableStateFlow(initialLanguage)
+        private val hasSeenInfoState = MutableStateFlow(initialHasSeenInfo)
         override val forecastDays: Flow<Int> = state
         override val historicReference: Flow<HistoricReference> = referenceState
         override val searchLanguage: Flow<String> = languageState
+        override val hasSeenInfo: Flow<Boolean> = hasSeenInfoState
 
         override suspend fun setForecastDays(days: Int) {
             state.value = days
@@ -114,6 +132,10 @@ class SettingsViewModelTest {
 
         override suspend fun setSearchLanguage(language: String) {
             languageState.value = language
+        }
+
+        override suspend fun setHasSeenInfo(seen: Boolean) {
+            hasSeenInfoState.value = seen
         }
     }
 }

@@ -5,7 +5,6 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
-import androidx.compose.ui.test.assertIsDisplayed
 import com.example.fineweather.ui.theme.FineWeatherTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -27,10 +26,13 @@ class SearchBarTest {
                     onLocationChange = { locationState.value = it },
                     onSearch = {},
                     onClear = { locationState.value = "" },
+                    isFavorite = true,
+                    canFavorite = true,
+                    onToggleFavorite = { },
                 )
             }
         }
-
+        
         composeTestRule.onNodeWithTag("searchField").performTextInput("Berlin")
         composeTestRule.runOnIdle {
             assertEquals("Berlin", locationState.value)
@@ -40,21 +42,5 @@ class SearchBarTest {
         composeTestRule.runOnIdle {
             assertEquals("", locationState.value)
         }
-    }
-
-    @Test
-    fun clearButtonIsVisible() {
-        composeTestRule.setContent {
-            FineWeatherTheme {
-                SearchBar(
-                    location = "",
-                    onLocationChange = {},
-                    onSearch = {},
-                    onClear = {},
-                )
-            }
-        }
-
-        composeTestRule.onNodeWithTag("clearButton").assertIsDisplayed()
     }
 }

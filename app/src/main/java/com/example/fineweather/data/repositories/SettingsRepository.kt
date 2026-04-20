@@ -3,6 +3,7 @@ package com.example.fineweather.data.repositories
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.example.fineweather.data.models.HistoricReference
@@ -58,9 +59,11 @@ interface SettingsRepository {
     val forecastDays: Flow<Int>
     val historicReference: Flow<HistoricReference>
     val searchLanguage: Flow<String>
+    val hasSeenInfo: Flow<Boolean>
     suspend fun setForecastDays(days: Int)
     suspend fun setHistoricReference(reference: HistoricReference)
     suspend fun setSearchLanguage(language: String)
+    suspend fun setHasSeenInfo(seen: Boolean)
 }
 
 class DataStoreSettingsRepository(
@@ -71,6 +74,7 @@ class DataStoreSettingsRepository(
         val FORECAST_DAYS = intPreferencesKey("forecast_days")
         val HISTORIC_REFERENCE = stringPreferencesKey("historic_reference")
         val SEARCH_LANGUAGE = stringPreferencesKey("search_language")
+        val HAS_SEEN_INFO = booleanPreferencesKey("has_seen_info")
     }
 
     override val forecastDays: Flow<Int> =
@@ -98,6 +102,11 @@ class DataStoreSettingsRepository(
             .map { stored -> SettingsDefaults.normalizeSearchLanguage(stored) }
             .distinctUntilChanged()
 
+    override val hasSeenInfo: Flow<Boolean> =
+        dataStore.data
+            .map { prefs -> prefs[Keys.HAS_SEEN_INFO] ?: false }
+            .distinctUntilChanged()
+
     override suspend fun setForecastDays(days: Int) {
         dataStore.edit { prefs ->
             prefs[Keys.FORECAST_DAYS] = days
@@ -116,4 +125,9 @@ class DataStoreSettingsRepository(
         }
     }
 
+    override suspend fun setHasSeenInfo(seen: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[Keys.HAS_SEEN_INFO] = seen
+        }
+    }
 }

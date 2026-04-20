@@ -6,6 +6,7 @@ import com.example.fineweather.data.models.FineWeatherData
 import com.example.fineweather.data.models.GeoPlace
 import com.example.fineweather.data.models.GeocodeSelection
 import com.example.fineweather.data.models.HistoricReference
+import com.example.fineweather.data.repositories.FavoriteAddResult
 import com.example.fineweather.data.repositories.WeatherRepository.CurrentMonthStats
 import com.example.fineweather.data.repositories.FavoriteRepository
 import com.example.fineweather.data.repositories.GeoCodeRepository
@@ -21,8 +22,10 @@ import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import java.time.LocalDate
@@ -792,6 +795,73 @@ class WeatherViewModelTest {
         assertEquals(0, countingRepository.setForecastCalls)
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun toggleFavorite_addsSelectedPlaceToFavorites() = runTest {
+        val selected = GeoPlace("loc-1", "Berlin", "Germany", null, 1.0, 2.0)
+        coEvery { weatherRepository.getCachedWeatherById(selected.id) } returns buildEntity(
+            id = selected.id,
+            date = fixedNow.toString(),
+            currentAverage = 10.0,
+            currentMonthAverage = 11.0,
+            forecastAverage = 12.0,
+            historicMonthlyAverage = 9.0,
+        )
+        viewModel.selectPlace(selected)
+        advanceUntilIdle()
+
+        viewModel.toggleFavorite()
+        advanceUntilIdle()
+
+        assertEquals(listOf(selected), viewModel.favorites.value)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun toggleFavorite_whenFavoritesFull_emitsSnackbarMessage() = runTest {
+        val fullFavorites =
+            (1..10).map { index ->
+                GeoPlace(
+                    id = "loc-$index",
+                    name = "City $index",
+                    country = "Country",
+                    admin1 = null,
+                    latitude = index.toDouble(),
+                    longitude = index.toDouble(),
+                )
+            }
+        favoriteRepository = FakeFavoriteRepository(fullFavorites)
+        viewModel =
+            WeatherViewModel(
+                weatherRepository,
+                geoCodeRepository,
+                settingsRepository,
+                favoriteRepository,
+                nowProvider = { fixedNow },
+            )
+        val selected = GeoPlace("loc-11", "New City", "Country", null, 11.0, 11.0)
+        coEvery { weatherRepository.getCachedWeatherById(selected.id) } returns buildEntity(
+            id = selected.id,
+            date = fixedNow.toString(),
+            currentAverage = 10.0,
+            currentMonthAverage = 11.0,
+            forecastAverage = 12.0,
+            historicMonthlyAverage = 9.0,
+        )
+        viewModel.selectPlace(selected)
+        advanceUntilIdle()
+
+        val snackbarDeferred = async { viewModel.snackbarMessages.first() }
+        viewModel.toggleFavorite()
+        advanceUntilIdle()
+
+        assertEquals(
+            "Favorites limit reached (10). Remove one to add another.",
+            snackbarDeferred.await(),
+        )
+        assertEquals(fullFavorites, viewModel.favorites.value)
+    }
+
     @Test
     fun weatherViewModelFactory_createsViewModel() {
         val factory =
@@ -925,16 +995,24 @@ class WeatherViewModelTest {
         return GeocodeSelection(primary = place, candidates = emptyList())
     }
 
-    private class FakeFavoriteRepository : FavoriteRepository {
-        private val state = MutableStateFlow<GeoPlace?>(null)
-        override val favorite = state
+    private class FakeFavoriteRepository(
+        initialFavorites: List<GeoPlace> = emptyList(),
+    ) : FavoriteRepository {
+        private val state = MutableStateFlow(initialFavorites)
+        override val favorites: Flow<List<GeoPlace>> = state
 
-        override suspend fun setFavorite(place: GeoPlace) {
-            state.value = place
+        override suspend fun addFavorite(place: GeoPlace): FavoriteAddResult {
+            if (state.value.none { it.id == place.id } && state.value.size >= 10) {
+                return FavoriteAddResult.LIMIT_REACHED
+            }
+            state.value =
+                state.value
+                    .filterNot { it.id == place.id } + place
+            return FavoriteAddResult.ADDED
         }
 
-        override suspend fun clearFavorite() {
-            state.value = null
+        override suspend fun removeFavorite(placeId: String) {
+            state.value = state.value.filterNot { it.id == placeId }
         }
     }
 
@@ -946,9 +1024,11 @@ class WeatherViewModelTest {
         private val state = MutableStateFlow(initialDays)
         private val referenceState = MutableStateFlow(initialReference)
         private val languageState = MutableStateFlow(initialLanguage)
+        private val hasSeenInfoState = MutableStateFlow(false)
         override val forecastDays: Flow<Int> = state
         override val historicReference: Flow<HistoricReference> = referenceState
         override val searchLanguage: Flow<String> = languageState
+        override val hasSeenInfo: Flow<Boolean> = hasSeenInfoState
 
         override suspend fun setForecastDays(days: Int) {
             state.value = days
@@ -961,6 +1041,10 @@ class WeatherViewModelTest {
         override suspend fun setSearchLanguage(language: String) {
             languageState.value = language
         }
+
+        override suspend fun setHasSeenInfo(seen: Boolean) {
+            hasSeenInfoState.value = seen
+        }
     }
 
     private class CountingSettingsRepository(
@@ -971,11 +1055,13 @@ class WeatherViewModelTest {
         private val state = MutableStateFlow(initialDays)
         private val referenceState = MutableStateFlow(initialReference)
         private val languageState = MutableStateFlow(initialLanguage)
+        private val hasSeenInfoState = MutableStateFlow(false)
         var setForecastCalls = 0
             private set
         override val forecastDays: Flow<Int> = state
         override val historicReference: Flow<HistoricReference> = referenceState
         override val searchLanguage: Flow<String> = languageState
+        override val hasSeenInfo: Flow<Boolean> = hasSeenInfoState
 
         override suspend fun setForecastDays(days: Int) {
             setForecastCalls += 1
@@ -988,6 +1074,10 @@ class WeatherViewModelTest {
 
         override suspend fun setSearchLanguage(language: String) {
             languageState.value = language
+        }
+
+        override suspend fun setHasSeenInfo(seen: Boolean) {
+            hasSeenInfoState.value = seen
         }
     }
 

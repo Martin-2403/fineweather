@@ -8,6 +8,7 @@ import com.example.fineweather.data.repositories.SettingsDefaults
 import com.example.fineweather.data.repositories.SettingsRepository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -36,6 +37,15 @@ class SettingsViewModel(
             initialValue = SettingsDefaults.DEFAULT_SEARCH_LANGUAGE,
         )
 
+    val hasSeenInfo: StateFlow<Boolean?> =
+        settingsRepository.hasSeenInfo
+            .map<Boolean, Boolean?> { it }
+            .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = null,
+        )
+
     fun setForecastDays(days: Int) {
         require(days == SettingsDefaults.FORECAST_DAYS_SHORT ||
                 days == SettingsDefaults.FORECAST_DAYS_LONG
@@ -57,6 +67,12 @@ class SettingsViewModel(
     fun setSearchLanguage(language: String) {
         viewModelScope.launch {
             settingsRepository.setSearchLanguage(language)
+        }
+    }
+
+    fun setHasSeenInfo(seen: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setHasSeenInfo(seen)
         }
     }
 }
