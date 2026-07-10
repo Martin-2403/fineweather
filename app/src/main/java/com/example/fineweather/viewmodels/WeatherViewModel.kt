@@ -10,6 +10,7 @@ import com.example.fineweather.data.models.FineWeatherData
 import com.example.fineweather.data.models.GeoPlace
 import com.example.fineweather.data.models.toFineWeatherData
 import com.example.fineweather.data.models.HistoricReference
+import com.example.fineweather.data.models.TemperatureComparisonMode
 import com.example.fineweather.data.repositories.FavoriteAddResult
 import com.example.fineweather.data.repositories.FavoriteRepository
 import com.example.fineweather.data.repositories.SettingsDefaults
@@ -43,6 +44,9 @@ class WeatherViewModel(
     val forecastDays: StateFlow<Int> = _forecastDays
     private val _historicReference = MutableStateFlow(SettingsDefaults.DEFAULT_HISTORIC_REFERENCE)
     val historicReference: StateFlow<HistoricReference> = _historicReference
+    private val _temperatureComparisonMode =
+        MutableStateFlow(SettingsDefaults.DEFAULT_TEMPERATURE_COMPARISON_MODE)
+    val temperatureComparisonMode: StateFlow<TemperatureComparisonMode> = _temperatureComparisonMode
     private val _searchLanguage = MutableStateFlow(SettingsDefaults.DEFAULT_SEARCH_LANGUAGE)
     private val _resultForecastAverage = MutableStateFlow("-")
     val resultForecastAverage: StateFlow<String> = _resultForecastAverage
@@ -52,6 +56,8 @@ class WeatherViewModel(
     val resultCurrentMonthAverage: StateFlow<String> = _resultCurrentMonthAverage
     private val _resultHistoricAverage = MutableStateFlow("-")
     val resultHistoricAverage: StateFlow<String> = _resultHistoricAverage
+    private val _historicMonthlyStdDev = MutableStateFlow<Double?>(null)
+    val historicMonthlyStdDev: StateFlow<Double?> = _historicMonthlyStdDev
     private val _currentMonthDayCount = MutableStateFlow(0)
     val currentMonthDayCount: StateFlow<Int> = _currentMonthDayCount
     private val _apiCallCount = MutableStateFlow(0)
@@ -107,6 +113,11 @@ class WeatherViewModel(
                 _searchLanguage.value = language
             }
         }
+        viewModelScope.launch {
+            settingsRepository.temperatureComparisonMode.collect { mode ->
+                _temperatureComparisonMode.value = mode
+            }
+        }
     }
 
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
@@ -119,6 +130,7 @@ class WeatherViewModel(
             _resolvedLocationName.value = ""
             _places.value = emptyList()
             _selectedPlace.value = null
+            _historicMonthlyStdDev.value = null
             lastResolvedData = null
             return
         }
@@ -157,6 +169,7 @@ class WeatherViewModel(
                 setDataValues("N/A")
                 _resolvedLocationName.value = ""
                 _currentMonthDayCount.value = 0
+                _historicMonthlyStdDev.value = null
                 _places.value = emptyList()
                 _selectedPlace.value = null
                 Log.e(
@@ -228,10 +241,18 @@ class WeatherViewModel(
             } else {
                 cachedLatest?.historicMonthlyAverageClassic
             }
+        val cachedHistoricStdDev =
+            if (_historicReference.value == HistoricReference.CURRENT) {
+                cachedLatest?.historicMonthlyStdDevCurrent
+            } else {
+                cachedLatest?.historicMonthlyStdDevClassic
+            }
         val hasCachedHistoric = cachedHistoricAverage != null
         if (hasCachedHistoric) {
             incrementCacheHits()
             data.historicMonthlyAverage = cachedHistoricAverage
+            data.historicMonthlyStdDev = cachedHistoricStdDev
+            _historicMonthlyStdDev.value = cachedHistoricStdDev
             _resultHistoricAverage.value =
                 "${formatDouble(data.historicMonthlyAverage)}°C"
         } else {
@@ -352,13 +373,24 @@ class WeatherViewModel(
                 data.coordinates.second,
                 _historicReference.value,
             )
-            val historicData = weatherRepository.calculateAverageHistoricMonthlyTemperature()
-            data.historicMonthlyAverage = historicData?.second
+            val historicData =
+                weatherRepository.calculateHistoricMonthlyStats()
+                    ?: weatherRepository.calculateAverageHistoricMonthlyTemperature()?.let {
+                        WeatherRepository.HistoricMonthlyStats(
+                            month = it.first,
+                            average = it.second,
+                            stdDev = 0.0,
+                        )
+                    }
+            data.historicMonthlyAverage = historicData?.average
+            data.historicMonthlyStdDev = historicData?.stdDev
+            _historicMonthlyStdDev.value = historicData?.stdDev
             _resultHistoricAverage.value =
                 "${formatDouble(data.historicMonthlyAverage)}°C"
             persistWeatherCache(data, historicReferenceOverride = _historicReference.value)
         }.onFailure { e ->
             _resultHistoricAverage.value = "Error"
+            _historicMonthlyStdDev.value = null
             Log.e(
                 "WeatherAPI",
                 e.message ?: "Error occurred while trying to fetch the historic weather",
@@ -399,9 +431,17 @@ class WeatherViewModel(
             } else {
                 cachedLatest?.historicMonthlyAverageClassic
             }
+        val cachedHistoricStdDev =
+            if (_historicReference.value == HistoricReference.CURRENT) {
+                cachedLatest?.historicMonthlyStdDevCurrent
+            } else {
+                cachedLatest?.historicMonthlyStdDevClassic
+            }
         if (cachedHistoricAverage != null) {
             incrementCacheHits()
             data.historicMonthlyAverage = cachedHistoricAverage
+            data.historicMonthlyStdDev = cachedHistoricStdDev
+            _historicMonthlyStdDev.value = cachedHistoricStdDev
             _resultHistoricAverage.value =
                 "${formatDouble(data.historicMonthlyAverage)}°C"
         } else {
@@ -474,6 +514,22 @@ class WeatherViewModel(
             } else {
                 existing?.historicMonthlyAverageCurrent
             }
+        val historicStdDevClassic =
+            if (historicReferenceOverride == HistoricReference.CLASSIC &&
+                data.historicMonthlyStdDev != null
+            ) {
+                data.historicMonthlyStdDev
+            } else {
+                existing?.historicMonthlyStdDevClassic
+            }
+        val historicStdDevCurrent =
+            if (historicReferenceOverride == HistoricReference.CURRENT &&
+                data.historicMonthlyStdDev != null
+            ) {
+                data.historicMonthlyStdDev
+            } else {
+                existing?.historicMonthlyStdDevCurrent
+            }
         val entity =
             WeatherEntity(
                 id = data.id,
@@ -490,6 +546,8 @@ class WeatherViewModel(
                 forecastDate14 = forecastDate14,
                 historicMonthlyAverageClassic = historicClassic,
                 historicMonthlyAverageCurrent = historicCurrent,
+                historicMonthlyStdDevClassic = historicStdDevClassic,
+                historicMonthlyStdDevCurrent = historicStdDevCurrent,
             )
         weatherRepository.insertWeather(entity)
     }

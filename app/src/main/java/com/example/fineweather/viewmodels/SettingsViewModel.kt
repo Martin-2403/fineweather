@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.fineweather.data.models.HistoricReference
+import com.example.fineweather.data.models.TemperatureComparisonMode
 import com.example.fineweather.data.repositories.SettingsDefaults
 import com.example.fineweather.data.repositories.SettingsRepository
 import kotlinx.coroutines.flow.SharingStarted
@@ -37,6 +38,13 @@ class SettingsViewModel(
             initialValue = SettingsDefaults.DEFAULT_SEARCH_LANGUAGE,
         )
 
+    val temperatureComparisonMode: StateFlow<TemperatureComparisonMode> =
+        settingsRepository.temperatureComparisonMode.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = SettingsDefaults.DEFAULT_TEMPERATURE_COMPARISON_MODE,
+        )
+
     val hasSeenInfo: StateFlow<Boolean?> =
         settingsRepository.hasSeenInfo
             .map<Boolean, Boolean?> { it }
@@ -67,6 +75,12 @@ class SettingsViewModel(
     fun setSearchLanguage(language: String) {
         viewModelScope.launch {
             settingsRepository.setSearchLanguage(language)
+        }
+    }
+
+    fun setTemperatureComparisonMode(mode: TemperatureComparisonMode) {
+        viewModelScope.launch {
+            settingsRepository.setTemperatureComparisonMode(mode)
         }
     }
 

@@ -15,6 +15,7 @@ class FineWeatherData(
     var currentAverage: Double? = null
     var forecastAverage: Double? = null
     var historicMonthlyAverage: Double? = null
+    var historicMonthlyStdDev: Double? = null
     var historicTimePeriodAverage: Double? = null
 
     var currentTimePeriod: Int = 31
@@ -48,5 +49,7 @@ fun FineWeatherData.toEntity(locationId: Long): WeatherEntity =
         forecastDate14 = this.timestamp,
         historicMonthlyAverageClassic = null,
         historicMonthlyAverageCurrent = this.historicMonthlyAverage,
+        historicMonthlyStdDevClassic = null,
+        historicMonthlyStdDevCurrent = this.historicMonthlyStdDev,
         country = this.country,
     )

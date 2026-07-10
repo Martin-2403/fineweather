@@ -12,6 +12,7 @@ import com.example.fineweather.utils.getCurrentMonthString
 import retrofit2.HttpException
 import java.time.LocalDate
 import java.time.YearMonth
+import kotlin.math.sqrt
 
 class WeatherRepository(
     private val openMeteoWeatherApi: OpenMeteoWeatherApiService,
@@ -136,6 +137,16 @@ class WeatherRepository(
     }
 
     fun calculateAverageHistoricMonthlyTemperature(): Pair<String, Double>? {
+        return calculateHistoricMonthlyStats()?.let { Pair(it.month, it.average) }
+    }
+
+    data class HistoricMonthlyStats(
+        val month: String,
+        val average: Double,
+        val stdDev: Double,
+    )
+
+    fun calculateHistoricMonthlyStats(): HistoricMonthlyStats? {
         val timeList = cachedHistoricData?.daily?.time
         val tempList = cachedHistoricData?.daily?.temperature_2m_mean
 
@@ -143,32 +154,49 @@ class WeatherRepository(
             "No historic weather data available"
         }
 
-        // Combine the data safely
         val dailyData = timeList.zip(tempList)
-
-        return calculateMonthlyAverage(dailyData)
+        return calculateMonthlyStats(dailyData)
     }
 
     fun calculateMonthlyAverage(dailyData: List<Pair<String, Double>>): Pair<String, Double>? {
+        return calculateMonthlyStats(dailyData)?.let { Pair(it.month, it.average) }
+    }
+
+    fun calculateMonthlyStats(dailyData: List<Pair<String, Double>>): HistoricMonthlyStats? {
         val month = getCurrentMonthString()
         val groupedByMonth =
             dailyData.groupBy { (dateStr, _) ->
                 dateStr.substring(0, 7)
             }
 
-        // Calculate average per month
-        val averagesByMonth: Map<String, Double> =
+        val averagesByMonth =
             groupedByMonth.mapValues { (_, values) ->
                 val temps = values.map { it.second }
                 temps.average()
             }
-        val monthlyData =
-            averagesByMonth.entries.filter { it.key.contains("-$month", ignoreCase = true) }
-        if (monthlyData.isEmpty()) {
+        val monthlyMeans =
+            averagesByMonth.entries
+                .filter { it.key.contains("-$month", ignoreCase = true) }
+                .map { it.value }
+        if (monthlyMeans.isEmpty()) {
             return null
         }
-        val monthlyAverage = monthlyData.map { it.value }.average()
-        return Pair(getCurrentMonthName(), monthlyAverage)
+        val monthlyAverage = monthlyMeans.average()
+        val stdDev =
+            if (monthlyMeans.size < 2) {
+                0.0
+            } else {
+                val variance =
+                    monthlyMeans
+                        .map { value -> (value - monthlyAverage) * (value - monthlyAverage) }
+                        .sum() / (monthlyMeans.size - 1)
+                sqrt(variance)
+            }
+        return HistoricMonthlyStats(
+            month = getCurrentMonthName(),
+            average = monthlyAverage,
+            stdDev = stdDev,
+        )
     }
 
     fun getDateRange(daysAgo: Int): Pair<String, String> {

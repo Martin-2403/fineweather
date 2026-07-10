@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.assertIsDisplayed
 import com.example.fineweather.data.models.HistoricReference
+import com.example.fineweather.data.models.TemperatureComparisonMode
 import com.example.fineweather.ui.theme.FineWeatherTheme
 import com.example.fineweather.data.repositories.SettingsDefaults
 import org.junit.Rule
@@ -23,6 +24,7 @@ class SettingsScreenTest {
         val daysState = mutableStateOf(SettingsDefaults.FORECAST_DAYS_SHORT)
         val referenceState = mutableStateOf(HistoricReference.CLASSIC)
         val languageState = mutableStateOf(SettingsDefaults.DEFAULT_SEARCH_LANGUAGE)
+        val comparisonModeState = mutableStateOf(SettingsDefaults.DEFAULT_TEMPERATURE_COMPARISON_MODE)
 
         composeTestRule.setContent {
             FineWeatherTheme {
@@ -30,9 +32,11 @@ class SettingsScreenTest {
                     forecastDays = daysState.value,
                     historicReference = referenceState.value,
                     searchLanguage = languageState.value,
+                    temperatureComparisonMode = comparisonModeState.value,
                     onForecastDaysChange = { daysState.value = it },
                     onHistoricReferenceChange = { referenceState.value = it },
                     onSearchLanguageChange = { languageState.value = it },
+                    onTemperatureComparisonModeChange = { comparisonModeState.value = it },
                 )
             }
         }
@@ -51,8 +55,8 @@ class SettingsScreenTest {
         val daysState = mutableStateOf(SettingsDefaults.FORECAST_DAYS_SHORT)
         val referenceState = mutableStateOf(HistoricReference.CLASSIC)
         val languageState = mutableStateOf(SettingsDefaults.DEFAULT_SEARCH_LANGUAGE)
-        val targetLabel =
-            "${HistoricReference.CURRENT.displayLabel()} • Current reference"
+        val comparisonModeState = mutableStateOf(SettingsDefaults.DEFAULT_TEMPERATURE_COMPARISON_MODE)
+        val targetLabel = "Current reference: ${HistoricReference.CURRENT.displayLabel()}"
 
         composeTestRule.setContent {
             FineWeatherTheme {
@@ -60,15 +64,17 @@ class SettingsScreenTest {
                     forecastDays = daysState.value,
                     historicReference = referenceState.value,
                     searchLanguage = languageState.value,
+                    temperatureComparisonMode = comparisonModeState.value,
                     onForecastDaysChange = { daysState.value = it },
                     onHistoricReferenceChange = { referenceState.value = it },
                     onSearchLanguageChange = { languageState.value = it },
+                    onTemperatureComparisonModeChange = { comparisonModeState.value = it },
                 )
             }
         }
 
         composeTestRule.onNodeWithTag("historicReferenceDropdown").performClick()
-        composeTestRule.onNodeWithText(targetLabel).performClick()
+        composeTestRule.onNodeWithText(targetLabel, substring = true).performClick()
 
         composeTestRule.runOnIdle {
             assertEquals(HistoricReference.CURRENT, referenceState.value)

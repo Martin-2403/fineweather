@@ -30,6 +30,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.fineweather.data.models.HistoricReference
+import com.example.fineweather.data.models.TemperatureComparisonMode
 import com.example.fineweather.data.repositories.SettingsDefaults
 import com.example.fineweather.nunitoSansFamily
 
@@ -39,14 +40,17 @@ fun SettingsScreen(
     forecastDays: Int,
     historicReference: HistoricReference,
     searchLanguage: String,
+    temperatureComparisonMode: TemperatureComparisonMode,
     onForecastDaysChange: (Int) -> Unit,
     onHistoricReferenceChange: (HistoricReference) -> Unit,
     onSearchLanguageChange: (String) -> Unit,
+    onTemperatureComparisonModeChange: (TemperatureComparisonMode) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val isFourteenDay = forecastDays == SettingsDefaults.FORECAST_DAYS_LONG
     var referenceMenuExpanded by remember { mutableStateOf(false) }
     var languageMenuExpanded by remember { mutableStateOf(false) }
+    var comparisonMenuExpanded by remember { mutableStateOf(false) }
     val referenceOptions =
         listOf(
             HistoricReference.CLASSIC to "Historical baseline",
@@ -272,6 +276,82 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "Use the current World Meteorological Organization reference 30‑year normal for comparing conditions to the present‑day climate, and the historical baseline (1961–1990) when assessing long‑term climate change trends relative to a stable past reference period.",
+                    fontFamily = nunitoSansFamily,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        Card(
+            colors =
+                CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                ),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+            ) {
+                Text(
+                    text = "Divergence method",
+                    fontFamily = nunitoSansFamily,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                ExposedDropdownMenuBox(
+                    expanded = comparisonMenuExpanded,
+                    onExpandedChange = { comparisonMenuExpanded = !comparisonMenuExpanded },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    OutlinedTextField(
+                        value = temperatureComparisonMode.label,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = {
+                            Text("Method", fontFamily = nunitoSansFamily)
+                        },
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = comparisonMenuExpanded)
+                        },
+                        modifier =
+                            Modifier
+                                .menuAnchor(
+                                    type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
+                                    enabled = true,
+                                )
+                                .fillMaxWidth()
+                                .testTag("temperatureComparisonDropdown"),
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(
+                            fontFamily = nunitoSansFamily,
+                        ),
+                    )
+                    ExposedDropdownMenu(
+                        expanded = comparisonMenuExpanded,
+                        onDismissRequest = { comparisonMenuExpanded = false },
+                    ) {
+                        TemperatureComparisonMode.entries.forEach { option ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = option.label,
+                                        fontFamily = nunitoSansFamily,
+                                    )
+                                },
+                                onClick = {
+                                    onTemperatureComparisonModeChange(option)
+                                    comparisonMenuExpanded = false
+                                },
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = temperatureComparisonMode.description,
                     fontFamily = nunitoSansFamily,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),

@@ -65,6 +65,7 @@ import androidx.compose.ui.text.input.ImeAction
 import com.example.fineweather.R
 import com.example.fineweather.nunitoSansFamily
 import com.example.fineweather.data.models.GeoPlace
+import com.example.fineweather.data.models.TemperatureComparisonMode
 import com.example.fineweather.ui.models.IconStack
 import com.example.fineweather.ui.models.ValueWithIcons
 import com.example.fineweather.ui.theme.HazyBlue
@@ -91,6 +92,10 @@ fun WeatherScreen(
     val resultCurrent by viewModel.resultCurrentAverage.collectAsState(initial = "")
     val resultHistoric by viewModel.resultHistoricAverage.collectAsState(initial = "")
     val resultCurrentMonth by viewModel.resultCurrentMonthAverage.collectAsState(initial = "")
+    val historicMonthlyStdDev by viewModel.historicMonthlyStdDev.collectAsState(initial = null)
+    val temperatureComparisonMode by viewModel.temperatureComparisonMode.collectAsState(
+        initial = TemperatureComparisonMode.ABSOLUTE_DELTA,
+    )
     val forecastDays by viewModel.forecastDays.collectAsState(
         initial = WeatherViewModel.FORECAST_DAYS_SHORT,
     )
@@ -102,11 +107,18 @@ fun WeatherScreen(
     val favorites by viewModel.favorites.collectAsState(initial = emptyList())
     val selectedPlace by viewModel.selectedPlace.collectAsState(initial = null)
     val isFavoriteSelected = favorites.any { it.id == selectedPlace?.id }
-    val statusCardValue = buildStatusCardValue(resultCurrentMonth, resultHistoric)
+    val statusCardValue = buildStatusCardValue(
+        currentMonth = resultCurrentMonth,
+        historic = resultHistoric,
+        historicMonthlyStdDev = historicMonthlyStdDev,
+        mode = temperatureComparisonMode,
+    )
     val trendCardValue = buildTrendCardValue(resultForecast, resultCurrentMonth)
     val statusImageRes = resolveStatusImageRes(
         currentMonth = resultCurrentMonth,
         historic = resultHistoric,
+        historicMonthlyStdDev = historicMonthlyStdDev,
+        mode = temperatureComparisonMode,
         status = status,
     )
     val cardShape = RoundedCornerShape(12.dp)
@@ -862,6 +874,16 @@ private fun InfoOverlay(
                         Text(text = "\u2022")
                         Spacer(Modifier.width(8.dp))
                         Text(
+                            text = "In settings you can switch the divergence method between absolute delta and normalized anomaly. The value stays in °C, while icon strength can be classified by local variability.",
+                            fontFamily = nunitoSansFamily,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Row {
+                        Text(text = "\u2022")
+                        Spacer(Modifier.width(8.dp))
+                        Text(
                             text = "Use favorites (star icon) to pin places and look them up in the favorites tab. Click homonyms to switch between places with the same or a similar name.",
                             fontFamily = nunitoSansFamily,
                             style = MaterialTheme.typography.bodyMedium,
@@ -1058,9 +1080,20 @@ private val CoolIconTint = Color(0xFF1E88E5)
 private val NeutralIconTint = Color(0xFF43A047)
 private val WarningIconTint = Color(0xFFE18D10)
 
+private fun anomalyIconCount(absZScore: Double): Int {
+    return when {
+        absZScore < 0.5 -> 0
+        absZScore < 1.5 -> 1
+        absZScore < 2.5 -> 2
+        else -> 3
+    }
+}
+
 internal fun buildStatusCardValue(
     currentMonth: String,
     historic: String,
+    historicMonthlyStdDev: Double?,
+    mode: TemperatureComparisonMode,
 ): ValueWithIcons {
     val currentValue = parseTemperature(currentMonth)
     val historicValue = parseTemperature(historic)
@@ -1068,27 +1101,46 @@ internal fun buildStatusCardValue(
         return ValueWithIcons("-", null)
     }
     val delta = currentValue - historicValue
-    val absDelta = abs(delta)
-    val formattedDelta = String.format(Locale.US, "%.2f", absDelta)
     val sign = if (delta > 0) "+" else if (delta < 0) "-" else ""
-
-    if (absDelta < 1.0) {
-        return ValueWithIcons("$sign$formattedDelta°C", null)
-    }
+    val useNormalized =
+        mode == TemperatureComparisonMode.NORMALIZED_ANOMALY &&
+                historicMonthlyStdDev != null &&
+                historicMonthlyStdDev > 0.0
+    val absScore =
+        if (useNormalized) {
+            abs(delta / historicMonthlyStdDev)
+        } else {
+            abs(delta)
+        }
+    val valueText = "$sign${String.format(Locale.US, "%.2f", abs(delta))}°C"
     val count =
-        when {
-            absDelta < 2.0 -> 1
-            absDelta < 3.0 -> 2
-            else -> 3
+        if (useNormalized) {
+            anomalyIconCount(absScore)
+        } else {
+            when {
+                absScore < 1.0 -> 0
+                absScore < 2.0 -> 1
+                absScore < 3.0 -> 2
+                else -> 3
+            }
+        }
+    if (count == 0) {
+        return ValueWithIcons(valueText, null)
+    }
+    val classLabel =
+        when (count) {
+            1 -> if (delta > 0) "+" else "-"
+            2 -> if (delta > 0) "++" else "--"
+            else -> if (delta > 0) "+++" else "---"
         }
     val (resId, tint, description) =
         if (delta > 0) {
-            Triple(R.drawable.fire, WarmIconTint, "Warmer than average")
+            Triple(R.drawable.fire, WarmIconTint, "$classLabel warmer than average")
         } else {
-            Triple(R.drawable.frost, CoolIconTint, "Colder than average")
+            Triple(R.drawable.frost, CoolIconTint, "$classLabel colder than average")
         }
     return ValueWithIcons(
-        "$sign$formattedDelta°C",
+        valueText,
         IconStack(resId = resId, count = count, tint = tint, contentDescription = description),
     )
 }
@@ -1147,6 +1199,8 @@ internal fun parseTemperature(value: String): Double? {
 internal fun resolveStatusImageRes(
     currentMonth: String,
     historic: String,
+    historicMonthlyStdDev: Double?,
+    mode: TemperatureComparisonMode,
     status: String,
 ): Int {
     val currentValue = parseTemperature(currentMonth)
@@ -1162,10 +1216,27 @@ internal fun resolveStatusImageRes(
     if (currentValue == null || historicValue == null) {
         return R.drawable.initial
     }
-    val delta = currentValue - historicValue
+    val delta =
+        if (mode == TemperatureComparisonMode.NORMALIZED_ANOMALY &&
+            historicMonthlyStdDev != null &&
+            historicMonthlyStdDev > 0.0
+        ) {
+            (currentValue - historicValue) / historicMonthlyStdDev
+        } else {
+            currentValue - historicValue
+        }
+    val neutralThreshold =
+        if (mode == TemperatureComparisonMode.NORMALIZED_ANOMALY &&
+            historicMonthlyStdDev != null &&
+            historicMonthlyStdDev > 0.0
+        ) {
+            0.5
+        } else {
+            1.0
+        }
     return when {
-        delta > 1 -> R.drawable.warm
-        delta < -1 -> R.drawable.cold
+        delta > neutralThreshold -> R.drawable.warm
+        delta < -neutralThreshold -> R.drawable.cold
         else -> R.drawable.equal
     }
 }

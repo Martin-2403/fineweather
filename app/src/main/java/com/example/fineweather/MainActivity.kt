@@ -133,7 +133,10 @@ fun WeatherApp() {
     val searchLanguage by settingsViewModel.searchLanguage.collectAsState(
         initial = SettingsDefaults.DEFAULT_SEARCH_LANGUAGE,
     )
-    val hasSeenInfo by settingsViewModel.hasSeenInfo.collectAsState(initial = false)
+    val temperatureComparisonMode by settingsViewModel.temperatureComparisonMode.collectAsState(
+        initial = SettingsDefaults.DEFAULT_TEMPERATURE_COMPARISON_MODE,
+    )
+    val hasSeenInfo by settingsViewModel.hasSeenInfo.collectAsState(initial = null)
     var showInfo by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -200,9 +203,11 @@ fun WeatherApp() {
                     forecastDays = forecastDays,
                     historicReference = historicReference,
                     searchLanguage = searchLanguage,
+                    temperatureComparisonMode = temperatureComparisonMode,
                     onForecastDaysChange = settingsViewModel::setForecastDays,
                     onHistoricReferenceChange = settingsViewModel::setHistoricReference,
                     onSearchLanguageChange = settingsViewModel::setSearchLanguage,
+                    onTemperatureComparisonModeChange = settingsViewModel::setTemperatureComparisonMode,
                     modifier = Modifier.padding(innerPadding),
                 )
         }

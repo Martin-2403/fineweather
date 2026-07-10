@@ -15,7 +15,7 @@ import com.example.fineweather.data.local.entities.WeatherEntity
 
 @Database(
     entities = [WeatherEntity::class, GeoCodeCacheEntity::class, FavoritePlaceEntity::class],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -37,6 +37,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             "weather_database",
                         )
                         .addMigrations(MIGRATION_7_8)
+                        .addMigrations(MIGRATION_8_9)
                         .fallbackToDestructiveMigration(false)
                         .build()
                 INSTANCE = instance
@@ -60,6 +61,24 @@ private val MIGRATION_7_8 =
                     `addedAt` INTEGER NOT NULL,
                     PRIMARY KEY(`id`)
                 )
+                """.trimIndent(),
+            )
+        }
+    }
+
+private val MIGRATION_8_9 =
+    object : Migration(8, 9) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                ALTER TABLE `weather_history`
+                ADD COLUMN `historicMonthlyStdDevClassic` REAL
+                """.trimIndent(),
+            )
+            db.execSQL(
+                """
+                ALTER TABLE `weather_history`
+                ADD COLUMN `historicMonthlyStdDevCurrent` REAL
                 """.trimIndent(),
             )
         }

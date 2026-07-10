@@ -1,6 +1,7 @@
 package com.example.fineweather.viewmodels
 
 import com.example.fineweather.data.models.HistoricReference
+import com.example.fineweather.data.models.TemperatureComparisonMode
 import com.example.fineweather.data.repositories.SettingsDefaults
 import com.example.fineweather.data.repositories.SettingsRepository
 import com.example.fineweather.utils.MainDispatcherRule
@@ -74,6 +75,26 @@ class SettingsViewModelTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
+    fun setTemperatureComparisonMode_updatesState() = runTest {
+        val repository = FakeSettingsRepository()
+        val viewModel = SettingsViewModel(repository)
+
+        assertEquals(
+            SettingsDefaults.DEFAULT_TEMPERATURE_COMPARISON_MODE,
+            viewModel.temperatureComparisonMode.value,
+        )
+
+        viewModel.setTemperatureComparisonMode(TemperatureComparisonMode.NORMALIZED_ANOMALY)
+        advanceUntilIdle()
+
+        assertEquals(
+            TemperatureComparisonMode.NORMALIZED_ANOMALY,
+            viewModel.temperatureComparisonMode.value,
+        )
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
     fun setHasSeenInfo_updatesState() = runTest {
         val repository = FakeSettingsRepository()
         val viewModel = SettingsViewModel(repository)
@@ -111,15 +132,19 @@ class SettingsViewModelTest {
         initialDays: Int = SettingsDefaults.DEFAULT_FORECAST_DAYS,
         initialReference: HistoricReference = SettingsDefaults.DEFAULT_HISTORIC_REFERENCE,
         initialLanguage: String = SettingsDefaults.DEFAULT_SEARCH_LANGUAGE,
+        initialTemperatureComparisonMode: TemperatureComparisonMode =
+            SettingsDefaults.DEFAULT_TEMPERATURE_COMPARISON_MODE,
         initialHasSeenInfo: Boolean = false,
     ) : SettingsRepository {
         private val state = MutableStateFlow(initialDays)
         private val referenceState = MutableStateFlow(initialReference)
         private val languageState = MutableStateFlow(initialLanguage)
+        private val comparisonModeState = MutableStateFlow(initialTemperatureComparisonMode)
         private val hasSeenInfoState = MutableStateFlow(initialHasSeenInfo)
         override val forecastDays: Flow<Int> = state
         override val historicReference: Flow<HistoricReference> = referenceState
         override val searchLanguage: Flow<String> = languageState
+        override val temperatureComparisonMode: Flow<TemperatureComparisonMode> = comparisonModeState
         override val hasSeenInfo: Flow<Boolean> = hasSeenInfoState
 
         override suspend fun setForecastDays(days: Int) {
@@ -132,6 +157,10 @@ class SettingsViewModelTest {
 
         override suspend fun setSearchLanguage(language: String) {
             languageState.value = language
+        }
+
+        override suspend fun setTemperatureComparisonMode(mode: TemperatureComparisonMode) {
+            comparisonModeState.value = mode
         }
 
         override suspend fun setHasSeenInfo(seen: Boolean) {

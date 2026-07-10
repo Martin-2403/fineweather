@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.example.fineweather.data.models.HistoricReference
+import com.example.fineweather.data.models.TemperatureComparisonMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -18,6 +19,8 @@ object SettingsDefaults {
     const val DEFAULT_FORECAST_DAYS = FORECAST_DAYS_SHORT
     val DEFAULT_HISTORIC_REFERENCE: HistoricReference = HistoricReference.CLASSIC
     const val DEFAULT_SEARCH_LANGUAGE = "en"
+    val DEFAULT_TEMPERATURE_COMPARISON_MODE: TemperatureComparisonMode =
+        TemperatureComparisonMode.ABSOLUTE_DELTA
 
     data class SearchLanguageOption(
         val code: String,
@@ -59,10 +62,12 @@ interface SettingsRepository {
     val forecastDays: Flow<Int>
     val historicReference: Flow<HistoricReference>
     val searchLanguage: Flow<String>
+    val temperatureComparisonMode: Flow<TemperatureComparisonMode>
     val hasSeenInfo: Flow<Boolean>
     suspend fun setForecastDays(days: Int)
     suspend fun setHistoricReference(reference: HistoricReference)
     suspend fun setSearchLanguage(language: String)
+    suspend fun setTemperatureComparisonMode(mode: TemperatureComparisonMode)
     suspend fun setHasSeenInfo(seen: Boolean)
 }
 
@@ -74,6 +79,7 @@ class DataStoreSettingsRepository(
         val FORECAST_DAYS = intPreferencesKey("forecast_days")
         val HISTORIC_REFERENCE = stringPreferencesKey("historic_reference")
         val SEARCH_LANGUAGE = stringPreferencesKey("search_language")
+        val TEMPERATURE_COMPARISON_MODE = stringPreferencesKey("temperature_comparison_mode")
         val HAS_SEEN_INFO = booleanPreferencesKey("has_seen_info")
     }
 
@@ -102,6 +108,15 @@ class DataStoreSettingsRepository(
             .map { stored -> SettingsDefaults.normalizeSearchLanguage(stored) }
             .distinctUntilChanged()
 
+    override val temperatureComparisonMode: Flow<TemperatureComparisonMode> =
+        dataStore.data
+            .map { prefs ->
+                TemperatureComparisonMode.fromId(
+                    prefs[Keys.TEMPERATURE_COMPARISON_MODE],
+                )
+            }
+            .distinctUntilChanged()
+
     override val hasSeenInfo: Flow<Boolean> =
         dataStore.data
             .map { prefs -> prefs[Keys.HAS_SEEN_INFO] ?: false }
@@ -122,6 +137,12 @@ class DataStoreSettingsRepository(
     override suspend fun setSearchLanguage(language: String) {
         dataStore.edit { prefs ->
             prefs[Keys.SEARCH_LANGUAGE] = SettingsDefaults.normalizeSearchLanguage(language)
+        }
+    }
+
+    override suspend fun setTemperatureComparisonMode(mode: TemperatureComparisonMode) {
+        dataStore.edit { prefs ->
+            prefs[Keys.TEMPERATURE_COMPARISON_MODE] = mode.id
         }
     }
 

@@ -22,6 +22,8 @@ data class WeatherEntity(
     val forecastDate14: String?,
     val historicMonthlyAverageClassic: Double?,
     val historicMonthlyAverageCurrent: Double?,
+    val historicMonthlyStdDevClassic: Double? = null,
+    val historicMonthlyStdDevCurrent: Double? = null,
 )
 
 // In WeatherEntity.kt
@@ -38,5 +40,7 @@ fun WeatherEntity.toUiModel(): FineWeatherData {
     data.forecastAverage = this.forecastAverage14 ?: this.forecastAverage7
     data.historicMonthlyAverage =
         this.historicMonthlyAverageCurrent ?: this.historicMonthlyAverageClassic
+    data.historicMonthlyStdDev =
+        this.historicMonthlyStdDevCurrent ?: this.historicMonthlyStdDevClassic
     return data
 }
