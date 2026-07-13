@@ -8,13 +8,14 @@ class FineWeatherData(
     val location: String,
     val coordinates: Pair<Double, Double>,
     val id: String,
+    val country: String? = null,
 ) {
     val timestamp: String = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
-    val country: String? = null
     var currentMonthAverage: Double? = null
     var currentAverage: Double? = null
     var forecastAverage: Double? = null
     var historicMonthlyAverage: Double? = null
+    var historicMonthlyStdDev: Double? = null
     var historicTimePeriodAverage: Double? = null
 
     var currentTimePeriod: Int = 31
@@ -32,7 +33,7 @@ class FineWeatherData(
             }
 }
 
-// Hilfsfunktion um aus den API-Daten eine Entity zu bauen
+// Helper function to build a FineWeatherData object from an entity
 fun FineWeatherData.toEntity(locationId: Long): WeatherEntity =
     WeatherEntity(
         id = this.id,
@@ -42,7 +43,13 @@ fun FineWeatherData.toEntity(locationId: Long): WeatherEntity =
         longitude = this.coordinates.second,
         currentAverage = this.currentAverage,
         currentMonthAverage = this.currentMonthAverage,
-        forecastAverage = this.forecastAverage,
-        historicMonthlyAverage = this.historicMonthlyAverage,
+        forecastAverage7 = null,
+        forecastAverage14 = this.forecastAverage,
+        forecastDate7 = null,
+        forecastDate14 = this.timestamp,
+        historicMonthlyAverageClassic = null,
+        historicMonthlyAverageCurrent = this.historicMonthlyAverage,
+        historicMonthlyStdDevClassic = null,
+        historicMonthlyStdDevCurrent = this.historicMonthlyStdDev,
         country = this.country,
     )

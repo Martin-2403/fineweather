@@ -5,7 +5,7 @@ import com.example.fineweather.data.models.FineWeatherData
 
 @Entity(
     tableName = "weather_history",
-    primaryKeys = ["id", "date"],
+    primaryKeys = ["id"],
 )
 data class WeatherEntity(
     val id: String,
@@ -16,16 +16,31 @@ data class WeatherEntity(
     val longitude: Double,
     val currentAverage: Double?,
     val currentMonthAverage: Double?,
-    val forecastAverage: Double?,
-    val historicMonthlyAverage: Double?,
+    val forecastAverage7: Double?,
+    val forecastAverage14: Double?,
+    val forecastDate7: String?,
+    val forecastDate14: String?,
+    val historicMonthlyAverageClassic: Double?,
+    val historicMonthlyAverageCurrent: Double?,
+    val historicMonthlyStdDevClassic: Double? = null,
+    val historicMonthlyStdDevCurrent: Double? = null,
 )
 
 // In WeatherEntity.kt
 fun WeatherEntity.toUiModel(): FineWeatherData {
-    val data = FineWeatherData(this.locationName, Pair(this.latitude, this.longitude), this.id)
+    val data =
+        FineWeatherData(
+            this.locationName,
+            Pair(this.latitude, this.longitude),
+            this.id,
+            this.country,
+        )
     data.currentAverage = this.currentAverage
     data.currentMonthAverage = this.currentMonthAverage
-    data.forecastAverage = this.forecastAverage
-    data.historicMonthlyAverage = this.historicMonthlyAverage
+    data.forecastAverage = this.forecastAverage14 ?: this.forecastAverage7
+    data.historicMonthlyAverage =
+        this.historicMonthlyAverageCurrent ?: this.historicMonthlyAverageClassic
+    data.historicMonthlyStdDev =
+        this.historicMonthlyStdDevCurrent ?: this.historicMonthlyStdDevClassic
     return data
 }

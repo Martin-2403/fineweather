@@ -4,22 +4,29 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
+import com.example.fineweather.data.local.doa.FavoriteDao
+import com.example.fineweather.data.local.doa.GeoCodeDao
 import com.example.fineweather.data.local.doa.WeatherDao
+import com.example.fineweather.data.local.entities.FavoritePlaceEntity
+import com.example.fineweather.data.local.entities.GeoCodeCacheEntity
 import com.example.fineweather.data.local.entities.WeatherEntity
 
 @Database(
-    entities = [WeatherEntity::class],
-    version = 1,
+    entities = [WeatherEntity::class, GeoCodeCacheEntity::class, FavoritePlaceEntity::class],
+    version = 9,
     exportSchema = false
 )
 abstract class WeatherDatabase : RoomDatabase() {
     abstract fun weatherDao(): WeatherDao
+    abstract fun geoCodeDao(): GeoCodeDao
+    abstract fun favoriteDao(): FavoriteDao
 
     companion object {
         @Suppress("ktlint:standard:property-naming")
         @Volatile
         private var INSTANCE: WeatherDatabase? = null
-
         fun getDatabase(context: Context): WeatherDatabase =
             INSTANCE ?: synchronized(this) {
                 val instance =
@@ -28,9 +35,51 @@ abstract class WeatherDatabase : RoomDatabase() {
                             context.applicationContext,
                             WeatherDatabase::class.java,
                             "weather_database",
-                        ).build()
+                        )
+                        .addMigrations(MIGRATION_7_8)
+                        .addMigrations(MIGRATION_8_9)
+                        .fallbackToDestructiveMigration(false)
+                        .build()
                 INSTANCE = instance
                 instance
             }
     }
 }
+
+private val MIGRATION_7_8 =
+    object : Migration(7, 8) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `favorite_places` (
+                    `id` TEXT NOT NULL,
+                    `name` TEXT NOT NULL,
+                    `country` TEXT,
+                    `admin1` TEXT,
+                    `latitude` REAL NOT NULL,
+                    `longitude` REAL NOT NULL,
+                    `addedAt` INTEGER NOT NULL,
+                    PRIMARY KEY(`id`)
+                )
+                """.trimIndent(),
+            )
+        }
+    }
+
+private val MIGRATION_8_9 =
+    object : Migration(8, 9) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                ALTER TABLE `weather_history`
+                ADD COLUMN `historicMonthlyStdDevClassic` REAL
+                """.trimIndent(),
+            )
+            db.execSQL(
+                """
+                ALTER TABLE `weather_history`
+                ADD COLUMN `historicMonthlyStdDevCurrent` REAL
+                """.trimIndent(),
+            )
+        }
+    }

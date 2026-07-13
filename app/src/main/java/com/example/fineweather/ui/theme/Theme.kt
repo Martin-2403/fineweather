@@ -12,15 +12,33 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+    primary = MistBlue,
+    secondary = TealBlue,
+    tertiary = HazyBlue,
+    background = DeepTeal,
+    surface = DeepTeal,
+    surfaceVariant = TealInk,
+    onPrimary = DeepTeal,
+    onSecondary = TealInk,
+    onTertiary = LightTeal,
+    onBackground = HazyBlue,
+    onSurface = HazyBlue,
+    onSurfaceVariant = HazyBlue,
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
+    primary = DeepTeal,
+    secondary = TealInk,
+    tertiary = MistBlue,
+    background = HazyBlue, //Background color
+    surface = HazyBlue, //Background color header
+    surfaceVariant = DarkHazyBlue,
+    onPrimary = MistBlue,
+    onSecondary = TealInk,
+    onTertiary = TealInk,
+    onBackground = TealInk,
+    onSurface = TealInk,
+    onSurfaceVariant = TealInk,
 
     /* Other default colors to override
     background = Color(0xFFFFFBFE),
@@ -37,7 +55,7 @@ private val LightColorScheme = lightColorScheme(
 fun FineWeatherTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
