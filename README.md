@@ -11,6 +11,13 @@ FineWeather is an Android app that compares recent, forecast, and historic tempe
 - Settings for forecast length, historic reference, search language, and divergence method
 - Local caching for geocode and weather data, with settings stored in DataStore
 
+## Highlights (technology-agnostic)
+- Resolves ambiguous city names with alternate match selection to improve search accuracy.
+- Compares short-term, current-month, forecast, and historical temperature windows for clearer climate context.
+- Surfaces low-confidence periods (early month) so users can interpret trends with proper caution.
+- Balances freshness and responsiveness through cache-backed retrieval and selective live refreshes.
+- Supports multiple interpretation strategies (absolute delta vs. normalized anomaly) for different analysis goals.
+
 ## Data sources
 - Open-Meteo Forecast API, Archive API, and Geocoding API (no API key required)
 
