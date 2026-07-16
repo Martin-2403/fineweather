@@ -40,7 +40,8 @@ class GeoCodeRepositoryTest {
         assertEquals("Germany", result.primary.country)
         assertEquals(52.52, result.primary.latitude, 0.0001)
         assertEquals(13.405, result.primary.longitude, 0.0001)
-        assertTrue(result.candidates.isEmpty())
+        assertEquals(1, result.candidates.size)
+        assertEquals("Berlin", result.candidates.first().name)
         coVerify(exactly = 0) { api.getGeoCoding(any(), any(), any(), any()) }
     }
 
@@ -84,7 +85,8 @@ class GeoCodeRepositoryTest {
         assertEquals("Germany", result.primary.country)
         assertEquals(48.137, result.primary.latitude, 0.0001)
         assertEquals(11.575, result.primary.longitude, 0.0001)
-        assertTrue(result.candidates.isEmpty())
+        assertEquals(1, result.candidates.size)
+        assertEquals("Munich", result.candidates.first().name)
         coVerify(exactly = 1) { dao.deleteByQuery("en|munich") }
         coVerify(exactly = 1) {
             dao.insertAll(

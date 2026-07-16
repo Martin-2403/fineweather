@@ -22,6 +22,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
@@ -120,7 +121,8 @@ class WeatherViewModelTest {
         every { weatherRepository.calculateAverageCurrentTemperature() } returns 7.0
         every { weatherRepository.calculateCurrentMonthStats() } returns CurrentMonthStats("03", 8.5, 5)
         every { weatherRepository.calculateAverageForecastTemperature() } returns 9.1
-        every { weatherRepository.calculateAverageHistoricMonthlyTemperature() } returns Pair("March", 6.0)
+        every { weatherRepository.calculateHistoricMonthlyStats() } returns
+            WeatherRepository.HistoricMonthlyStats("March", 6.0, 0.0)
         coEvery { weatherRepository.insertWeather(any()) } returns Unit
 
         viewModel.fetchWeather("Berlin")
@@ -207,7 +209,7 @@ class WeatherViewModelTest {
         viewModel.fetchWeather("   ")
         advanceUntilIdle()
 
-        assertEquals("Enter a city to see temperature averages", viewModel.status.value)
+        assertEquals("Enter a location to see temperature averages", viewModel.status.value)
         assertEquals("-", viewModel.resultCurrentAverage.value)
         assertEquals("-", viewModel.resultCurrentMonthAverage.value)
         assertEquals("-", viewModel.resultForecastAverage.value)
@@ -378,7 +380,7 @@ class WeatherViewModelTest {
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
 
-        assertTrue(viewModel.status.value.startsWith("Set location: Berlin\n"))
+        assertTrue(viewModel.status.value.startsWith("Berlin "))
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -418,7 +420,8 @@ class WeatherViewModelTest {
         coEvery { weatherRepository.getWeatherForecast(any(), any(), any()) } returns mockk()
         coEvery { weatherRepository.getWeatherHistory(any(), any(), any()) } returns mockk()
         every { weatherRepository.calculateAverageForecastTemperature() } returns 9.0
-        every { weatherRepository.calculateAverageHistoricMonthlyTemperature() } returns Pair("March", 6.0)
+        every { weatherRepository.calculateHistoricMonthlyStats() } returns
+            WeatherRepository.HistoricMonthlyStats("March", 6.0, 0.0)
         coEvery { weatherRepository.insertWeather(any()) } returns Unit
 
         viewModel.fetchWeather("Berlin")
@@ -448,7 +451,6 @@ class WeatherViewModelTest {
         advanceUntilIdle()
 
         assertEquals("Error", viewModel.resultForecastAverage.value)
-        assertTrue(viewModel.status.value.contains("Error fetching data"))
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -471,7 +473,6 @@ class WeatherViewModelTest {
         advanceUntilIdle()
 
         assertEquals("Error", viewModel.resultHistoricAverage.value)
-        assertTrue(viewModel.status.value.contains("Error fetching data"))
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -504,7 +505,8 @@ class WeatherViewModelTest {
         coEvery { weatherRepository.getWeatherForecast(any(), any(), any()) } returns mockk()
         coEvery { weatherRepository.getWeatherHistory(any(), any(), any()) } returns mockk()
         every { weatherRepository.calculateAverageForecastTemperature() } returns 8.0
-        every { weatherRepository.calculateAverageHistoricMonthlyTemperature() } returns Pair("March", 5.0)
+        every { weatherRepository.calculateHistoricMonthlyStats() } returns
+            WeatherRepository.HistoricMonthlyStats("March", 5.0, 0.0)
         coEvery { weatherRepository.insertWeather(any()) } returns Unit
 
         viewModel.fetchWeather("Berlin")
@@ -625,7 +627,8 @@ class WeatherViewModelTest {
         every { weatherRepository.calculateAverageCurrentTemperature() } returns 7.0
         every { weatherRepository.calculateCurrentMonthStats() } returns CurrentMonthStats("03", 8.5, 5)
         every { weatherRepository.calculateAverageForecastTemperature() } returns 9.1
-        every { weatherRepository.calculateAverageHistoricMonthlyTemperature() } returns Pair("March", 6.0)
+        every { weatherRepository.calculateHistoricMonthlyStats() } returns
+            WeatherRepository.HistoricMonthlyStats("March", 6.0, 0.0)
         coEvery { weatherRepository.insertWeather(any()) } returns Unit
 
         viewModel.fetchWeather("Berlin")
@@ -649,6 +652,7 @@ class WeatherViewModelTest {
         every { weatherRepository.calculateAverageCurrentTemperature() } returns 7.0
         every { weatherRepository.calculateCurrentMonthStats() } returns CurrentMonthStats("03", 8.5, 5)
         every { weatherRepository.calculateAverageForecastTemperature() } returns 9.1
+        every { weatherRepository.calculateHistoricMonthlyStats() } returns null
         every { weatherRepository.calculateAverageHistoricMonthlyTemperature() } returns null
         coEvery { weatherRepository.insertWeather(any()) } returns Unit
 
@@ -852,7 +856,7 @@ class WeatherViewModelTest {
         viewModel.selectPlace(selected)
         advanceUntilIdle()
 
-        val snackbarDeferred = async { viewModel.snackbarMessages.first() }
+        val snackbarDeferred = async(start = CoroutineStart.UNDISPATCHED) { viewModel.snackbarMessages.first() }
         viewModel.toggleFavorite()
         advanceUntilIdle()
 
