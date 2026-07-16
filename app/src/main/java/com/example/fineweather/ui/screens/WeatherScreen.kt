@@ -334,15 +334,6 @@ fun WeatherScreen(
                     )
                 }
             }
-
-//            WeatherTab.HISTORY -> {
-//                EmptySectionCard(
-//                    title = "Homonyms",
-//                    message = "Search to see alternate matches here.",
-//                    shape = cardShape,
-//                    colors = cardColors,
-//                )
-//            }
         }
 
         Spacer(modifier = Modifier.weight(1f))
@@ -810,116 +801,119 @@ private fun InfoOverlay(
     modifier: Modifier = Modifier,
 ) {
     Box(
-        modifier =
-            modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.55f)),
+        modifier = modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.55f)),
         contentAlignment = Alignment.Center,
     ) {
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors =
-                CardDefaults.cardColors(
+        Column(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxHeight(0.8f)
+        ) {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     contentColor = MaterialTheme.colorScheme.onSurface,
                 ),
-            modifier =
-                Modifier
+                modifier = Modifier
                     .padding(25.dp)
                     .fillMaxWidth()
-        ) {
-            Column(
-                modifier =
-                    Modifier
-                        .padding(16.dp)
-                        .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Text(
-                    text = "Welcome to FineWeather",
-                    fontFamily = nunitoSansFamily,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                EarthStatusStack()
-                Text(
-                    text = "FineWeather compares recent temperature averages with historic averages and the forecast average so you can watch climate changes in real time. \n\nFeatures:",
-                    fontFamily = nunitoSansFamily,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Column(modifier = Modifier.padding(start = 0.dp)) {
-                    Row {
-                        Text(text = "\u2022")
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = "Search a city or place to see the temperature averages of the last 31 days, this month so far, and the forecast average temperature.",
-                            fontFamily = nunitoSansFamily,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Row {
-                        Text(text = "\u2022")
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = "The divergence is calculated by comparing this month to the 30 year baseline, " +
-                                    "and Trend compares the forecast average to this months average.",
-                            fontFamily = nunitoSansFamily,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Row {
-                        Text(text = "\u2022")
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = "In settings you can switch the divergence method between absolute delta and normalized anomaly. The value stays in °C, while icon strength can be classified by local variability.",
-                            fontFamily = nunitoSansFamily,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Row {
-                        Text(text = "\u2022")
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = "Use favorites (star icon) to pin places and look them up in the favorites tab. Click homonyms to switch between places with the same or a similar name.",
-                            fontFamily = nunitoSansFamily,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
 
-                    Spacer(Modifier.height(8.dp))
-                    Row {
-                        Text(text = "\u2022")
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = "Settings lets you change the forecast range and historic reference. Furthermore the search language can be changed there.",
-                            fontFamily = nunitoSansFamily,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    ElevatedButton(
-                        onClick = onDismiss,
-                        border = BorderStroke(1.dp, SoftMist)
+                    Text(
+                        text = "Welcome to FineWeather",
+                        fontFamily = nunitoSansFamily,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    EarthStatusStack()
+                    Text(
+                        text = "FineWeather compares recent temperature averages with historic averages and the forecast average so you can watch climate changes in real time. \n\nFeatures:",
+                        fontFamily = nunitoSansFamily,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Column(modifier = Modifier.padding(start = 0.dp)) {
+                        Row {
+                            Text(text = "\u2022")
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "Search a city or place to see the temperature averages of the last 31 days, this month so far, and the forecast average temperature.",
+                                fontFamily = nunitoSansFamily,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Row {
+                            Text(text = "\u2022")
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "The divergence is calculated by comparing this month to the 30 year baseline, " +
+                                        "and Trend compares the forecast average to this months average.",
+                                fontFamily = nunitoSansFamily,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Row {
+                            Text(text = "\u2022")
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "In settings you can switch the divergence method between absolute delta and normalized anomaly. The value stays in °C, while icon strength can be classified by local variability.",
+                                fontFamily = nunitoSansFamily,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Row {
+                            Text(text = "\u2022")
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "Use favorites (star icon) to pin places and look them up in the favorites tab. Click homonyms to switch between places with the same or a similar name.",
+                                fontFamily = nunitoSansFamily,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+                        Row {
+                            Text(text = "\u2022")
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "Settings lets you change the forecast range and historic reference. Furthermore the search language can be changed there.",
+                                fontFamily = nunitoSansFamily,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
                     ) {
-                        Text(
-                            text = "Got it",
-                            fontFamily = nunitoSansFamily,
-                            fontWeight = FontWeight.SemiBold,
-                        )
+                        ElevatedButton(
+                            onClick = onDismiss,
+                            border = BorderStroke(1.dp, SoftMist)
+                        ) {
+                            Text(
+                                text = "Got it",
+                                fontFamily = nunitoSansFamily,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
                     }
                 }
             }
         }
     }
 }
+
 
 @Composable
 private fun EarthStatusStack() {
