@@ -2,6 +2,9 @@
 
 FineWeather is an Android app that compares recent, forecast, and historic temperature averages for any city using Open-Meteo data.
 
+[FineWeatherShowcase.gif
+](https://github.com/martyn-mcf/fineweather/blob/acd70189f4296d0bb05748a8d920fae9f0514f8f/assets/FineWeatherShowcase.gif)![FineWeather showcase](assets/FineWeatherShowcase.gif)
+
 ## Features
 - Search by city or place with geocoding, localized results, and alternate matches
 - Average temperatures for the last 31 days, current month so far, and next 7 or 14 days
@@ -53,3 +56,6 @@ FineWeather is an Android app that compares recent, forecast, and historic tempe
 - `app/src/main/java/com/example/fineweather/viewmodels` UI state and business logic
 - `app/src/main/java/com/example/fineweather/data` repositories, models, and Room entities
 - `app/src/main/java/com/example/fineweather/api` Open-Meteo Retrofit services
+
+## Credits
+- Illustrations generated with AI
