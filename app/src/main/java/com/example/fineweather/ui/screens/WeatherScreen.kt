@@ -57,6 +57,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardActions
@@ -148,204 +149,207 @@ fun WeatherScreen(
     Column(
         modifier =
             modifier
-                .padding(12.dp)
                 .fillMaxSize(),
         verticalArrangement = Arrangement.Top,
         horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        StatusHeaderCard(
-            imageRes = statusImageRes,
-            statusCardValue = statusCardValue,
-            trendCardValue = trendCardValue,
-            shape = cardShape,
-        )
+        ) {
+        Column(
+            modifier = Modifier.verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Top,
+        ) {
+            StatusHeaderCard(
+                imageRes = statusImageRes,
+                statusCardValue = statusCardValue,
+                trendCardValue = trendCardValue,
+                shape = cardShape,
+            )
 
-        Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            WeatherTab.entries.forEachIndexed { index, tab ->
-                SegmentedButton(
-                    selected = selectedTab == tab,
-                    onClick = { selectedTab = tab },
-                    shape = SegmentedButtonDefaults.itemShape(index, WeatherTab.entries.size),
-                    icon = {},
-                    contentPadding = SegmentedButtonDefaults.ContentPadding,
-                    colors = SegmentedButtonDefaults.colors(
-                        activeContainerColor = segmentedSelectedContainer,
-                        activeContentColor = segmentedSelectedContent,
-                        inactiveContainerColor = segmentedUnselectedContainer,
-                        inactiveContentColor = segmentedUnselectedContent,
-                    ),
-                    border = BorderStroke(
-                        width = 1.dp,
-                        color = if (isDarkTheme) HazyBlue else MaterialTheme.colorScheme.primary.copy(
-                            alpha = 0.3f
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                WeatherTab.entries.forEachIndexed { index, tab ->
+                    SegmentedButton(
+                        selected = selectedTab == tab,
+                        onClick = { selectedTab = tab },
+                        shape = SegmentedButtonDefaults.itemShape(index, WeatherTab.entries.size),
+                        icon = {},
+                        contentPadding = SegmentedButtonDefaults.ContentPadding,
+                        colors = SegmentedButtonDefaults.colors(
+                            activeContainerColor = segmentedSelectedContainer,
+                            activeContentColor = segmentedSelectedContent,
+                            inactiveContainerColor = segmentedUnselectedContainer,
+                            inactiveContentColor = segmentedUnselectedContent,
                         ),
-                    ),
-                ) {
-                    Text(
-                        text = tab.label,
-                        fontFamily = nunitoSansFamily,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        when (selectedTab) {
-            WeatherTab.SEARCH -> {
-                Card(
-                    shape = cardShape,
-                    colors = cardColors,
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .border(
-                                1.dp,
-                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f),
-                                cardShape,
+                        border = BorderStroke(
+                            width = 1.dp,
+                            color = if (isDarkTheme) HazyBlue else MaterialTheme.colorScheme.primary.copy(
+                                alpha = 0.3f
                             ),
-                ) {
-                    Column(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp)
-                                .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ),
                     ) {
-                        SearchBar(
-                            location = location,
-                            onLocationChange = { location = it },
-                            onSearch = {
-                                focusManager.clearFocus()
-                                keyboardController?.hide()
-                                selectedTab = WeatherTab.SEARCH
-                                viewModel.fetchWeather(location)
-                            },
-                            onClear = {
-                                keyboardController?.hide()
-                                location = ""
-                                selectedTab = WeatherTab.SEARCH
-                                viewModel.fetchWeather("")
-                            },
-                            isFavorite = isFavoriteSelected,
-                            canFavorite = selectedPlace != null,
-                            onToggleFavorite = { viewModel.toggleFavorite() },
-                        )
-                        StatusDisplay(status)
-                        DividerLine()
                         Text(
-                            "Average temperatures",
+                            text = tab.label,
                             fontFamily = nunitoSansFamily,
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold
                         )
-                        val temperatureRows =
-                            listOf(
-                                TemperatureRowData("Last 31 days", resultCurrent, false),
-                                TemperatureRowData(
-                                    "This month so far",
-                                    resultCurrentMonth,
-                                    showCurrentMonthWarningIcon,
-                                ),
-                                TemperatureRowData(
-                                    "Next $forecastDays days (forecast)",
-                                    resultForecast,
-                                    false,
-                                ),
-                                TemperatureRowData(
-                                    "Historical (30y) for this month",
-                                    resultHistoric,
-                                    false,
-                                ),
-                            )
-                        temperatureRows.forEachIndexed { index, row ->
-                            TemperatureRow(
-                                label = row.label,
-                                value = row.value,
-                                showWarning = row.showWarning,
-                                onWarningClick = if (row.showWarning) {
-                                    { showCurrentMonthWarning = true }
-                                } else null,
-                            )
-                            if (index != temperatureRows.lastIndex) {
-                                Box(
-                                    modifier =
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .height(1.dp)
-                                            .background(
-                                                MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                                                    alpha = 0.15f
-                                                ),
-                                            ),
-                                )
-                            }
-                        }
                     }
                 }
             }
 
-            WeatherTab.FAVORITE -> {
-                if (favorites.isEmpty()) {
-                    EmptySectionCard(
-                        title = "Favorites",
-                        message = "No favorites yet. Tap the star next to the search bar to save one.",
+            Spacer(modifier = Modifier.height(8.dp))
+
+            when (selectedTab) {
+                WeatherTab.SEARCH -> {
+                    Card(
                         shape = cardShape,
                         colors = cardColors,
-                    )
-                } else {
-                    PlacesCard(
-                        title = "Favorites",
-                        places = favorites,
-                        onPlaceClick = { place ->
-                            selectedTab = WeatherTab.SEARCH
-                            viewModel.selectPlace(place)
-                        },
-                        onPlaceRemove = { place -> viewModel.removeFavorite(place.id) },
-                        shape = cardShape,
-                        colors = cardColors,
-                    )
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .border(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f),
+                                    cardShape,
+                                ),
+                    ) {
+                        Column(
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            SearchBar(
+                                location = location,
+                                onLocationChange = { location = it },
+                                onSearch = {
+                                    focusManager.clearFocus()
+                                    keyboardController?.hide()
+                                    selectedTab = WeatherTab.SEARCH
+                                    viewModel.fetchWeather(location)
+                                },
+                                onClear = {
+                                    keyboardController?.hide()
+                                    location = ""
+                                    selectedTab = WeatherTab.SEARCH
+                                    viewModel.fetchWeather("")
+                                },
+                                isFavorite = isFavoriteSelected,
+                                canFavorite = selectedPlace != null,
+                                onToggleFavorite = { viewModel.toggleFavorite() },
+                            )
+                            StatusDisplay(status)
+                            DividerLine()
+                            Text(
+                                "Average temperatures",
+                                fontFamily = nunitoSansFamily,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            val temperatureRows =
+                                listOf(
+                                    TemperatureRowData("Last 31 days", resultCurrent, false),
+                                    TemperatureRowData(
+                                        "This month so far",
+                                        resultCurrentMonth,
+                                        showCurrentMonthWarningIcon,
+                                    ),
+                                    TemperatureRowData(
+                                        "Next $forecastDays days (forecast)",
+                                        resultForecast,
+                                        false,
+                                    ),
+                                    TemperatureRowData(
+                                        "Historical (30y) for this month",
+                                        resultHistoric,
+                                        false,
+                                    ),
+                                )
+                            temperatureRows.forEachIndexed { index, row ->
+                                TemperatureRow(
+                                    label = row.label,
+                                    value = row.value,
+                                    showWarning = row.showWarning,
+                                    onWarningClick = if (row.showWarning) {
+                                        { showCurrentMonthWarning = true }
+                                    } else null,
+                                )
+                                if (index != temperatureRows.lastIndex) {
+                                    Box(
+                                        modifier =
+                                            Modifier
+                                                .fillMaxWidth()
+                                                .height(1.dp)
+                                                .background(
+                                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                                        alpha = 0.15f
+                                                    ),
+                                                ),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                WeatherTab.FAVORITE -> {
+                    if (favorites.isEmpty()) {
+                        EmptySectionCard(
+                            title = "Favorites",
+                            message = "No favorites yet. Tap the star next to the search bar to save one.",
+                            shape = cardShape,
+                            colors = cardColors,
+                        )
+                    } else {
+                        PlacesCard(
+                            title = "Favorites",
+                            places = favorites,
+                            onPlaceClick = { place ->
+                                selectedTab = WeatherTab.SEARCH
+                                viewModel.selectPlace(place)
+                            },
+                            onPlaceRemove = { place -> viewModel.removeFavorite(place.id) },
+                            shape = cardShape,
+                            colors = cardColors,
+                        )
+                    }
+                }
+
+                WeatherTab.HOMONYMS -> {
+                    if (places.isEmpty()) {
+                        EmptySectionCard(
+                            title = "Homonyms",
+                            message = "Search to see alternate matches here.",
+                            shape = cardShape,
+                            colors = cardColors,
+                        )
+                    } else {
+                        PlacesCard(
+                            title = "Homonyms",
+                            places = places,
+                            onPlaceClick = { place ->
+                                selectedTab = WeatherTab.SEARCH
+                                viewModel.selectPlace(place)
+                            },
+                            shape = cardShape,
+                            colors = cardColors,
+                        )
+                    }
                 }
             }
 
-            WeatherTab.HOMONYMS -> {
-                if (places.isEmpty()) {
-                    EmptySectionCard(
-                        title = "Homonyms",
-                        message = "Search to see alternate matches here.",
-                        shape = cardShape,
-                        colors = cardColors,
-                    )
-                } else {
-                    PlacesCard(
-                        title = "Homonyms",
-                        places = places,
-                        onPlaceClick = { place ->
-                            selectedTab = WeatherTab.SEARCH
-                            viewModel.selectPlace(place)
-                        },
-                        shape = cardShape,
-                        colors = cardColors,
-                    )
-                }
-            }
+            Spacer(modifier = Modifier.weight(1f))
+
+            Text(
+                text = "API calls: $apiCallCount • Cache hits: $cacheHitCount",
+                fontFamily = nunitoSansFamily,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+            )
         }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        Text(
-            text = "API calls: $apiCallCount • Cache hits: $cacheHitCount",
-            fontFamily = nunitoSansFamily,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-        )
     }
-
     if (showCurrentMonthWarning) {
         AlertDialog(
             onDismissRequest = { showCurrentMonthWarning = false },
@@ -644,8 +648,7 @@ private fun PlacesCard(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .padding(12.dp)
-                    .verticalScroll(rememberScrollState()),
+                    .padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(
@@ -757,6 +760,7 @@ private fun StatusHeaderCard(
         ),
         modifier =
             Modifier
+                .widthIn(max = 480.dp)
                 .fillMaxWidth()
                 .border(
                     1.dp,
@@ -770,7 +774,6 @@ private fun StatusHeaderCard(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                //.height(140.dp),
             )
             DividerLine()
             Row(
@@ -819,8 +822,8 @@ private fun InfoOverlay(
                 ),
                 modifier = Modifier
                     .padding(25.dp)
+                    .widthIn(max = 480.dp)
                     .fillMaxWidth()
-
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp)

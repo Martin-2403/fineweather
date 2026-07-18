@@ -195,7 +195,7 @@ fun WeatherApp() {
                         showInfo = false
                         settingsViewModel.setHasSeenInfo(true)
                     },
-                    modifier = Modifier.padding(innerPadding),
+                    modifier = Modifier.padding(top = innerPadding.calculateTopPadding()),
                 )
 
             AppScreen.SETTINGS ->
@@ -208,7 +208,7 @@ fun WeatherApp() {
                     onHistoricReferenceChange = settingsViewModel::setHistoricReference,
                     onSearchLanguageChange = settingsViewModel::setSearchLanguage,
                     onTemperatureComparisonModeChange = settingsViewModel::setTemperatureComparisonMode,
-                    modifier = Modifier.padding(innerPadding),
+                    modifier = Modifier.padding(top = innerPadding.calculateTopPadding()),
                 )
         }
     }
