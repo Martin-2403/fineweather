@@ -1,9 +1,7 @@
 package com.example.fineweather.data.repositories
 
-import android.os.Build
-import androidx.annotation.RequiresApi
 import com.example.fineweather.api.OpenMeteoGeoCodeApiService
-import com.example.fineweather.data.local.doa.GeoCodeDao
+import com.example.fineweather.data.local.dao.GeoCodeDao
 import com.example.fineweather.data.local.entities.GeoCodeCacheEntity
 import com.example.fineweather.data.models.GeoPlace
 import com.example.fineweather.data.models.GeocodeSelection
@@ -79,7 +77,6 @@ class GeoCodeRepository(
             .lowercase(locale)
             .replace(Regex("\\s+"), " ")
 
-    @RequiresApi(Build.VERSION_CODES.GINGERBREAD)
     private fun normalizeLanguage(input: String): String =
         input.trim()
             .lowercase(Locale.ROOT)

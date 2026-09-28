@@ -2,8 +2,7 @@
 
 FineWeather is an Android app that compares recent, forecast, and historic temperature averages for any city using Open-Meteo data.
 
-[FineWeatherShowcase.gif
-](https://github.com/martyn-mcf/fineweather/blob/acd70189f4296d0bb05748a8d920fae9f0514f8f/assets/FineWeatherShowcase.gif)![FineWeather showcase](assets/FineWeatherShowcase.gif)
+![FineWeather showcase](assets/FineWeatherShowcase.gif)
 
 ## Features
 - Search by city or place with geocoding, localized results, and alternate matches
@@ -35,7 +34,8 @@ FineWeather is an Android app that compares recent, forecast, and historic tempe
 ## Getting started
 1. Open the project in Android Studio.
 2. Ensure the Android SDK is installed (compileSdk 36, minSdk 27).
-3. Run the `app` configuration on an emulator or device.
+3. For CLI builds, use JDK 17 or newer (Android Studio's bundled JDK works).
+4. Run the `app` configuration on an emulator or device.
 
 ### CLI builds
 - `./gradlew assembleDebug`

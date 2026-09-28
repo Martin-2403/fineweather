@@ -1,7 +1,7 @@
 package com.example.fineweather.data.repositories
 
 import com.example.fineweather.api.OpenMeteoGeoCodeApiService
-import com.example.fineweather.data.local.doa.GeoCodeDao
+import com.example.fineweather.data.local.dao.GeoCodeDao
 import com.example.fineweather.data.local.entities.GeoCodeCacheEntity
 import com.example.fineweather.data.models.GeoCodingResponse
 import com.example.fineweather.data.models.GeocodingResult

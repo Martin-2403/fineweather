@@ -3,7 +3,7 @@ package com.example.fineweather.data.repositories
 import android.util.Log
 import com.example.fineweather.api.OpenMeteoArchiveApiService
 import com.example.fineweather.api.OpenMeteoWeatherApiService
-import com.example.fineweather.data.local.doa.WeatherDao
+import com.example.fineweather.data.local.dao.WeatherDao
 import com.example.fineweather.data.local.entities.WeatherEntity
 import com.example.fineweather.data.models.HistoricReference
 import com.example.fineweather.data.models.WeatherResponse

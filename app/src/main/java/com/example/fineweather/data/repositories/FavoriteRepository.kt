@@ -1,7 +1,7 @@
 package com.example.fineweather.data.repositories
 
 import com.example.fineweather.data.models.GeoPlace
-import com.example.fineweather.data.local.doa.FavoriteDao
+import com.example.fineweather.data.local.dao.FavoriteDao
 import com.example.fineweather.data.local.entities.FavoritePlaceEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged

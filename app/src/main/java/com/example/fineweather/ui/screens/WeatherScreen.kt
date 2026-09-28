@@ -1,7 +1,5 @@
 package com.example.fineweather.ui.screens
 
-import android.os.Build
-import androidx.annotation.RequiresApi
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -77,7 +75,6 @@ import com.example.fineweather.viewmodels.WeatherViewModel
 import java.util.Locale
 import kotlin.math.abs
 
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun WeatherScreen(
     viewModel: WeatherViewModel,
