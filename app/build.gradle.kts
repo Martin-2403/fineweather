@@ -4,7 +4,6 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.ksp)
     id("jacoco")
@@ -37,20 +36,16 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures {
         compose = true
-        buildConfig = true
     }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
-    }
-    composeOptions {
-        kotlinCompilerExtensionVersion = "2.0.2"
     }
     testOptions {
         unitTests.isIncludeAndroidResources = true
@@ -59,14 +54,12 @@ android {
 
 kotlin {
     compilerOptions {
-        jvmTarget.set(JvmTarget.JVM_1_8)
+        jvmTarget.set(JvmTarget.JVM_17)
     }
 }
 
 dependencies {
     implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.appcompat.v151)
-    implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
@@ -78,15 +71,10 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.foundation)
-    implementation(libs.androidx.runtime.livedata)
-    implementation(libs.androidx.material)
-    implementation(libs.material.v170)
 
     implementation(libs.retrofit)
     implementation(libs.converter.gson)
     implementation(libs.kotlinx.coroutines.android)
-    implementation(libs.kotlinx.serialization.json)
-    implementation(libs.coil.compose)
     implementation(libs.androidx.datastore.preferences)
 
     implementation(libs.androidx.room.runtime)
@@ -125,7 +113,6 @@ tasks.register<JacocoReport>("jacocoTestReport") {
             "**/MainActivity*",
             "**/ComposableSingletons*",
             "**/AppScreen*",
-            "**/utils/GeocoderUtil*",
             "**/api/*ApiService*",
             "**/data/local/WeatherDatabase*",
             "**/data/local/SettingsDataStoreKt*",

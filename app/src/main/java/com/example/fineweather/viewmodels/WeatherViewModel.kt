@@ -1,8 +1,6 @@
 package com.example.fineweather.viewmodels
 
-import android.os.Build
 import android.util.Log
-import androidx.annotation.RequiresApi
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -120,7 +118,6 @@ class WeatherViewModel(
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     fun fetchWeather(location: String) {
         if (location.trim().isEmpty()) {
             _status.value = "Enter a location to see temperature averages"
@@ -163,7 +160,6 @@ class WeatherViewModel(
                 _status.value =
                     "$resolvedLocationDisplay ${data.coordinates}"
                 fetchWeatherForData(data)
-                Log.i("WeatherAPI", "temp difference: " + data.tempDifference.toString())
             } catch (ex: Exception) {
                 _status.value = "City not found"
                 setDataValues("N/A")

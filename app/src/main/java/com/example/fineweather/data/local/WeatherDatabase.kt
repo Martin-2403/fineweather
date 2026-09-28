@@ -6,9 +6,9 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
-import com.example.fineweather.data.local.doa.FavoriteDao
-import com.example.fineweather.data.local.doa.GeoCodeDao
-import com.example.fineweather.data.local.doa.WeatherDao
+import com.example.fineweather.data.local.dao.FavoriteDao
+import com.example.fineweather.data.local.dao.GeoCodeDao
+import com.example.fineweather.data.local.dao.WeatherDao
 import com.example.fineweather.data.local.entities.FavoritePlaceEntity
 import com.example.fineweather.data.local.entities.GeoCodeCacheEntity
 import com.example.fineweather.data.local.entities.WeatherEntity

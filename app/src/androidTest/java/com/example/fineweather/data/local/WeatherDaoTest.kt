@@ -3,7 +3,7 @@ package com.example.fineweather.data.local
 import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.example.fineweather.data.local.doa.WeatherDao
+import com.example.fineweather.data.local.dao.WeatherDao
 import com.example.fineweather.data.local.entities.WeatherEntity
 import kotlinx.coroutines.runBlocking
 import org.junit.After
