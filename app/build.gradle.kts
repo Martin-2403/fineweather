@@ -106,7 +106,6 @@ tasks.register<JacocoReport>("jacocoTestReport") {
         listOf(
             "**/R.class",
             "**/R$*.class",
-            "**/BuildConfig.*",
             "**/Manifest*.*",
             "**/*Test*.*",
             "**/ui/**",
