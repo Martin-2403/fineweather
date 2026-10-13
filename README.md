@@ -42,6 +42,7 @@ FineWeather is an Android app that compares recent, forecast, and historic tempe
 - Forecast length: 7 or 14 days
 - Historic reference: 1961-1990 baseline or current 30-year normal ending at the last complete decade
 - Search language: English, German, French, Spanish, Italian, Portuguese, Russian, Turkish, or Hindi
+- Cache: shows how many locations and searches are cached and lets you clear them (favorites and settings are kept)
 - Divergence method: absolute delta (raw °C difference) or normalized anomaly (standard deviations from baseline, to show how unusual the month is for that place)
 
 ## Project structure
