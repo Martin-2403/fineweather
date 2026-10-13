@@ -18,6 +18,7 @@ import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -33,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.fineweather.data.models.HistoricReference
 import com.example.fineweather.data.models.TemperatureComparisonMode
+import com.example.fineweather.data.repositories.CacheStats
 import com.example.fineweather.data.repositories.SettingsDefaults
 import com.example.fineweather.nunitoSansFamily
 
@@ -47,6 +49,8 @@ fun SettingsScreen(
     onHistoricReferenceChange: (HistoricReference) -> Unit,
     onSearchLanguageChange: (String) -> Unit,
     onTemperatureComparisonModeChange: (TemperatureComparisonMode) -> Unit,
+    cacheStats: CacheStats,
+    onClearCache: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val isFourteenDay = forecastDays == SettingsDefaults.FORECAST_DAYS_LONG
@@ -363,6 +367,57 @@ fun SettingsScreen(
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            Card(
+                colors =
+                    CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                ) {
+                    Text(
+                        text = "Cache",
+                        fontFamily = nunitoSansFamily,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = cacheSummary(cacheStats),
+                        fontFamily = nunitoSansFamily,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.testTag("cacheSummary"),
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Weather data and search results are cached to save API calls. " +
+                                "Clearing the cache keeps your favorites and settings.",
+                        fontFamily = nunitoSansFamily,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedButton(
+                        onClick = onClearCache,
+                        enabled = !cacheStats.isEmpty,
+                        modifier = Modifier.testTag("clearCacheButton"),
+                    ) {
+                        Text("Clear cache", fontFamily = nunitoSansFamily)
+                    }
+                }
+            }
         }
     }
+}
+
+internal fun cacheSummary(stats: CacheStats): String {
+    if (stats.isEmpty) return "Cache is empty"
+    val locations = if (stats.weatherEntries == 1) "location" else "locations"
+    val searches = if (stats.searchEntries == 1) "search" else "searches"
+    return "${stats.weatherEntries} $locations and ${stats.searchEntries} $searches cached"
 }

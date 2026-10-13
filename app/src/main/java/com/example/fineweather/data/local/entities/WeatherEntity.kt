@@ -24,6 +24,8 @@ data class WeatherEntity(
     val historicMonthlyAverageCurrent: Double?,
     val historicMonthlyStdDevClassic: Double? = null,
     val historicMonthlyStdDevCurrent: Double? = null,
+    val historicMonthClassic: String? = null, // "yyyy-MM" the classic baseline was computed for
+    val historicMonthCurrent: String? = null, // "yyyy-MM" the current baseline was computed for
 )
 
 // In WeatherEntity.kt

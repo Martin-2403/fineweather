@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.fineweather.data.models.HistoricReference
 import com.example.fineweather.data.models.TemperatureComparisonMode
+import com.example.fineweather.data.repositories.CacheRepository
+import com.example.fineweather.data.repositories.CacheStats
 import com.example.fineweather.data.repositories.SettingsDefaults
 import com.example.fineweather.data.repositories.SettingsRepository
 import kotlinx.coroutines.flow.SharingStarted
@@ -15,7 +17,15 @@ import kotlinx.coroutines.launch
 
 class SettingsViewModel(
     private val settingsRepository: SettingsRepository,
+    private val cacheRepository: CacheRepository,
 ) : ViewModel() {
+
+    val cacheStats: StateFlow<CacheStats> =
+        cacheRepository.stats.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = CacheStats(),
+        )
 
     val forecastDays: StateFlow<Int> =
         settingsRepository.forecastDays.stateIn(
@@ -89,15 +99,22 @@ class SettingsViewModel(
             settingsRepository.setHasSeenInfo(seen)
         }
     }
+
+    fun clearCache() {
+        viewModelScope.launch {
+            cacheRepository.clear()
+        }
+    }
 }
 
 class SettingsViewModelFactory(
     private val settingsRepository: SettingsRepository,
+    private val cacheRepository: CacheRepository,
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(SettingsViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return SettingsViewModel(settingsRepository) as T
+            return SettingsViewModel(settingsRepository, cacheRepository) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

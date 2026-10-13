@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.example.fineweather.data.local.entities.WeatherEntity
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface WeatherDao {
@@ -16,4 +17,10 @@ interface WeatherDao {
 
     @Query("DELETE FROM weather_history WHERE date < :minDate")
     suspend fun cleanOutdatedCache(minDate: String)
+
+    @Query("SELECT COUNT(*) FROM weather_history")
+    fun observeCount(): Flow<Int>
+
+    @Query("DELETE FROM weather_history")
+    suspend fun clearAll()
 }

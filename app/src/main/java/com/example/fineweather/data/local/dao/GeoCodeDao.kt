@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.example.fineweather.data.local.entities.GeoCodeCacheEntity
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface GeoCodeDao {
@@ -16,4 +17,10 @@ interface GeoCodeDao {
 
     @Query("DELETE FROM geocode_cache_entries WHERE `query` = :query")
     suspend fun deleteByQuery(query: String)
+
+    @Query("SELECT COUNT(DISTINCT `query`) FROM geocode_cache_entries")
+    fun observeSearchCount(): Flow<Int>
+
+    @Query("DELETE FROM geocode_cache_entries")
+    suspend fun clearAll()
 }

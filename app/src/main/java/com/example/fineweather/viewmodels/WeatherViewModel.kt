@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.YearMonth
 
 class WeatherViewModel(
     private val weatherRepository: WeatherRepository,
@@ -231,29 +232,39 @@ class WeatherViewModel(
             fetchForecastWeather(data)
         }
 
-        val cachedHistoricAverage =
-            if (_historicReference.value == HistoricReference.CURRENT) {
-                cachedLatest?.historicMonthlyAverageCurrent
-            } else {
-                cachedLatest?.historicMonthlyAverageClassic
-            }
-        val cachedHistoricStdDev =
-            if (_historicReference.value == HistoricReference.CURRENT) {
-                cachedLatest?.historicMonthlyStdDevCurrent
-            } else {
-                cachedLatest?.historicMonthlyStdDevClassic
-            }
-        val hasCachedHistoric = cachedHistoricAverage != null
-        if (hasCachedHistoric) {
+        val cachedHistoric = cachedLatest.validHistoric(_historicReference.value)
+        if (cachedHistoric != null) {
             incrementCacheHits()
-            data.historicMonthlyAverage = cachedHistoricAverage
-            data.historicMonthlyStdDev = cachedHistoricStdDev
-            _historicMonthlyStdDev.value = cachedHistoricStdDev
+            data.historicMonthlyAverage = cachedHistoric.average
+            data.historicMonthlyStdDev = cachedHistoric.stdDev
+            _historicMonthlyStdDev.value = cachedHistoric.stdDev
             _resultHistoricAverage.value =
                 "${formatDouble(data.historicMonthlyAverage)}°C"
         } else {
             fetchHistoricWeather(data)
         }
+    }
+
+    private data class CachedHistoric(
+        val average: Double,
+        val stdDev: Double?,
+    )
+
+    private fun currentMonthKey(): String = YearMonth.from(nowProvider()).toString()
+
+    // The baseline is for one calendar month, so a value cached in another month must not be reused.
+    private fun WeatherEntity?.validHistoric(reference: HistoricReference): CachedHistoric? {
+        if (this == null) return null
+        val isCurrent = reference == HistoricReference.CURRENT
+        val average =
+            (if (isCurrent) historicMonthlyAverageCurrent else historicMonthlyAverageClassic)
+                ?: return null
+        val cachedMonth = if (isCurrent) historicMonthCurrent else historicMonthClassic
+        if (cachedMonth != currentMonthKey()) return null
+        return CachedHistoric(
+            average = average,
+            stdDev = if (isCurrent) historicMonthlyStdDevCurrent else historicMonthlyStdDevClassic,
+        )
     }
 
     private suspend fun fetchCurrentWeather(data: FineWeatherData) {
@@ -421,23 +432,12 @@ class WeatherViewModel(
 
     private suspend fun updateHistoricForSettings(data: FineWeatherData) {
         val cachedLatest = weatherRepository.getCachedWeatherById(data.id)
-        val cachedHistoricAverage =
-            if (_historicReference.value == HistoricReference.CURRENT) {
-                cachedLatest?.historicMonthlyAverageCurrent
-            } else {
-                cachedLatest?.historicMonthlyAverageClassic
-            }
-        val cachedHistoricStdDev =
-            if (_historicReference.value == HistoricReference.CURRENT) {
-                cachedLatest?.historicMonthlyStdDevCurrent
-            } else {
-                cachedLatest?.historicMonthlyStdDevClassic
-            }
-        if (cachedHistoricAverage != null) {
+        val cachedHistoric = cachedLatest.validHistoric(_historicReference.value)
+        if (cachedHistoric != null) {
             incrementCacheHits()
-            data.historicMonthlyAverage = cachedHistoricAverage
-            data.historicMonthlyStdDev = cachedHistoricStdDev
-            _historicMonthlyStdDev.value = cachedHistoricStdDev
+            data.historicMonthlyAverage = cachedHistoric.average
+            data.historicMonthlyStdDev = cachedHistoric.stdDev
+            _historicMonthlyStdDev.value = cachedHistoric.stdDev
             _resultHistoricAverage.value =
                 "${formatDouble(data.historicMonthlyAverage)}°C"
         } else {
@@ -526,6 +526,22 @@ class WeatherViewModel(
             } else {
                 existing?.historicMonthlyStdDevCurrent
             }
+        val historicMonthClassic =
+            if (historicReferenceOverride == HistoricReference.CLASSIC &&
+                data.historicMonthlyAverage != null
+            ) {
+                currentMonthKey()
+            } else {
+                existing?.historicMonthClassic
+            }
+        val historicMonthCurrent =
+            if (historicReferenceOverride == HistoricReference.CURRENT &&
+                data.historicMonthlyAverage != null
+            ) {
+                currentMonthKey()
+            } else {
+                existing?.historicMonthCurrent
+            }
         val entity =
             WeatherEntity(
                 id = data.id,
@@ -544,6 +560,8 @@ class WeatherViewModel(
                 historicMonthlyAverageCurrent = historicCurrent,
                 historicMonthlyStdDevClassic = historicStdDevClassic,
                 historicMonthlyStdDevCurrent = historicStdDevCurrent,
+                historicMonthClassic = historicMonthClassic,
+                historicMonthCurrent = historicMonthCurrent,
             )
         weatherRepository.insertWeather(entity)
     }

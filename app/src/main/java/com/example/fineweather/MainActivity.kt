@@ -42,8 +42,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.fineweather.api.OpenMeteoRetrofitClients
 import com.example.fineweather.data.local.settingsDataStore
 import com.example.fineweather.data.local.WeatherDatabase
+import com.example.fineweather.data.repositories.CacheRepository
+import com.example.fineweather.data.repositories.CacheStats
 import com.example.fineweather.data.repositories.GeoCodeRepository
 import com.example.fineweather.data.repositories.DataStoreSettingsRepository
+import com.example.fineweather.data.repositories.RoomCacheRepository
 import com.example.fineweather.data.repositories.RoomFavoriteRepository
 import com.example.fineweather.data.repositories.SettingsDefaults
 import com.example.fineweather.data.repositories.SettingsRepository
@@ -105,6 +108,10 @@ fun WeatherApp() {
         remember {
             RoomFavoriteRepository(db.favoriteDao())
         }
+    val cacheRepository: CacheRepository =
+        remember {
+            RoomCacheRepository(db.weatherDao(), db.geoCodeDao())
+        }
 
     val weatherViewModel: WeatherViewModel =
         viewModel(
@@ -118,7 +125,7 @@ fun WeatherApp() {
         )
     val settingsViewModel: SettingsViewModel =
         viewModel(
-            factory = SettingsViewModelFactory(settingsRepository),
+            factory = SettingsViewModelFactory(settingsRepository, cacheRepository),
         )
     val forecastDays by settingsViewModel.forecastDays.collectAsState(
         initial = SettingsDefaults.DEFAULT_FORECAST_DAYS,
@@ -132,6 +139,7 @@ fun WeatherApp() {
     val temperatureComparisonMode by settingsViewModel.temperatureComparisonMode.collectAsState(
         initial = SettingsDefaults.DEFAULT_TEMPERATURE_COMPARISON_MODE,
     )
+    val cacheStats by settingsViewModel.cacheStats.collectAsState(initial = CacheStats())
     val hasSeenInfo by settingsViewModel.hasSeenInfo.collectAsState(initial = null)
     var showInfo by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -204,6 +212,8 @@ fun WeatherApp() {
                     onHistoricReferenceChange = settingsViewModel::setHistoricReference,
                     onSearchLanguageChange = settingsViewModel::setSearchLanguage,
                     onTemperatureComparisonModeChange = settingsViewModel::setTemperatureComparisonMode,
+                    cacheStats = cacheStats,
+                    onClearCache = settingsViewModel::clearCache,
                     modifier = Modifier.padding(top = innerPadding.calculateTopPadding()),
                 )
         }
