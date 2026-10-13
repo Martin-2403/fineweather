@@ -5,6 +5,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.example.fineweather.data.local.dao.WeatherDao
 import com.example.fineweather.data.local.entities.WeatherEntity
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -58,6 +59,44 @@ class WeatherDaoTest {
         assertNull(dao.getWeatherById("loc-1"))
         assertNotNull(dao.getWeatherById("loc-2"))
         assertNotNull(dao.getWeatherById("loc-3"))
+    }
+
+    @Test
+    fun clearAll_removesEverything() = runBlocking {
+        dao.insertWeather(buildEntity(id = "loc-1", date = "2026-03-01"))
+        dao.insertWeather(buildEntity(id = "loc-2", date = "2026-03-10"))
+
+        dao.clearAll()
+
+        assertNull(dao.getWeatherById("loc-1"))
+        assertNull(dao.getWeatherById("loc-2"))
+    }
+
+    @Test
+    fun observeCount_tracksInsertsAndClear() = runBlocking {
+        assertEquals(0, dao.observeCount().first())
+
+        dao.insertWeather(buildEntity(id = "loc-1", date = "2026-03-01"))
+        dao.insertWeather(buildEntity(id = "loc-2", date = "2026-03-10"))
+        assertEquals(2, dao.observeCount().first())
+
+        dao.clearAll()
+        assertEquals(0, dao.observeCount().first())
+    }
+
+    @Test
+    fun historicMonth_isPersisted() = runBlocking {
+        dao.insertWeather(
+            buildEntity(id = "loc-1", date = "2026-10-13").copy(
+                historicMonthClassic = "2026-10",
+                historicMonthCurrent = null,
+            ),
+        )
+
+        val result = dao.getWeatherById("loc-1")
+
+        assertEquals("2026-10", result?.historicMonthClassic)
+        assertNull(result?.historicMonthCurrent)
     }
 
     private fun buildEntity(

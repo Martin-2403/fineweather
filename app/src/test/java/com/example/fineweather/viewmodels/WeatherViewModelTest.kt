@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import java.time.LocalDate
+import java.time.YearMonth
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -776,6 +777,137 @@ class WeatherViewModelTest {
         assertTrue(viewModel.cacheHitCount.value >= 1)
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun fetchWeather_refetchesHistoricWhenCachedForPreviousMonth() = runTest {
+        val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1")
+        val cached = buildEntity(
+            id = data.id,
+            date = data.timestamp,
+            currentAverage = 10.0,
+            currentMonthAverage = 11.0,
+            forecastAverage = 12.0,
+            historicMonthlyAverage = 14.01,
+            historicMonth = YearMonth.from(fixedNow).minusMonths(1).toString(),
+        )
+
+        coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns buildSelectionFromData(data)
+        coEvery { weatherRepository.getCachedWeatherById(any()) } returns cached
+        coEvery { weatherRepository.getWeatherHistory(any(), any(), any()) } returns mockk()
+        every { weatherRepository.calculateHistoricMonthlyStats() } returns
+            WeatherRepository.HistoricMonthlyStats("April", 9.19, 1.0)
+        coEvery { weatherRepository.insertWeather(any()) } returns Unit
+
+        viewModel.fetchWeather("Berlin")
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { weatherRepository.getWeatherHistory(any(), any(), any()) }
+        assertEquals("9.19°C", viewModel.resultHistoricAverage.value)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun fetchWeather_refetchesHistoricWhenCachedWithoutMonth() = runTest {
+        val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1")
+        val cached = buildEntity(
+            id = data.id,
+            date = data.timestamp,
+            currentAverage = 10.0,
+            currentMonthAverage = 11.0,
+            forecastAverage = 12.0,
+            historicMonthlyAverage = 14.01,
+            historicMonth = null,
+        )
+
+        coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns buildSelectionFromData(data)
+        coEvery { weatherRepository.getCachedWeatherById(any()) } returns cached
+        coEvery { weatherRepository.getWeatherHistory(any(), any(), any()) } returns mockk()
+        every { weatherRepository.calculateHistoricMonthlyStats() } returns
+            WeatherRepository.HistoricMonthlyStats("April", 9.19, 1.0)
+        coEvery { weatherRepository.insertWeather(any()) } returns Unit
+
+        viewModel.fetchWeather("Berlin")
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { weatherRepository.getWeatherHistory(any(), any(), any()) }
+        assertEquals("9.19°C", viewModel.resultHistoricAverage.value)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun fetchWeather_persistsMonthKeyWithFreshHistoric() = runTest {
+        val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1")
+        val persisted = mutableListOf<WeatherEntity>()
+
+        coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns buildSelectionFromData(data)
+        coEvery { weatherRepository.getCachedWeatherById(any()) } returns null
+        coEvery { weatherRepository.getWeatherCurrent(any(), any(), any()) } returns mockk()
+        coEvery { weatherRepository.getWeatherForecast(any(), any(), any()) } returns mockk()
+        coEvery { weatherRepository.getWeatherHistory(any(), any(), any()) } returns mockk()
+        every { weatherRepository.calculateAverageCurrentTemperature() } returns 7.0
+        every { weatherRepository.calculateCurrentMonthStats() } returns CurrentMonthStats("04", 8.5, 5)
+        every { weatherRepository.calculateAverageForecastTemperature() } returns 9.1
+        every { weatherRepository.calculateHistoricMonthlyStats() } returns
+            WeatherRepository.HistoricMonthlyStats("April", 6.0, 0.0)
+        coEvery { weatherRepository.insertWeather(capture(persisted)) } returns Unit
+
+        viewModel.fetchWeather("Berlin")
+        advanceUntilIdle()
+
+        val monthKey = YearMonth.from(fixedNow).toString()
+        assertEquals(monthKey, persisted.last().historicMonthClassic)
+        assertEquals(null, persisted.last().historicMonthCurrent)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun settingsUpdates_refetchHistoricWhenOtherReferenceCachedForPreviousMonth() = runTest {
+        val settingsRepository = FakeSettingsRepository()
+        viewModel =
+            WeatherViewModel(
+                weatherRepository,
+                geoCodeRepository,
+                settingsRepository,
+                favoriteRepository,
+                nowProvider = { fixedNow },
+            )
+        val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1", "Germany")
+        val staleMonth = YearMonth.from(fixedNow).minusMonths(1).toString()
+        val cached = buildEntity(
+            id = data.id,
+            date = data.timestamp,
+            currentAverage = 10.0,
+            currentMonthAverage = 11.0,
+            forecastAverage = 12.0,
+            historicReference = HistoricReference.CLASSIC,
+            historicMonthlyAverage = 9.0,
+        ).copy(
+            historicMonthlyAverageCurrent = 13.0,
+            historicMonthCurrent = staleMonth,
+        )
+
+        coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns buildSelectionFromData(data)
+        coEvery { weatherRepository.getCachedWeatherById(any()) } returns cached
+        coEvery { weatherRepository.getWeatherHistory(any(), any(), any()) } returns mockk()
+        every { weatherRepository.calculateHistoricMonthlyStats() } returns
+            WeatherRepository.HistoricMonthlyStats("April", 5.0, 0.0)
+        coEvery { weatherRepository.insertWeather(any()) } returns Unit
+
+        viewModel.fetchWeather("Berlin")
+        advanceUntilIdle()
+        assertEquals("9.00°C", viewModel.resultHistoricAverage.value)
+
+        settingsRepository.setHistoricReference(HistoricReference.CURRENT)
+        advanceUntilIdle()
+
+        assertEquals("5.00°C", viewModel.resultHistoricAverage.value)
+        coVerify(exactly = 1) { weatherRepository.getWeatherHistory(any(), any(), any()) }
+    }
+
     @Test
     fun setForecastDays_rejectsInvalidValues() {
         assertThrows(IllegalArgumentException::class.java) {
@@ -936,6 +1068,7 @@ class WeatherViewModelTest {
         forecastDays: Int = WeatherViewModel.FORECAST_DAYS_SHORT,
         historicReference: HistoricReference = SettingsDefaults.DEFAULT_HISTORIC_REFERENCE,
         historicMonthlyAverage: Double? = null,
+        historicMonth: String? = YearMonth.from(fixedNow).toString(),
     ): WeatherEntity =
         WeatherEntity(
             id = id,
@@ -982,6 +1115,8 @@ class WeatherViewModelTest {
                 } else {
                     null
                 },
+            historicMonthClassic = historicMonth,
+            historicMonthCurrent = historicMonth,
         )
 
     private fun buildSelectionFromData(

@@ -2,6 +2,8 @@ package com.example.fineweather.viewmodels
 
 import com.example.fineweather.data.models.HistoricReference
 import com.example.fineweather.data.models.TemperatureComparisonMode
+import com.example.fineweather.data.repositories.CacheRepository
+import com.example.fineweather.data.repositories.CacheStats
 import com.example.fineweather.data.repositories.SettingsDefaults
 import com.example.fineweather.data.repositories.SettingsRepository
 import com.example.fineweather.utils.MainDispatcherRule
@@ -24,7 +26,7 @@ class SettingsViewModelTest {
     @Test
     fun setForecastDays_updatesState() = runTest {
         val repository = FakeSettingsRepository()
-        val viewModel = SettingsViewModel(repository)
+        val viewModel = SettingsViewModel(repository, FakeCacheRepository())
 
         assertEquals(SettingsDefaults.DEFAULT_FORECAST_DAYS, viewModel.forecastDays.value)
 
@@ -38,7 +40,7 @@ class SettingsViewModelTest {
     @Test
     fun setHistoricReference_updatesState() = runTest {
         val repository = FakeSettingsRepository()
-        val viewModel = SettingsViewModel(repository)
+        val viewModel = SettingsViewModel(repository, FakeCacheRepository())
 
         assertEquals(SettingsDefaults.DEFAULT_HISTORIC_REFERENCE, viewModel.historicReference.value)
 
@@ -52,7 +54,7 @@ class SettingsViewModelTest {
     @Test
     fun setForecastDays_rejectsInvalidValues() = runTest {
         val repository = FakeSettingsRepository()
-        val viewModel = SettingsViewModel(repository)
+        val viewModel = SettingsViewModel(repository, FakeCacheRepository())
 
         assertThrows(IllegalArgumentException::class.java) {
             viewModel.setForecastDays(999)
@@ -63,7 +65,7 @@ class SettingsViewModelTest {
     @Test
     fun setSearchLanguage_updatesState() = runTest {
         val repository = FakeSettingsRepository()
-        val viewModel = SettingsViewModel(repository)
+        val viewModel = SettingsViewModel(repository, FakeCacheRepository())
 
         assertEquals(SettingsDefaults.DEFAULT_SEARCH_LANGUAGE, viewModel.searchLanguage.value)
 
@@ -77,7 +79,7 @@ class SettingsViewModelTest {
     @Test
     fun setTemperatureComparisonMode_updatesState() = runTest {
         val repository = FakeSettingsRepository()
-        val viewModel = SettingsViewModel(repository)
+        val viewModel = SettingsViewModel(repository, FakeCacheRepository())
 
         assertEquals(
             SettingsDefaults.DEFAULT_TEMPERATURE_COMPARISON_MODE,
@@ -97,7 +99,7 @@ class SettingsViewModelTest {
     @Test
     fun setHasSeenInfo_updatesState() = runTest {
         val repository = FakeSettingsRepository()
-        val viewModel = SettingsViewModel(repository)
+        val viewModel = SettingsViewModel(repository, FakeCacheRepository())
 
         advanceUntilIdle()
         assertEquals(false, viewModel.hasSeenInfo.value)
@@ -108,10 +110,35 @@ class SettingsViewModelTest {
         assertEquals(true, viewModel.hasSeenInfo.value)
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun cacheStats_reflectsRepository() = runTest {
+        val cacheRepository = FakeCacheRepository(CacheStats(weatherEntries = 3, searchEntries = 5))
+        val viewModel = SettingsViewModel(FakeSettingsRepository(), cacheRepository)
+
+        advanceUntilIdle()
+
+        assertEquals(CacheStats(weatherEntries = 3, searchEntries = 5), viewModel.cacheStats.value)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun clearCache_clearsRepositoryAndResetsStats() = runTest {
+        val cacheRepository = FakeCacheRepository(CacheStats(weatherEntries = 3, searchEntries = 5))
+        val viewModel = SettingsViewModel(FakeSettingsRepository(), cacheRepository)
+        advanceUntilIdle()
+
+        viewModel.clearCache()
+        advanceUntilIdle()
+
+        assertEquals(1, cacheRepository.clearCalls)
+        assertEquals(CacheStats(), viewModel.cacheStats.value)
+    }
+
     @Test
     fun settingsViewModelFactory_createsViewModel() {
         val repository = FakeSettingsRepository()
-        val factory = SettingsViewModelFactory(repository)
+        val factory = SettingsViewModelFactory(repository, FakeCacheRepository())
 
         val viewModel = factory.create(SettingsViewModel::class.java)
 
@@ -121,10 +148,24 @@ class SettingsViewModelTest {
     @Test
     fun settingsViewModelFactory_throwsForUnknownClass() {
         val repository = FakeSettingsRepository()
-        val factory = SettingsViewModelFactory(repository)
+        val factory = SettingsViewModelFactory(repository, FakeCacheRepository())
 
         assertThrows(IllegalArgumentException::class.java) {
             factory.create(WeatherViewModel::class.java)
+        }
+    }
+
+    private class FakeCacheRepository(
+        initial: CacheStats = CacheStats(),
+    ) : CacheRepository {
+        private val state = MutableStateFlow(initial)
+        var clearCalls = 0
+            private set
+        override val stats: Flow<CacheStats> = state
+
+        override suspend fun clear() {
+            clearCalls++
+            state.value = CacheStats()
         }
     }
 
