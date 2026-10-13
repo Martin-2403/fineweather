@@ -19,5 +19,5 @@ data class DailyUnits(
 
 data class Daily(
     val time: List<String>,
-    val temperature_2m_mean: List<Double>,
+    val temperature_2m_mean: List<Double?>,
 )

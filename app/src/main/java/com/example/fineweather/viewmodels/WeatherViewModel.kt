@@ -14,7 +14,14 @@ import com.example.fineweather.data.repositories.FavoriteRepository
 import com.example.fineweather.data.repositories.SettingsDefaults
 import com.example.fineweather.data.repositories.SettingsRepository
 import com.example.fineweather.data.repositories.GeoCodeRepository
+import com.example.fineweather.data.repositories.CacheResult
+import com.example.fineweather.data.repositories.RateLimitException
 import com.example.fineweather.data.repositories.WeatherRepository
+import com.example.fineweather.domain.ClimateSnapshot
+import com.example.fineweather.domain.DailySeries
+import com.example.fineweather.domain.ReferenceClimate
+import com.example.fineweather.domain.lastDaysMean
+import com.example.fineweather.domain.monthToDate
 import com.example.fineweather.data.local.entities.WeatherEntity
 import com.example.fineweather.utils.formatDouble
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,7 +32,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
-import java.time.YearMonth
 
 class WeatherViewModel(
     private val weatherRepository: WeatherRepository,
@@ -57,6 +63,8 @@ class WeatherViewModel(
     val resultHistoricAverage: StateFlow<String> = _resultHistoricAverage
     private val _historicMonthlyStdDev = MutableStateFlow<Double?>(null)
     val historicMonthlyStdDev: StateFlow<Double?> = _historicMonthlyStdDev
+    private val _climate = MutableStateFlow<ClimateSnapshot?>(null)
+    val climate: StateFlow<ClimateSnapshot?> = _climate
     private val _currentMonthDayCount = MutableStateFlow(0)
     val currentMonthDayCount: StateFlow<Int> = _currentMonthDayCount
     private val _apiCallCount = MutableStateFlow(0)
@@ -91,7 +99,7 @@ class WeatherViewModel(
                 _forecastDays.value = days
                 if (changed) {
                     lastResolvedData?.let { data ->
-                        updateForecastForSettings(data)
+                        loadForecast(data)
                     }
                 }
             }
@@ -102,7 +110,7 @@ class WeatherViewModel(
                 _historicReference.value = reference
                 if (changed) {
                     lastResolvedData?.let { data ->
-                        updateHistoricForSettings(data)
+                        loadClimate(data)
                     }
                 }
             }
@@ -129,6 +137,7 @@ class WeatherViewModel(
             _places.value = emptyList()
             _selectedPlace.value = null
             _historicMonthlyStdDev.value = null
+            _climate.value = null
             lastResolvedData = null
             return
         }
@@ -167,6 +176,7 @@ class WeatherViewModel(
                 _resolvedLocationName.value = ""
                 _currentMonthDayCount.value = 0
                 _historicMonthlyStdDev.value = null
+                _climate.value = null
                 _places.value = emptyList()
                 _selectedPlace.value = null
                 Log.e(
@@ -185,125 +195,119 @@ class WeatherViewModel(
     }
 
     private suspend fun fetchWeatherForData(data: FineWeatherData) {
+        loadForecast(data)
+        loadClimate(data)
+    }
+
+    private suspend fun loadForecast(data: FineWeatherData) {
         val cachedLatest = weatherRepository.getCachedWeatherById(data.id)
-        val isCurrentToday = cachedLatest?.date == data.timestamp
-        val hasCachedCurrent =
-            cachedLatest?.currentAverage != null &&
-                    cachedLatest.currentMonthAverage != null
-
-        if (isCurrentToday && hasCachedCurrent) {
-            incrementCacheHits()
-            data.currentAverage = cachedLatest.currentAverage
-            data.currentMonthAverage = cachedLatest.currentMonthAverage
-            _resultCurrentAverage.value =
-                "${formatDouble(data.currentAverage)}°C"
-            if (isFirstDayOfMonth()) {
-                data.currentMonthAverage = null
-                _resultCurrentMonthAverage.value = "N/A"
-                _currentMonthDayCount.value = 0
-            } else {
-                _resultCurrentMonthAverage.value =
-                    "${formatDouble(data.currentMonthAverage)}°C"
-                _currentMonthDayCount.value = nowProvider().dayOfMonth
-            }
-        } else {
-            fetchCurrentWeather(data)
-        }
-
+        val isLong = _forecastDays.value == FORECAST_DAYS_LONG
         val cachedForecastAverage =
-            if (_forecastDays.value == FORECAST_DAYS_LONG) {
-                cachedLatest?.forecastAverage14
-            } else {
-                cachedLatest?.forecastAverage7
-            }
+            if (isLong) cachedLatest?.forecastAverage14 else cachedLatest?.forecastAverage7
         val cachedForecastDate =
-            if (_forecastDays.value == FORECAST_DAYS_LONG) {
-                cachedLatest?.forecastDate14
-            } else {
-                cachedLatest?.forecastDate7
-            }
-        val hasCachedForecast = cachedForecastAverage != null
-        val cachedForecastIsCurrent = cachedForecastDate == data.timestamp
-        if (hasCachedForecast && cachedForecastIsCurrent) {
+            if (isLong) cachedLatest?.forecastDate14 else cachedLatest?.forecastDate7
+        if (cachedForecastAverage != null && cachedForecastDate == data.timestamp) {
             incrementCacheHits()
             data.forecastAverage = cachedForecastAverage
             _resultForecastAverage.value = "${formatDouble(data.forecastAverage)}°C"
         } else {
             fetchForecastWeather(data)
         }
-
-        val cachedHistoric = cachedLatest.validHistoric(_historicReference.value)
-        if (cachedHistoric != null) {
-            incrementCacheHits()
-            data.historicMonthlyAverage = cachedHistoric.average
-            data.historicMonthlyStdDev = cachedHistoric.stdDev
-            _historicMonthlyStdDev.value = cachedHistoric.stdDev
-            _resultHistoricAverage.value =
-                "${formatDouble(data.historicMonthlyAverage)}°C"
-        } else {
-            fetchHistoricWeather(data)
-        }
     }
 
-    private data class CachedHistoric(
-        val average: Double,
-        val stdDev: Double?,
-    )
-
-    private fun currentMonthKey(): String = YearMonth.from(nowProvider()).toString()
-
-    // The baseline is for one calendar month, so a value cached in another month must not be reused.
-    private fun WeatherEntity?.validHistoric(reference: HistoricReference): CachedHistoric? {
-        if (this == null) return null
-        val isCurrent = reference == HistoricReference.CURRENT
-        val average =
-            (if (isCurrent) historicMonthlyAverageCurrent else historicMonthlyAverageClassic)
-                ?: return null
-        val cachedMonth = if (isCurrent) historicMonthCurrent else historicMonthClassic
-        if (cachedMonth != currentMonthKey()) return null
-        return CachedHistoric(
-            average = average,
-            stdDev = if (isCurrent) historicMonthlyStdDevCurrent else historicMonthlyStdDevClassic,
-        )
-    }
-
-    private suspend fun fetchCurrentWeather(data: FineWeatherData) {
+    private suspend fun loadClimate(data: FineWeatherData) {
+        val today = nowProvider()
+        _resultCurrentAverage.value = "Fetching..."
         _resultCurrentMonthAverage.value = "Fetching..."
-        runCatching {
-            incrementApiCalls()
-            weatherRepository.getWeatherCurrent(
-                data.coordinates.first,
-                data.coordinates.second,
-                31,
-            )
-            data.currentAverage = weatherRepository.calculateAverageCurrentTemperature()
-            _resultCurrentAverage.value = "${formatDouble(data.currentAverage)}°C"
+        _resultHistoricAverage.value = "Fetching..."
 
-            val stats = weatherRepository.calculateCurrentMonthStats()
-            if (isFirstDayOfMonth()) {
-                _currentMonthDayCount.value = 0
-                data.currentMonthAverage = null
-                _resultCurrentMonthAverage.value = "N/A"
-            } else {
-                _currentMonthDayCount.value = stats.dayCount
-                data.currentMonthAverage = stats.average
-                _resultCurrentMonthAverage.value =
-                    if (stats.average == null) {
-                        "No data yet"
-                    } else {
-                        "${formatDouble(stats.average)}°C"
-                    }
+        val series =
+            loadOrNull("current weather") {
+                weatherRepository.getYearToDate(
+                    data.id,
+                    data.coordinates.first,
+                    data.coordinates.second,
+                    today,
+                )
             }
-            persistWeatherCache(data, updateDate = true)
-        }.onFailure { e ->
+        val climate =
+            loadOrNull("historic weather") {
+                weatherRepository.getReferenceClimate(
+                    data.id,
+                    data.coordinates.first,
+                    data.coordinates.second,
+                    _historicReference.value,
+                    today,
+                )
+            }
+        publishClimate(series, climate, today)
+    }
+
+    private suspend fun <T> loadOrNull(
+        what: String,
+        load: suspend () -> CacheResult<T>,
+    ): T? =
+        try {
+            val result = load()
+            if (result.fromCache) incrementCacheHits() else incrementApiCalls()
+            result.value
+        } catch (e: Exception) {
+            incrementApiCalls()
+            Log.e("WeatherAPI", e.message ?: "Error occurred while trying to fetch the $what")
+            if (e is RateLimitException) {
+                _snackbarMessages.emit(
+                    "Weather service limit reached. Showing cached data where available.",
+                )
+            }
+            null
+        }
+
+    private fun publishClimate(
+        series: DailySeries?,
+        climate: ReferenceClimate?,
+        today: LocalDate,
+    ) {
+        if (series == null) {
             _resultCurrentAverage.value = "Error"
             _resultCurrentMonthAverage.value = "Error"
             _currentMonthDayCount.value = 0
-            Log.e(
-                "WeatherAPI",
-                e.message ?: "Error occurred while trying to fetch the current weather",
-            )
+        } else {
+            _resultCurrentAverage.value =
+                lastDaysMean(series, today)?.let { "${formatDouble(it)}°C" } ?: "N/A"
         }
+
+        val monthToDate = series?.let { monthToDate(it, climate, today) }
+        if (series != null) {
+            when {
+                monthToDate != null -> {
+                    _resultCurrentMonthAverage.value = "${formatDouble(monthToDate.observedMean)}°C"
+                    _currentMonthDayCount.value = monthToDate.daysObserved
+                }
+
+                today.dayOfMonth == 1 -> {
+                    _resultCurrentMonthAverage.value = "N/A"
+                    _currentMonthDayCount.value = 0
+                }
+
+                else -> {
+                    _resultCurrentMonthAverage.value = "No data yet"
+                    _currentMonthDayCount.value = 0
+                }
+            }
+        }
+
+        if (climate == null) {
+            _resultHistoricAverage.value = "Error"
+            _historicMonthlyStdDev.value = null
+        } else {
+            // Without a complete day of the month yet, fall back to the whole month's normal.
+            val referenceMean = monthToDate?.referenceMean ?: climate.monthMean(today.monthValue)
+            _historicMonthlyStdDev.value =
+                if (monthToDate != null) monthToDate.referenceStdDev else climate.monthStdDev(today.monthValue)
+            _resultHistoricAverage.value = referenceMean?.let { "${formatDouble(it)}°C" } ?: "N/A"
+        }
+
+        _climate.value = series?.let { ClimateSnapshot(it, climate, today) }
     }
 
     fun selectPlace(place: GeoPlace) {
@@ -360,7 +364,7 @@ class WeatherViewModel(
             )
             data.forecastAverage = weatherRepository.calculateAverageForecastTemperature()
             _resultForecastAverage.value = "${formatDouble(data.forecastAverage)}°C"
-            persistWeatherCache(data, forecastDaysOverride = _forecastDays.value)
+            persistForecast(data)
         }.onFailure { e ->
             _resultForecastAverage.value = "Error"
 
@@ -371,197 +375,27 @@ class WeatherViewModel(
         }
     }
 
-    private suspend fun fetchHistoricWeather(data: FineWeatherData) {
-        _resultHistoricAverage.value = "Fetching..."
-        runCatching {
-            incrementApiCalls()
-            weatherRepository.getWeatherHistory(
-                data.coordinates.first,
-                data.coordinates.second,
-                _historicReference.value,
-            )
-            val historicData =
-                weatherRepository.calculateHistoricMonthlyStats()
-                    ?: weatherRepository.calculateAverageHistoricMonthlyTemperature()?.let {
-                        WeatherRepository.HistoricMonthlyStats(
-                            month = it.first,
-                            average = it.second,
-                            stdDev = 0.0,
-                        )
-                    }
-            data.historicMonthlyAverage = historicData?.average
-            data.historicMonthlyStdDev = historicData?.stdDev
-            _historicMonthlyStdDev.value = historicData?.stdDev
-            _resultHistoricAverage.value =
-                "${formatDouble(data.historicMonthlyAverage)}°C"
-            persistWeatherCache(data, historicReferenceOverride = _historicReference.value)
-        }.onFailure { e ->
-            _resultHistoricAverage.value = "Error"
-            _historicMonthlyStdDev.value = null
-            Log.e(
-                "WeatherAPI",
-                e.message ?: "Error occurred while trying to fetch the historic weather",
-            )
-        }
-    }
-
-    private suspend fun updateForecastForSettings(data: FineWeatherData) {
-        val cachedLatest = weatherRepository.getCachedWeatherById(data.id)
-        val cachedForecastAverage =
-            if (_forecastDays.value == FORECAST_DAYS_LONG) {
-                cachedLatest?.forecastAverage14
-            } else {
-                cachedLatest?.forecastAverage7
-            }
-        val cachedForecastDate =
-            if (_forecastDays.value == FORECAST_DAYS_LONG) {
-                cachedLatest?.forecastDate14
-            } else {
-                cachedLatest?.forecastDate7
-            }
-        val hasCachedForecast = cachedForecastAverage != null
-        val cachedForecastIsCurrent = cachedForecastDate == data.timestamp
-        if (hasCachedForecast && cachedForecastIsCurrent) {
-            incrementCacheHits()
-            data.forecastAverage = cachedForecastAverage
-            _resultForecastAverage.value = "${formatDouble(data.forecastAverage)}°C"
-        } else {
-            fetchForecastWeather(data)
-        }
-    }
-
-    private suspend fun updateHistoricForSettings(data: FineWeatherData) {
-        val cachedLatest = weatherRepository.getCachedWeatherById(data.id)
-        val cachedHistoric = cachedLatest.validHistoric(_historicReference.value)
-        if (cachedHistoric != null) {
-            incrementCacheHits()
-            data.historicMonthlyAverage = cachedHistoric.average
-            data.historicMonthlyStdDev = cachedHistoric.stdDev
-            _historicMonthlyStdDev.value = cachedHistoric.stdDev
-            _resultHistoricAverage.value =
-                "${formatDouble(data.historicMonthlyAverage)}°C"
-        } else {
-            fetchHistoricWeather(data)
-        }
-    }
-
-    private suspend fun persistWeatherCache(
-        data: FineWeatherData,
-        updateDate: Boolean = false,
-        forecastDaysOverride: Int? = null,
-        historicReferenceOverride: HistoricReference? = null,
-    ) {
+    private suspend fun persistForecast(data: FineWeatherData) {
         val existing = weatherRepository.getCachedWeatherById(data.id)
-        val resolvedDate =
-            if (updateDate) {
-                data.timestamp
-            } else {
-                existing?.date ?: data.timestamp
-            }
-        val resolvedCurrentAverage =
-            if (updateDate) {
-                data.currentAverage
-            } else {
-                data.currentAverage ?: existing?.currentAverage
-            }
-        val resolvedCurrentMonthAverage =
-            if (updateDate) {
-                data.currentMonthAverage
-            } else {
-                data.currentMonthAverage ?: existing?.currentMonthAverage
-            }
-        val forecastAverage7 =
-            if (forecastDaysOverride == FORECAST_DAYS_SHORT && data.forecastAverage != null) {
-                data.forecastAverage
-            } else {
-                existing?.forecastAverage7
-            }
-        val forecastAverage14 =
-            if (forecastDaysOverride == FORECAST_DAYS_LONG && data.forecastAverage != null) {
-                data.forecastAverage
-            } else {
-                existing?.forecastAverage14
-            }
-        val forecastDate7 =
-            if (forecastDaysOverride == FORECAST_DAYS_SHORT && data.forecastAverage != null) {
-                data.timestamp
-            } else {
-                existing?.forecastDate7
-            }
-        val forecastDate14 =
-            if (forecastDaysOverride == FORECAST_DAYS_LONG && data.forecastAverage != null) {
-                data.timestamp
-            } else {
-                existing?.forecastDate14
-            }
-        val historicClassic =
-            if (historicReferenceOverride == HistoricReference.CLASSIC &&
-                data.historicMonthlyAverage != null
-            ) {
-                data.historicMonthlyAverage
-            } else {
-                existing?.historicMonthlyAverageClassic
-            }
-        val historicCurrent =
-            if (historicReferenceOverride == HistoricReference.CURRENT &&
-                data.historicMonthlyAverage != null
-            ) {
-                data.historicMonthlyAverage
-            } else {
-                existing?.historicMonthlyAverageCurrent
-            }
-        val historicStdDevClassic =
-            if (historicReferenceOverride == HistoricReference.CLASSIC &&
-                data.historicMonthlyStdDev != null
-            ) {
-                data.historicMonthlyStdDev
-            } else {
-                existing?.historicMonthlyStdDevClassic
-            }
-        val historicStdDevCurrent =
-            if (historicReferenceOverride == HistoricReference.CURRENT &&
-                data.historicMonthlyStdDev != null
-            ) {
-                data.historicMonthlyStdDev
-            } else {
-                existing?.historicMonthlyStdDevCurrent
-            }
-        val historicMonthClassic =
-            if (historicReferenceOverride == HistoricReference.CLASSIC &&
-                data.historicMonthlyAverage != null
-            ) {
-                currentMonthKey()
-            } else {
-                existing?.historicMonthClassic
-            }
-        val historicMonthCurrent =
-            if (historicReferenceOverride == HistoricReference.CURRENT &&
-                data.historicMonthlyAverage != null
-            ) {
-                currentMonthKey()
-            } else {
-                existing?.historicMonthCurrent
-            }
+        val isShort = _forecastDays.value == FORECAST_DAYS_SHORT
+        val isLong = _forecastDays.value == FORECAST_DAYS_LONG
+        val fresh = data.forecastAverage
         val entity =
             WeatherEntity(
                 id = data.id,
-                date = resolvedDate,
+                date = data.timestamp,
                 locationName = data.location,
                 country = data.country,
                 latitude = data.coordinates.first,
                 longitude = data.coordinates.second,
-                currentAverage = resolvedCurrentAverage,
-                currentMonthAverage = resolvedCurrentMonthAverage,
-                forecastAverage7 = forecastAverage7,
-                forecastAverage14 = forecastAverage14,
-                forecastDate7 = forecastDate7,
-                forecastDate14 = forecastDate14,
-                historicMonthlyAverageClassic = historicClassic,
-                historicMonthlyAverageCurrent = historicCurrent,
-                historicMonthlyStdDevClassic = historicStdDevClassic,
-                historicMonthlyStdDevCurrent = historicStdDevCurrent,
-                historicMonthClassic = historicMonthClassic,
-                historicMonthCurrent = historicMonthCurrent,
+                currentAverage = null,
+                currentMonthAverage = null,
+                forecastAverage7 = if (isShort && fresh != null) fresh else existing?.forecastAverage7,
+                forecastAverage14 = if (isLong && fresh != null) fresh else existing?.forecastAverage14,
+                forecastDate7 = if (isShort && fresh != null) data.timestamp else existing?.forecastDate7,
+                forecastDate14 = if (isLong && fresh != null) data.timestamp else existing?.forecastDate14,
+                historicMonthlyAverageClassic = null,
+                historicMonthlyAverageCurrent = null,
             )
         weatherRepository.insertWeather(entity)
     }
@@ -572,10 +406,6 @@ class WeatherViewModel(
 
     private fun incrementCacheHits(count: Int = 1) {
         _cacheHitCount.value += count
-    }
-
-    private fun isFirstDayOfMonth(now: LocalDate = nowProvider()): Boolean {
-        return now.dayOfMonth == 1
     }
 
     fun setForecastDays(days: Int) {

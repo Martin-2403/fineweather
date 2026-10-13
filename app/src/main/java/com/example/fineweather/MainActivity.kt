@@ -91,6 +91,8 @@ fun WeatherApp() {
                 openMeteoWeatherApi = OpenMeteoRetrofitClients.forecastApi,
                 openMeteoArchiveApi = OpenMeteoRetrofitClients.archiveApi,
                 weatherDao = db.weatherDao(),
+                referenceClimateDao = db.referenceClimateDao(),
+                yearSeriesDao = db.yearSeriesDao(),
             )
         }
     val geoCodeRepository =
@@ -110,7 +112,7 @@ fun WeatherApp() {
         }
     val cacheRepository: CacheRepository =
         remember {
-            RoomCacheRepository(db.weatherDao(), db.geoCodeDao())
+            RoomCacheRepository(db.weatherDao(), db.geoCodeDao(), db.referenceClimateDao(), db.yearSeriesDao())
         }
 
     val weatherViewModel: WeatherViewModel =

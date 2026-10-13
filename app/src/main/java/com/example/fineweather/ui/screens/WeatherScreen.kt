@@ -40,6 +40,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -49,10 +50,12 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.widthIn
@@ -65,6 +68,8 @@ import com.example.fineweather.R
 import com.example.fineweather.nunitoSansFamily
 import com.example.fineweather.data.models.GeoPlace
 import com.example.fineweather.data.models.TemperatureComparisonMode
+import com.example.fineweather.domain.SummaryInput
+import com.example.fineweather.domain.buildSummary
 import com.example.fineweather.ui.models.IconStack
 import com.example.fineweather.ui.models.ValueWithIcons
 import com.example.fineweather.ui.theme.HazyBlue
@@ -72,6 +77,8 @@ import com.example.fineweather.ui.theme.LightTeal
 import com.example.fineweather.ui.theme.SoftMist
 import com.example.fineweather.ui.theme.TealInk
 import com.example.fineweather.viewmodels.WeatherViewModel
+import java.time.LocalDate
+import java.time.format.TextStyle
 import java.util.Locale
 import kotlin.math.abs
 
@@ -85,6 +92,8 @@ fun WeatherScreen(
     var location by rememberSaveable { mutableStateOf("") }
     var showCurrentMonthWarning by rememberSaveable { mutableStateOf(false) }
     var selectedTab by rememberSaveable { mutableStateOf(WeatherTab.SEARCH) }
+    var timeScale by rememberSaveable { mutableStateOf(TimeScale.CURRENT) }
+    val climate by viewModel.climate.collectAsState()
     val status by viewModel.status.collectAsState(initial = "Enter a location to see temperature averages")
     val resultForecast by viewModel.resultForecastAverage.collectAsState(initial = "")
     val resultCurrent by viewModel.resultCurrentAverage.collectAsState(initial = "")
@@ -97,6 +106,7 @@ fun WeatherScreen(
     val forecastDays by viewModel.forecastDays.collectAsState(
         initial = WeatherViewModel.FORECAST_DAYS_SHORT,
     )
+    val historicReference by viewModel.historicReference.collectAsState()
     val currentMonthDayCount by viewModel.currentMonthDayCount.collectAsState(initial = 0)
     val apiCallCount by viewModel.apiCallCount.collectAsState(initial = 0)
     val cacheHitCount by viewModel.cacheHitCount.collectAsState(initial = 0)
@@ -119,6 +129,31 @@ fun WeatherScreen(
         mode = temperatureComparisonMode,
         status = status,
     )
+    val summaryBlocks =
+        remember(
+            resultCurrentMonth,
+            resultHistoric,
+            resultForecast,
+            historicMonthlyStdDev,
+            temperatureComparisonMode,
+            forecastDays,
+            currentMonthDayCount,
+            historicReference,
+        ) {
+            buildSummary(
+                SummaryInput(
+                    monthName = LocalDate.now().month.getDisplayName(TextStyle.FULL, Locale.ENGLISH),
+                    monthToDate = parseTemperature(resultCurrentMonth),
+                    reference = parseTemperature(resultHistoric),
+                    referenceLabel = historicReference.displayLabel(),
+                    stdDev = historicMonthlyStdDev,
+                    mode = temperatureComparisonMode,
+                    forecast = parseTemperature(resultForecast),
+                    forecastDays = forecastDays,
+                    daysObserved = currentMonthDayCount,
+                ),
+            )
+        }
     val cardShape = RoundedCornerShape(12.dp)
     val cardColors = CardDefaults.elevatedCardColors(
         containerColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -128,13 +163,27 @@ fun WeatherScreen(
         currentMonthDayCount in 0..6
                 && resultCurrentMonth !== "-"
                 && resultCurrentMonth !== "N/A"
+    val temperatureRows =
+        listOf(
+            TemperatureRowData("Last 31 days", resultCurrent, false),
+            TemperatureRowData(
+                "This month so far",
+                resultCurrentMonth,
+                showCurrentMonthWarningIcon,
+            ),
+            TemperatureRowData(
+                "Next $forecastDays days (forecast)",
+                resultForecast,
+                false,
+            ),
+            TemperatureRowData(
+                if (currentMonthDayCount > 0) "Historical (30y), same days" else "Historical (30y) for this month",
+                resultHistoric,
+                false,
+            ),
+        )
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
-    val isDarkTheme = isSystemInDarkTheme()
-    val segmentedSelectedContainer = LightTeal
-    val segmentedSelectedContent = HazyBlue
-    val segmentedUnselectedContainer = SoftMist
-    val segmentedUnselectedContent = TealInk
 
 
     LaunchedEffect(resolvedLocation) {
@@ -157,6 +206,7 @@ fun WeatherScreen(
         ) {
             StatusHeaderCard(
                 imageRes = statusImageRes,
+                summary = summaryBlocks,
                 statusCardValue = statusCardValue,
                 trendCardValue = trendCardValue,
                 shape = cardShape,
@@ -164,36 +214,12 @@ fun WeatherScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                WeatherTab.entries.forEachIndexed { index, tab ->
-                    SegmentedButton(
-                        selected = selectedTab == tab,
-                        onClick = { selectedTab = tab },
-                        shape = SegmentedButtonDefaults.itemShape(index, WeatherTab.entries.size),
-                        icon = {},
-                        contentPadding = SegmentedButtonDefaults.ContentPadding,
-                        colors = SegmentedButtonDefaults.colors(
-                            activeContainerColor = segmentedSelectedContainer,
-                            activeContentColor = segmentedSelectedContent,
-                            inactiveContainerColor = segmentedUnselectedContainer,
-                            inactiveContentColor = segmentedUnselectedContent,
-                        ),
-                        border = BorderStroke(
-                            width = 1.dp,
-                            color = if (isDarkTheme) HazyBlue else MaterialTheme.colorScheme.primary.copy(
-                                alpha = 0.3f
-                            ),
-                        ),
-                    ) {
-                        Text(
-                            text = tab.label,
-                            fontFamily = nunitoSansFamily,
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
+            SegmentedTabs(
+                labels = WeatherTab.entries.map { it.label },
+                selectedIndex = selectedTab.ordinal,
+                onSelect = { selectedTab = WeatherTab.entries[it] },
+                tagPrefix = "placeTab",
+            )
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -238,55 +264,6 @@ fun WeatherScreen(
                                 onToggleFavorite = { viewModel.toggleFavorite() },
                             )
                             StatusDisplay(status)
-                            DividerLine()
-                            Text(
-                                "Average temperatures",
-                                fontFamily = nunitoSansFamily,
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            val temperatureRows =
-                                listOf(
-                                    TemperatureRowData("Last 31 days", resultCurrent, false),
-                                    TemperatureRowData(
-                                        "This month so far",
-                                        resultCurrentMonth,
-                                        showCurrentMonthWarningIcon,
-                                    ),
-                                    TemperatureRowData(
-                                        "Next $forecastDays days (forecast)",
-                                        resultForecast,
-                                        false,
-                                    ),
-                                    TemperatureRowData(
-                                        "Historical (30y) for this month",
-                                        resultHistoric,
-                                        false,
-                                    ),
-                                )
-                            temperatureRows.forEachIndexed { index, row ->
-                                TemperatureRow(
-                                    label = row.label,
-                                    value = row.value,
-                                    showWarning = row.showWarning,
-                                    onWarningClick = if (row.showWarning) {
-                                        { showCurrentMonthWarning = true }
-                                    } else null,
-                                )
-                                if (index != temperatureRows.lastIndex) {
-                                    Box(
-                                        modifier =
-                                            Modifier
-                                                .fillMaxWidth()
-                                                .height(1.dp)
-                                                .background(
-                                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                                                        alpha = 0.15f
-                                                    ),
-                                                ),
-                                    )
-                                }
-                            }
                         }
                     }
                 }
@@ -335,6 +312,43 @@ fun WeatherScreen(
                         )
                     }
                 }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            SegmentedTabs(
+                labels = TimeScale.entries.map { it.label },
+                selectedIndex = timeScale.ordinal,
+                onSelect = { timeScale = TimeScale.entries[it] },
+                tagPrefix = "timeScale",
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            when (timeScale) {
+                TimeScale.CURRENT ->
+                    CurrentView(
+                        rows = temperatureRows,
+                        shape = cardShape,
+                        colors = cardColors,
+                        onWarningClick = { showCurrentMonthWarning = true },
+                    )
+
+                TimeScale.MONTH ->
+                    MonthView(
+                        snapshot = climate,
+                        referenceLabel = historicReference.displayLabel(),
+                        shape = cardShape,
+                        colors = cardColors,
+                    )
+
+                TimeScale.YEAR ->
+                    YearView(
+                        snapshot = climate,
+                        referenceLabel = historicReference.displayLabel(),
+                        shape = cardShape,
+                        colors = cardColors,
+                    )
             }
 
             Spacer(modifier = Modifier.weight(1f))
@@ -475,6 +489,40 @@ internal fun SearchBar(
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Bold
             )
+        }
+    }
+}
+
+@Composable
+private fun CurrentView(
+    rows: List<TemperatureRowData>,
+    shape: RoundedCornerShape,
+    colors: CardColors,
+    onWarningClick: () -> Unit,
+) {
+    ViewCard(shape, colors, Modifier.testTag("currentView")) {
+        Text(
+            "Average temperatures",
+            fontFamily = nunitoSansFamily,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
+        rows.forEachIndexed { index, row ->
+            TemperatureRow(
+                label = row.label,
+                value = row.value,
+                showWarning = row.showWarning,
+                onWarningClick = if (row.showWarning) onWarningClick else null,
+            )
+            if (index != rows.lastIndex) {
+                Box(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f)),
+                )
+            }
         }
     }
 }
@@ -730,72 +778,6 @@ private fun PlaceListItem(
 }
 
 @Composable
-private fun EarthStatus(
-    imageRes: Int,
-    modifier: Modifier = Modifier,
-) {
-    Image(
-        painter = painterResource(imageRes),
-        contentDescription = "Status illustration",
-        contentScale = ContentScale.Fit,
-        modifier = modifier,
-    )
-}
-
-@Composable
-private fun StatusHeaderCard(
-    imageRes: Int,
-    statusCardValue: ValueWithIcons,
-    trendCardValue: ValueWithIcons,
-    shape: RoundedCornerShape,
-) {
-    Card(
-        shape = shape,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        ),
-        modifier =
-            Modifier
-                .widthIn(max = 480.dp)
-                .fillMaxWidth()
-                .border(
-                    1.dp,
-                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
-                    shape,
-                ),
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            EarthStatus(
-                imageRes = imageRes,
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-            )
-            DividerLine()
-            Row(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .height(IntrinsicSize.Min),
-            ) {
-                StatusTrendCell(
-                    label = "Divergence",
-                    value = statusCardValue,
-                    modifier = Modifier.weight(3f),
-                )
-                VerticalDividerLine()
-                StatusTrendCell(
-                    label = "Trend",
-                    value = trendCardValue,
-                    modifier = Modifier.weight(2f),
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun InfoOverlay(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
@@ -845,7 +827,7 @@ private fun InfoOverlay(
                             Text(text = "\u2022")
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                text = "Search a city or place to see the temperature averages of the last 31 days, this month so far, and the forecast average temperature.",
+                                text = "Search a city or place to see the temperature averages of the last 31 days, this month so far (up to yesterday), and the forecast average temperature.",
                                 fontFamily = nunitoSansFamily,
                                 style = MaterialTheme.typography.bodyMedium,
                             )
@@ -855,8 +837,20 @@ private fun InfoOverlay(
                             Text(text = "\u2022")
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                text = "The divergence is calculated by comparing this month to the 30 year baseline, " +
-                                        "and Trend compares the forecast average to this months average.",
+                                text = "The divergence compares this month so far with exactly the same days of the 30 year baseline, " +
+                                        "and Trend compares the forecast average to this months average. " +
+                                        "A short text next to the picture sums it up.",
+                                fontFamily = nunitoSansFamily,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Row {
+                            Text(text = "\u2022")
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "Below the search, switch between Current (the averages), Month (a daily chart against the typical range, " +
+                                        "for this month or the last 30 days) and Year (every month of the year so far compared with the climate average).",
                                 fontFamily = nunitoSansFamily,
                                 style = MaterialTheme.typography.bodyMedium,
                             )
@@ -887,12 +881,24 @@ private fun InfoOverlay(
                             Text(text = "\u2022")
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                text = "Settings lets you change the forecast range and historic reference. Furthermore the search language can be changed there.",
+                                text = "Settings lets you change the forecast range and historic reference. Furthermore the search language can be changed there, and the cache can be cleared.",
                                 fontFamily = nunitoSansFamily,
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                         }
                     }
+                    val uriHandler = LocalUriHandler.current
+                    Text(
+                        text = "Weather and climate data by Open-Meteo.com (CC BY 4.0)",
+                        fontFamily = nunitoSansFamily,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        textDecoration = TextDecoration.Underline,
+                        modifier =
+                            Modifier
+                                .testTag("openMeteoCredit")
+                                .clickable { uriHandler.openUri("https://open-meteo.com/") },
+                    )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.End,
@@ -998,7 +1004,7 @@ private fun EarthStatusPhotoCard(
 }
 
 @Composable
-private fun StatusTrendCell(
+internal fun StatusTrendCell(
     label: String,
     value: ValueWithIcons,
     modifier: Modifier = Modifier,
@@ -1048,7 +1054,7 @@ private fun StatusTrendCell(
 }
 
 @Composable
-private fun DividerLine() {
+internal fun DividerLine() {
     Box(
         modifier =
             Modifier
@@ -1059,7 +1065,7 @@ private fun DividerLine() {
 }
 
 @Composable
-private fun VerticalDividerLine() {
+internal fun VerticalDividerLine() {
     Box(
         modifier =
             Modifier
@@ -1069,168 +1075,4 @@ private fun VerticalDividerLine() {
     )
 }
 
-private val WarmIconTint = Color(0xFFE53935)
-private val CoolIconTint = Color(0xFF1E88E5)
-private val NeutralIconTint = Color(0xFF43A047)
-private val WarningIconTint = Color(0xFFE18D10)
-
-private fun anomalyIconCount(absZScore: Double): Int {
-    return when {
-        absZScore < 0.5 -> 0
-        absZScore < 1.5 -> 1
-        absZScore < 2.5 -> 2
-        else -> 3
-    }
-}
-
-internal fun buildStatusCardValue(
-    currentMonth: String,
-    historic: String,
-    historicMonthlyStdDev: Double?,
-    mode: TemperatureComparisonMode,
-): ValueWithIcons {
-    val currentValue = parseTemperature(currentMonth)
-    val historicValue = parseTemperature(historic)
-    if (currentValue == null || historicValue == null) {
-        return ValueWithIcons("-", null)
-    }
-    val delta = currentValue - historicValue
-    val sign = if (delta > 0) "+" else if (delta < 0) "-" else ""
-    val useNormalized =
-        mode == TemperatureComparisonMode.NORMALIZED_ANOMALY &&
-                historicMonthlyStdDev != null &&
-                historicMonthlyStdDev > 0.0
-    val absScore =
-        if (useNormalized) {
-            abs(delta / historicMonthlyStdDev)
-        } else {
-            abs(delta)
-        }
-    val valueText = "$sign${String.format(Locale.US, "%.2f", abs(delta))}°C"
-    val count =
-        if (useNormalized) {
-            anomalyIconCount(absScore)
-        } else {
-            when {
-                absScore < 1.0 -> 0
-                absScore < 2.0 -> 1
-                absScore < 3.0 -> 2
-                else -> 3
-            }
-        }
-    if (count == 0) {
-        return ValueWithIcons(valueText, null)
-    }
-    val classLabel =
-        when (count) {
-            1 -> if (delta > 0) "+" else "-"
-            2 -> if (delta > 0) "++" else "--"
-            else -> if (delta > 0) "+++" else "---"
-        }
-    val (resId, tint, description) =
-        if (delta > 0) {
-            Triple(R.drawable.fire, WarmIconTint, "$classLabel warmer than average")
-        } else {
-            Triple(R.drawable.frost, CoolIconTint, "$classLabel colder than average")
-        }
-    return ValueWithIcons(
-        valueText,
-        IconStack(resId = resId, count = count, tint = tint, contentDescription = description),
-    )
-}
-
-internal fun buildTrendCardValue(
-    forecast: String,
-    currentMonth: String,
-): ValueWithIcons {
-    val forecastValue = parseTemperature(forecast)
-    val currentMonthValue = parseTemperature(currentMonth)
-    if (forecastValue == null || currentMonthValue == null) {
-        return ValueWithIcons("-", null)
-    }
-    val delta = forecastValue - currentMonthValue
-    val absDelta = abs(delta)
-    if (absDelta < 0.25) {
-        return ValueWithIcons(
-            text = "",
-            icons =
-                IconStack(
-                    resId = R.drawable.arrow_right,
-                    count = 1,
-                    tint = NeutralIconTint,
-                    contentDescription = "Trend steady",
-                ),
-        )
-    }
-    val count =
-        when {
-            absDelta > 2.25 -> 3
-            absDelta > 1.25 -> 2
-            else -> 1
-        }
-    val (resId, tint, description) =
-        if (delta > 0) {
-            Triple(R.drawable.up, WarmIconTint, "Trending warmer")
-        } else {
-            Triple(R.drawable.down, CoolIconTint, "Trending cooler")
-        }
-    return ValueWithIcons(
-        text = "",
-        icons = IconStack(
-            resId = resId,
-            count = count,
-            tint = tint,
-            contentDescription = description
-        ),
-    )
-}
-
-internal fun parseTemperature(value: String): Double? {
-    val match = Regex("[-+]?\\d+(?:\\.\\d+)?").find(value) ?: return null
-    return match.value.toDoubleOrNull()
-}
-
-internal fun resolveStatusImageRes(
-    currentMonth: String,
-    historic: String,
-    historicMonthlyStdDev: Double?,
-    mode: TemperatureComparisonMode,
-    status: String,
-): Int {
-    val currentValue = parseTemperature(currentMonth)
-    val historicValue = parseTemperature(historic)
-    val isInitial =
-        currentValue == null &&
-                historicValue == null &&
-                status.startsWith("Enter a city", ignoreCase = true)
-
-    if (isInitial) {
-        return R.drawable.initial
-    }
-    if (currentValue == null || historicValue == null) {
-        return R.drawable.initial
-    }
-    val delta =
-        if (mode == TemperatureComparisonMode.NORMALIZED_ANOMALY &&
-            historicMonthlyStdDev != null &&
-            historicMonthlyStdDev > 0.0
-        ) {
-            (currentValue - historicValue) / historicMonthlyStdDev
-        } else {
-            currentValue - historicValue
-        }
-    val neutralThreshold =
-        if (mode == TemperatureComparisonMode.NORMALIZED_ANOMALY &&
-            historicMonthlyStdDev != null &&
-            historicMonthlyStdDev > 0.0
-        ) {
-            0.5
-        } else {
-            1.0
-        }
-    return when {
-        delta > neutralThreshold -> R.drawable.warm
-        delta < -neutralThreshold -> R.drawable.cold
-        else -> R.drawable.equal
-    }
-}
+internal val WarningIconTint = Color(0xFFE18D10)
