@@ -1,0 +1,48 @@
+package com.example.fineweather.data.repositories
+
+import com.example.fineweather.data.local.dao.GeoCodeDao
+import com.example.fineweather.data.local.dao.WeatherDao
+import io.mockk.coVerify
+import io.mockk.every
+import io.mockk.mockk
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class CacheRepositoryTest {
+
+    private val weatherDao = mockk<WeatherDao>(relaxed = true)
+    private val geoCodeDao = mockk<GeoCodeDao>(relaxed = true)
+
+    @Test
+    fun stats_combinesWeatherAndSearchCounts() = runTest {
+        every { weatherDao.observeCount() } returns flowOf(3)
+        every { geoCodeDao.observeSearchCount() } returns flowOf(7)
+
+        val stats = RoomCacheRepository(weatherDao, geoCodeDao).stats.first()
+
+        assertEquals(CacheStats(weatherEntries = 3, searchEntries = 7), stats)
+    }
+
+    @Test
+    fun clear_clearsBothCaches() = runTest {
+        every { weatherDao.observeCount() } returns flowOf(0)
+        every { geoCodeDao.observeSearchCount() } returns flowOf(0)
+
+        RoomCacheRepository(weatherDao, geoCodeDao).clear()
+
+        coVerify(exactly = 1) { weatherDao.clearAll() }
+        coVerify(exactly = 1) { geoCodeDao.clearAll() }
+    }
+
+    @Test
+    fun cacheStats_isEmptyOnlyWhenBothZero() {
+        assertTrue(CacheStats().isEmpty)
+        assertFalse(CacheStats(weatherEntries = 1).isEmpty)
+        assertFalse(CacheStats(searchEntries = 1).isEmpty)
+    }
+}

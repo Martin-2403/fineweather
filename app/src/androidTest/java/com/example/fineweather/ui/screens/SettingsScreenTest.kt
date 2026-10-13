@@ -6,9 +6,12 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.performScrollTo
 import com.example.fineweather.data.models.HistoricReference
-import com.example.fineweather.data.models.TemperatureComparisonMode
 import com.example.fineweather.ui.theme.FineWeatherTheme
+import com.example.fineweather.data.repositories.CacheStats
 import com.example.fineweather.data.repositories.SettingsDefaults
 import org.junit.Rule
 import org.junit.Test
@@ -37,6 +40,8 @@ class SettingsScreenTest {
                     onHistoricReferenceChange = { referenceState.value = it },
                     onSearchLanguageChange = { languageState.value = it },
                     onTemperatureComparisonModeChange = { comparisonModeState.value = it },
+                    cacheStats = CacheStats(),
+                    onClearCache = {},
                 )
             }
         }
@@ -69,6 +74,8 @@ class SettingsScreenTest {
                     onHistoricReferenceChange = { referenceState.value = it },
                     onSearchLanguageChange = { languageState.value = it },
                     onTemperatureComparisonModeChange = { comparisonModeState.value = it },
+                    cacheStats = CacheStats(),
+                    onClearCache = {},
                 )
             }
         }
@@ -79,5 +86,58 @@ class SettingsScreenTest {
         composeTestRule.runOnIdle {
             assertEquals(HistoricReference.CURRENT, referenceState.value)
         }
+    }
+
+    @Test
+    fun cacheCard_showsStatsAndClearsOnClick() {
+        var clearCalls = 0
+
+        composeTestRule.setContent {
+            FineWeatherTheme {
+                SettingsScreen(
+                    forecastDays = SettingsDefaults.FORECAST_DAYS_SHORT,
+                    historicReference = HistoricReference.CLASSIC,
+                    searchLanguage = SettingsDefaults.DEFAULT_SEARCH_LANGUAGE,
+                    temperatureComparisonMode = SettingsDefaults.DEFAULT_TEMPERATURE_COMPARISON_MODE,
+                    onForecastDaysChange = {},
+                    onHistoricReferenceChange = {},
+                    onSearchLanguageChange = {},
+                    onTemperatureComparisonModeChange = {},
+                    cacheStats = CacheStats(weatherEntries = 2, searchEntries = 1),
+                    onClearCache = { clearCalls++ },
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithTag("cacheSummary").performScrollTo()
+        composeTestRule.onNodeWithText("2 locations and 1 search cached").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("clearCacheButton").performScrollTo().assertIsEnabled().performClick()
+
+        composeTestRule.runOnIdle {
+            assertEquals(1, clearCalls)
+        }
+    }
+
+    @Test
+    fun cacheCard_disablesClearWhenEmpty() {
+        composeTestRule.setContent {
+            FineWeatherTheme {
+                SettingsScreen(
+                    forecastDays = SettingsDefaults.FORECAST_DAYS_SHORT,
+                    historicReference = HistoricReference.CLASSIC,
+                    searchLanguage = SettingsDefaults.DEFAULT_SEARCH_LANGUAGE,
+                    temperatureComparisonMode = SettingsDefaults.DEFAULT_TEMPERATURE_COMPARISON_MODE,
+                    onForecastDaysChange = {},
+                    onHistoricReferenceChange = {},
+                    onSearchLanguageChange = {},
+                    onTemperatureComparisonModeChange = {},
+                    cacheStats = CacheStats(),
+                    onClearCache = {},
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithText("Cache is empty").performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithTag("clearCacheButton").performScrollTo().assertIsNotEnabled()
     }
 }
