@@ -141,7 +141,7 @@ class LocationStatusTest {
     }
 
     @Test
-    fun place_isOneLineAndKeepsTheCoordinatesEvenWhenTheNameIsTooLong() {
+    fun place_keepsTheNameOnOneLineAndTheCoordinatesVisibleEvenWhenTheNameIsTooLong() {
         composeTestRule.setContent {
             FineWeatherTheme {
                 Surface(modifier = Modifier.width(260.dp)) {
@@ -159,7 +159,8 @@ class LocationStatusTest {
 
         composeTestRule.onNodeWithText("(53.22, -4.20)").assertIsDisplayed()
         val height = composeTestRule.onNodeWithTag("locationStatus").getBoundsInRoot().height
-        assertTrue("status should stay on one line but was $height", height <= 32.dp)
+        // Two lines: the (shortened) name, then the coordinates.
+        assertTrue("status should stay at two lines but was $height", height <= 44.dp)
     }
 
     @Test

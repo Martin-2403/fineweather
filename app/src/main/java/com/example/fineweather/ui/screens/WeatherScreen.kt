@@ -593,8 +593,9 @@ private fun isPlaceholderValue(value: String): Boolean {
 }
 
 /**
- * Place name and coordinates on one line; a long name is shortened, the coordinates never are.
- * [onShowAlternatives] adds a "Not your city?" link when the search had other matches.
+ * Place name on the first line (shortened when too long), the coordinates on the second.
+ * [onShowAlternatives] adds a "Not your city?" link after the coordinates when the search had
+ * other matches.
  */
 @Composable
 internal fun LocationStatus(
