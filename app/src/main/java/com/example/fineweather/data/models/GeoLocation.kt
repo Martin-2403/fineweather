@@ -14,11 +14,3 @@ data class GeoPlace(
         listOfNotNull(admin1?.takeIf { it.isNotBlank() }, country?.takeIf { it.isNotBlank() })
             .joinToString(", ")
 }
-
-fun GeoPlace.toFineWeatherData(): FineWeatherData =
-    FineWeatherData(
-        location = name,
-        coordinates = Pair(latitude, longitude),
-        id = id,
-        country = country,
-    )

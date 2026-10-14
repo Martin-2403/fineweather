@@ -41,7 +41,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -59,6 +58,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import com.example.fineweather.viewmodels.PlaceLabel
 import androidx.compose.ui.unit.dp
@@ -72,20 +73,16 @@ import androidx.compose.ui.text.input.ImeAction
 import com.example.fineweather.R
 import com.example.fineweather.nunitoSansFamily
 import com.example.fineweather.data.models.GeoPlace
-import com.example.fineweather.data.models.TemperatureComparisonMode
-import com.example.fineweather.domain.SummaryInput
-import com.example.fineweather.domain.buildSummary
-import com.example.fineweather.ui.models.IconStack
 import com.example.fineweather.ui.models.ValueWithIcons
 import com.example.fineweather.ui.theme.HazyBlue
 import com.example.fineweather.ui.theme.LightTeal
 import com.example.fineweather.ui.theme.SoftMist
 import com.example.fineweather.ui.theme.TealInk
+import com.example.fineweather.viewmodels.Loadable
+import com.example.fineweather.viewmodels.ReportRow
+import com.example.fineweather.viewmodels.SearchStatus
 import com.example.fineweather.viewmodels.WeatherViewModel
-import java.time.LocalDate
-import java.time.format.TextStyle
-import java.util.Locale
-import kotlin.math.abs
+import com.example.fineweather.viewmodels.valueOrNull
 
 @Composable
 fun WeatherScreen(
@@ -100,101 +97,32 @@ fun WeatherScreen(
     var showCurrentMonthWarning by rememberSaveable { mutableStateOf(false) }
     var showAlternatives by rememberSaveable { mutableStateOf(false) }
     var timeScale by rememberSaveable { mutableStateOf(TimeScale.CURRENT) }
-    val climate by viewModel.climate.collectAsState()
-    val status by viewModel.status.collectAsState(initial = "Enter a location to see temperature averages")
-    val resultForecast by viewModel.resultForecastAverage.collectAsState(initial = "")
-    val resultCurrent by viewModel.resultCurrentAverage.collectAsState(initial = "")
-    val resultHistoric by viewModel.resultHistoricAverage.collectAsState(initial = "")
-    val resultCurrentMonth by viewModel.resultCurrentMonthAverage.collectAsState(initial = "")
-    val historicMonthlyStdDev by viewModel.historicMonthlyStdDev.collectAsState(initial = null)
-    val temperatureComparisonMode by viewModel.temperatureComparisonMode.collectAsState(
-        initial = TemperatureComparisonMode.ABSOLUTE_DELTA,
-    )
+    val state by viewModel.state.collectAsState()
+    val report by viewModel.report.collectAsState()
     val forecastDays by viewModel.forecastDays.collectAsState(
         initial = WeatherViewModel.FORECAST_DAYS_SHORT,
     )
-    val historicReference by viewModel.historicReference.collectAsState()
-    val forecastOutlook by viewModel.forecastOutlook.collectAsState()
-    val currentMonthDayCount by viewModel.currentMonthDayCount.collectAsState(initial = 0)
     val apiCallCount by viewModel.apiCallCount.collectAsState(initial = 0)
     val cacheHitCount by viewModel.cacheHitCount.collectAsState(initial = 0)
-    val resolvedLocation by viewModel.resolvedLocationName.collectAsState(initial = "")
-    val places by viewModel.places.collectAsState(initial = emptyList())
     val favorites by viewModel.favorites.collectAsState(initial = emptyList())
-    val selectedPlace by viewModel.selectedPlace.collectAsState(initial = null)
-    val placeLabel by viewModel.placeLabel.collectAsState()
+    val selectedPlace = state.selectedPlace
+    val placeLabel = (state.search as? SearchStatus.Resolved)?.label
+    val resolvedLocation = selectedPlace?.name.orEmpty()
     val isFavoriteSelected = favorites.any { it.id == selectedPlace?.id }
     // Other matches of the last search; only meaningful while the shown place came from that search.
     val alternatives =
-        if (places.any { it.id == selectedPlace?.id }) places.filter { it.id != selectedPlace?.id } else emptyList()
-    val statusCardValue = buildStatusCardValue(
-        currentMonth = resultCurrentMonth,
-        historic = resultHistoric,
-        historicMonthlyStdDev = historicMonthlyStdDev,
-        mode = temperatureComparisonMode,
-    )
-    val trendCardValue = buildTrendCardValue(forecastOutlook)
-    val statusImageRes = resolveStatusImageRes(
-        currentMonth = resultCurrentMonth,
-        historic = resultHistoric,
-        historicMonthlyStdDev = historicMonthlyStdDev,
-        mode = temperatureComparisonMode,
-        status = status,
-    )
-    val summaryBlocks =
-        remember(
-            resultCurrentMonth,
-            resultHistoric,
-            forecastOutlook,
-            historicMonthlyStdDev,
-            temperatureComparisonMode,
-            currentMonthDayCount,
-            historicReference,
-        ) {
-            buildSummary(
-                SummaryInput(
-                    monthName = LocalDate.now().month.getDisplayName(
-                        TextStyle.FULL,
-                        Locale.ENGLISH
-                    ),
-                    monthToDate = parseTemperature(resultCurrentMonth),
-                    reference = parseTemperature(resultHistoric),
-                    referenceLabel = historicReference.displayLabel(),
-                    stdDev = historicMonthlyStdDev,
-                    mode = temperatureComparisonMode,
-                    outlook = forecastOutlook,
-                    daysObserved = currentMonthDayCount,
-                ),
-            )
+        if (state.places.any { it.id == selectedPlace?.id }) {
+            state.places.filter { it.id != selectedPlace?.id }
+        } else {
+            emptyList()
         }
+    val statusCardValue = buildStatusCardValue(report.headline)
+    val trendCardValue = buildTrendCardValue(report.trend)
     val cardShape = RoundedCornerShape(12.dp)
     val cardColors = CardDefaults.elevatedCardColors(
         containerColor = MaterialTheme.colorScheme.surfaceVariant,
         contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    val showCurrentMonthWarningIcon =
-        currentMonthDayCount in 0..6
-                && resultCurrentMonth !== "-"
-                && resultCurrentMonth !== "N/A"
-    val temperatureRows =
-        listOf(
-            TemperatureRowData("Last 31 days", resultCurrent, false),
-            TemperatureRowData(
-                "This month so far",
-                resultCurrentMonth,
-                showCurrentMonthWarningIcon,
-            ),
-            TemperatureRowData(
-                "Next $forecastDays days (forecast)",
-                resultForecast,
-                false,
-            ),
-            TemperatureRowData(
-                if (currentMonthDayCount > 0) "Historical (30y), same days" else "Historical (30y) for this month",
-                resultHistoric,
-                false,
-            ),
-        )
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
@@ -238,7 +166,7 @@ fun WeatherScreen(
             Spacer(modifier = Modifier.height(4.dp))
 
             LocationStatus(
-                status = status,
+                status = state.search.displayText(),
                 label = placeLabel,
                 onShowAlternatives = if (alternatives.isNotEmpty()) ({
                     showAlternatives = true
@@ -248,8 +176,8 @@ fun WeatherScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             StatusHeaderCard(
-                imageRes = statusImageRes,
-                summary = summaryBlocks,
+                imageRes = resolveStatusImageRes(report.picture),
+                summary = report.summary.toBlocks(),
                 statusCardValue = statusCardValue,
                 trendCardValue = trendCardValue,
                 shape = cardShape,
@@ -271,7 +199,7 @@ fun WeatherScreen(
             when (timeScale) {
                 TimeScale.CURRENT ->
                     CurrentView(
-                        rows = temperatureRows,
+                        rows = report.rows,
                         shape = attachedShape,
                         colors = cardColors,
                         onWarningClick = { showCurrentMonthWarning = true },
@@ -279,19 +207,23 @@ fun WeatherScreen(
 
                 TimeScale.MONTH ->
                     MonthView(
-                        snapshot = climate,
+                        snapshot = report.snapshot.valueOrNull(),
                         forecastDays = forecastDays,
-                        referenceLabel = historicReference.displayLabel(),
+                        referenceLabel = report.referenceLabel,
                         shape = attachedShape,
                         colors = cardColors,
+                        loading = report.snapshot is Loadable.Loading,
+                        failed = report.snapshot is Loadable.Failed,
                     )
 
                 TimeScale.YEAR ->
                     YearView(
-                        snapshot = climate,
-                        referenceLabel = historicReference.displayLabel(),
+                        snapshot = report.snapshot.valueOrNull(),
+                        referenceLabel = report.referenceLabel,
                         shape = attachedShape,
                         colors = cardColors,
+                        loading = report.snapshot is Loadable.Loading,
+                        failed = report.snapshot is Loadable.Failed,
                     )
             }
 
@@ -344,10 +276,10 @@ fun WeatherScreen(
             text = {
                 Text(
                     text =
-                        if (currentMonthDayCount == 0) {
+                        if (report.dayCount == 0) {
                             "This month has no data yet. Check back soon for a more stable average."
                         } else {
-                            "This month's average is based on $currentMonthDayCount days of data. " +
+                            "This month's average is based on ${report.dayCount} days of data. " +
                                     "Values can shift as more data arrives."
                         },
                     fontFamily = nunitoSansFamily,
@@ -486,7 +418,7 @@ private fun SearchActions(
 
 @Composable
 private fun CurrentView(
-    rows: List<TemperatureRowData>,
+    rows: List<ReportRow>,
     shape: RoundedCornerShape,
     colors: CardColors,
     onWarningClick: () -> Unit,
@@ -518,20 +450,14 @@ private fun CurrentView(
     }
 }
 
-private data class TemperatureRowData(
-    val label: String,
-    val value: String,
-    val showWarning: Boolean,
-)
-
 @Composable
 private fun TemperatureRow(
     label: String,
-    value: String,
+    value: Loadable<Double>,
     showWarning: Boolean = false,
     onWarningClick: (() -> Unit)? = null,
 ) {
-    val isPlaceholder = isPlaceholderValue(value)
+    val isPlaceholder = value.isPlaceholder()
     Row(
         modifier =
             Modifier
@@ -562,34 +488,23 @@ private fun TemperatureRow(
             }
         }
         Text(
-            text = value,
+            text = value.displayText(),
             fontFamily = nunitoSansFamily,
             textAlign = TextAlign.End,
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = if (isPlaceholder) FontWeight.Normal else FontWeight.SemiBold,
-            color = valueColor(value),
+            color = valueColor(isPlaceholder),
         )
     }
 }
 
 @Composable
-private fun valueColor(value: String): Color {
-    return if (isPlaceholderValue(value)) {
+private fun valueColor(placeholder: Boolean): Color {
+    return if (placeholder) {
         MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
     } else {
         MaterialTheme.colorScheme.onSurface
     }
-}
-
-private fun isPlaceholderValue(value: String): Boolean {
-    val trimmed = value.trim()
-    return trimmed.isEmpty() ||
-            trimmed == "-" ||
-            trimmed.equals("N/A", ignoreCase = true) ||
-            trimmed.equals("Fetching...", ignoreCase = true) ||
-            trimmed.equals("Error", ignoreCase = true) ||
-            trimmed.equals("Loading...", ignoreCase = true) ||
-            trimmed.equals("No data yet", ignoreCase = true)
 }
 
 /**
@@ -948,9 +863,13 @@ internal fun StatusTrendCell(
             if (value.text.isNotBlank()) {
                 Text(
                     text = value.text,
+                    modifier =
+                        Modifier.semantics {
+                            value.description?.let { contentDescription = it }
+                        },
                     fontFamily = nunitoSansFamily,
                     style = MaterialTheme.typography.bodyLarge,
-                    color = valueColor(value.text),
+                    color = valueColor(value.placeholder),
                     textAlign = TextAlign.End,
                 )
             }

@@ -4,42 +4,35 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.fineweather.data.models.FineWeatherData
 import com.example.fineweather.data.models.GeoPlace
-import com.example.fineweather.data.models.toFineWeatherData
 import com.example.fineweather.data.models.HistoricReference
 import com.example.fineweather.data.models.TemperatureComparisonMode
+import com.example.fineweather.data.repositories.CacheResult
 import com.example.fineweather.data.repositories.FavoriteAddResult
 import com.example.fineweather.data.repositories.FavoriteRepository
+import com.example.fineweather.data.repositories.GeoCodeRepository
+import com.example.fineweather.data.repositories.RateLimitException
 import com.example.fineweather.data.repositories.SettingsDefaults
 import com.example.fineweather.data.repositories.SettingsRepository
-import com.example.fineweather.data.repositories.GeoCodeRepository
-import com.example.fineweather.data.repositories.CacheResult
-import com.example.fineweather.data.repositories.RateLimitException
 import com.example.fineweather.data.repositories.WeatherRepository
-import com.example.fineweather.domain.ClimateSnapshot
-import com.example.fineweather.domain.DailySeries
-import com.example.fineweather.domain.ForecastOutlook
-import com.example.fineweather.domain.ReferenceClimate
-import com.example.fineweather.domain.forecastOutlook
-import com.example.fineweather.domain.lastDaysMean
-import com.example.fineweather.domain.monthToDate
 import com.example.fineweather.utils.formatCoordinates
-import com.example.fineweather.utils.formatDouble
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import java.io.IOException
 import java.time.LocalDate
-
-/** A resolved place for the one-line status: [name] may be shortened by the UI, [coordinates] never. */
-data class PlaceLabel(
-    val name: String,
-    val coordinates: String,
-)
+import java.util.concurrent.atomic.AtomicBoolean
 
 class WeatherViewModel(
     private val weatherRepository: WeatherRepository,
@@ -51,69 +44,65 @@ class WeatherViewModel(
     companion object {
         const val FORECAST_DAYS_SHORT = SettingsDefaults.FORECAST_DAYS_SHORT
         const val FORECAST_DAYS_LONG = SettingsDefaults.FORECAST_DAYS_LONG
+        private const val RATE_LIMIT_MESSAGE = "Weather service limit reached. Showing cached data where available."
     }
 
     private val _forecastDays = MutableStateFlow(FORECAST_DAYS_SHORT)
     val forecastDays: StateFlow<Int> = _forecastDays
     private val _historicReference = MutableStateFlow(SettingsDefaults.DEFAULT_HISTORIC_REFERENCE)
-    val historicReference: StateFlow<HistoricReference> = _historicReference
     private val _temperatureComparisonMode =
         MutableStateFlow(SettingsDefaults.DEFAULT_TEMPERATURE_COMPARISON_MODE)
-    val temperatureComparisonMode: StateFlow<TemperatureComparisonMode> = _temperatureComparisonMode
     private val _searchLanguage = MutableStateFlow(SettingsDefaults.DEFAULT_SEARCH_LANGUAGE)
-    private val _resultForecastAverage = MutableStateFlow("-")
-    val resultForecastAverage: StateFlow<String> = _resultForecastAverage
-    private val _resultCurrentAverage = MutableStateFlow("-")
-    val resultCurrentAverage: StateFlow<String> = _resultCurrentAverage
-    private val _resultCurrentMonthAverage = MutableStateFlow("-")
-    val resultCurrentMonthAverage: StateFlow<String> = _resultCurrentMonthAverage
-    private val _resultHistoricAverage = MutableStateFlow("-")
-    val resultHistoricAverage: StateFlow<String> = _resultHistoricAverage
-    private val _historicMonthlyStdDev = MutableStateFlow<Double?>(null)
-    val historicMonthlyStdDev: StateFlow<Double?> = _historicMonthlyStdDev
-    private val _forecastOutlook = MutableStateFlow<ForecastOutlook?>(null)
-    val forecastOutlook: StateFlow<ForecastOutlook?> = _forecastOutlook
-    private var lastForecast: DailySeries? = null
-    private val _climate = MutableStateFlow<ClimateSnapshot?>(null)
-    val climate: StateFlow<ClimateSnapshot?> = _climate
-    private val _currentMonthDayCount = MutableStateFlow(0)
-    val currentMonthDayCount: StateFlow<Int> = _currentMonthDayCount
+
+    private val _state = MutableStateFlow(WeatherUiState(today = nowProvider()))
+    val state: StateFlow<WeatherUiState> = _state.asStateFlow()
+
+    /** What the screen shows: the loaded [state] under the current settings. */
+    val report: StateFlow<WeatherReport> =
+        combine(_state, _forecastDays, _historicReference, _temperatureComparisonMode) { state, days, reference, mode ->
+            buildReport(state, days, mode, reference)
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue =
+                buildReport(
+                    _state.value,
+                    _forecastDays.value,
+                    _temperatureComparisonMode.value,
+                    _historicReference.value,
+                ),
+        )
+
     private val _apiCallCount = MutableStateFlow(0)
     val apiCallCount: StateFlow<Int> = _apiCallCount
     private val _cacheHitCount = MutableStateFlow(0)
     val cacheHitCount: StateFlow<Int> = _cacheHitCount
 
-    private val _resolvedLocationName = MutableStateFlow("")
-    val resolvedLocationName: StateFlow<String> = _resolvedLocationName
-
-    private val _placeLabel = MutableStateFlow<PlaceLabel?>(null)
-    val placeLabel: StateFlow<PlaceLabel?> = _placeLabel
-
-    private val _status = MutableStateFlow("Enter a city to see temperature averages")
-    val status: StateFlow<String> = _status
-    private val _coordinates = MutableStateFlow(Pair(0.0, 0.0))
-    private var lastResolvedData: FineWeatherData? = null
-    private val _places = MutableStateFlow<List<GeoPlace>>(emptyList())
-    val places: StateFlow<List<GeoPlace>> = _places
-    private val _selectedPlace = MutableStateFlow<GeoPlace?>(null)
-    val selectedPlace: StateFlow<GeoPlace?> = _selectedPlace
     val favorites: StateFlow<List<GeoPlace>> =
         favoriteRepository.favorites.stateIn(
             scope = viewModelScope,
             started = SharingStarted.Eagerly,
             initialValue = emptyList(),
         )
-    private val _snackbarMessages = MutableSharedFlow<String>()
+
+    // Never suspends the emitter: a snackbar stays up for seconds and loading must not wait for it.
+    private val _snackbarMessages = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val snackbarMessages = _snackbarMessages.asSharedFlow()
+
+    /** The running geocoding of a search; starting another search or selection cancels it. */
+    private var searchJob: Job? = null
+
+    /** One running load per slice, so a slice can be reloaded without touching the others. */
+    private val sliceJobs = mutableMapOf<Slice, Job>()
+
+    /** Counts searches and selections; a result only applies while it still belongs to the current one. */
+    private var searchGeneration = 0L
+    private val rateLimitShown = AtomicBoolean(false)
 
     init {
         viewModelScope.launch {
             settingsRepository.forecastDays.collect { days ->
-                val changed = _forecastDays.value != days
                 _forecastDays.value = days
-                if (changed && lastForecast != null) {
-                    publishForecast()
-                }
             }
         }
         viewModelScope.launch {
@@ -121,9 +110,7 @@ class WeatherViewModel(
                 val changed = _historicReference.value != reference
                 _historicReference.value = reference
                 if (changed) {
-                    lastResolvedData?.let { data ->
-                        loadClimate(data)
-                    }
+                    reloadReference()
                 }
             }
         }
@@ -140,234 +127,186 @@ class WeatherViewModel(
     }
 
     fun fetchWeather(location: String) {
+        val generation = beginSearch()
         if (location.trim().isEmpty()) {
-            _status.value = "Enter a location to see temperature averages"
-            _placeLabel.value = null
-            clearForecast()
-            setDataValues("-")
-            _currentMonthDayCount.value = 0
-            _coordinates.value = Pair(0.0, 0.0)
-            _resolvedLocationName.value = ""
-            _places.value = emptyList()
-            _selectedPlace.value = null
-            _historicMonthlyStdDev.value = null
-            _climate.value = null
-            lastResolvedData = null
+            _state.value = WeatherUiState(today = nowProvider())
             return
         }
-        viewModelScope.launch {
-            _status.value = "Searching for $location..."
-            _placeLabel.value = null
-            clearForecast()
-            setDataValues("Loading...")
-            try {
-                weatherRepository.cleanOutdatedWeatherDate()
-                val selection = geoCodeRepository.getGeoCode(
-                    name = location.trim(),
-                    language = _searchLanguage.value,
-                )
-                val primaryPlace = selection.primary
-                _selectedPlace.value = primaryPlace
-                _places.value = selection.candidates
-                val data = primaryPlace.toFineWeatherData()
-
-                _coordinates.value = data.coordinates
-                lastResolvedData = data
-
-                val resolvedLocationDisplay =
-                    listOfNotNull(
-                        primaryPlace.name,
-                        primaryPlace.admin1?.takeIf { it.isNotBlank() },
-                        primaryPlace.country?.takeIf { it.isNotBlank() },
-                    )
-                        .filter { it.isNotBlank() }
-                        .joinToString(", ")
-                _resolvedLocationName.value = primaryPlace.name
-                val coordinates = formatCoordinates(data.coordinates.first, data.coordinates.second)
-                _status.value = "$resolvedLocationDisplay ($coordinates)"
-                _placeLabel.value = PlaceLabel(resolvedLocationDisplay, coordinates)
-                fetchWeatherForData(data)
-            } catch (ex: Exception) {
-                _status.value = "City not found"
-                _placeLabel.value = null
-                clearForecast()
-                setDataValues("N/A")
-                _resolvedLocationName.value = ""
-                _currentMonthDayCount.value = 0
-                _historicMonthlyStdDev.value = null
-                _climate.value = null
-                _places.value = emptyList()
-                _selectedPlace.value = null
-                Log.e(
-                    "WeatherAPI",
-                    ex.message ?: "Error occurred while trying to geocode the location",
-                )
-            }
-        }
-    }
-
-    fun setDataValues(text: String) {
-        _resultForecastAverage.value = text
-        _resultCurrentAverage.value = text
-        _resultHistoricAverage.value = text
-        _resultCurrentMonthAverage.value = text
-    }
-
-    private suspend fun fetchWeatherForData(data: FineWeatherData) {
-        loadForecast(data)
-        loadClimate(data)
-    }
-
-    private suspend fun loadForecast(data: FineWeatherData) {
-        _resultForecastAverage.value = "Fetching..."
-        lastForecast =
-            loadOrNull("forecast") {
-                weatherRepository.getForecast(
-                    data.id,
-                    data.coordinates.first,
-                    data.coordinates.second,
-                    nowProvider(),
-                )
-            }
-        if (lastForecast == null) {
-            _resultForecastAverage.value = "Error"
-            _forecastOutlook.value = null
-        } else {
-            publishForecast()
-        }
-    }
-
-    /** The average and outlook of the next forecast days, from the stored 14-day series. */
-    private fun publishForecast() {
-        val outlook = forecastOutlook(lastForecast, _climate.value?.reference, _forecastDays.value)
-        _forecastOutlook.value = outlook
-        _resultForecastAverage.value = outlook?.let { "${formatDouble(it.mean)}°C" } ?: "N/A"
-    }
-
-    private fun clearForecast() {
-        lastForecast = null
-        _forecastOutlook.value = null
-    }
-
-    private suspend fun loadClimate(data: FineWeatherData) {
         val today = nowProvider()
-        _resultCurrentAverage.value = "Fetching..."
-        _resultCurrentMonthAverage.value = "Fetching..."
-        _resultHistoricAverage.value = "Fetching..."
-
-        val series =
-            loadOrNull("current weather") {
-                weatherRepository.getYearToDate(
-                    data.id,
-                    data.coordinates.first,
-                    data.coordinates.second,
-                    today,
-                )
-            }
-        val climate =
-            loadOrNull("historic weather") {
-                weatherRepository.getReferenceClimate(
-                    data.id,
-                    data.coordinates.first,
-                    data.coordinates.second,
-                    _historicReference.value,
-                    today,
-                )
-            }
-        publishClimate(series, climate, today)
-    }
-
-    private suspend fun <T> loadOrNull(
-        what: String,
-        load: suspend () -> CacheResult<T>,
-    ): T? =
-        try {
-            val result = load()
-            if (result.fromCache) incrementCacheHits() else incrementApiCalls()
-            result.value
-        } catch (e: Exception) {
-            incrementApiCalls()
-            Log.e("WeatherAPI", e.message ?: "Error occurred while trying to fetch the $what")
-            if (e is RateLimitException) {
-                _snackbarMessages.emit(
-                    "Weather service limit reached. Showing cached data where available.",
-                )
-            }
-            null
-        }
-
-    private fun publishClimate(
-        series: DailySeries?,
-        climate: ReferenceClimate?,
-        today: LocalDate,
-    ) {
-        if (series == null) {
-            _resultCurrentAverage.value = "Error"
-            _resultCurrentMonthAverage.value = "Error"
-            _currentMonthDayCount.value = 0
-        } else {
-            _resultCurrentAverage.value =
-                lastDaysMean(series, today)?.let { "${formatDouble(it)}°C" } ?: "N/A"
-        }
-
-        val monthToDate = series?.let { monthToDate(it, climate, today) }
-        if (series != null) {
-            when {
-                monthToDate != null -> {
-                    _resultCurrentMonthAverage.value = "${formatDouble(monthToDate.observedMean)}°C"
-                    _currentMonthDayCount.value = monthToDate.daysObserved
+        _state.update { it.copy(today = today, search = SearchStatus.Searching(location)).withAllLoading() }
+        searchJob =
+            viewModelScope.launch {
+                val selection =
+                    try {
+                        weatherRepository.cleanOutdatedWeatherDate()
+                        geoCodeRepository.getGeoCode(
+                            name = location.trim(),
+                            language = _searchLanguage.value,
+                        )
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (ex: Exception) {
+                        // Some layer may have wrapped the cancellation of a superseded search.
+                        currentCoroutineContext().ensureActive()
+                        Log.e(
+                            "WeatherAPI",
+                            ex.message ?: "Error occurred while trying to geocode the location",
+                        )
+                        updateIfCurrent(generation) {
+                            it.copy(
+                                search = SearchStatus.NotFound(location),
+                                selectedPlace = null,
+                                places = emptyList(),
+                                forecast = Loadable.Unavailable(Reason.NOT_AVAILABLE),
+                                year = Loadable.Unavailable(Reason.NOT_AVAILABLE),
+                                reference = Loadable.Unavailable(Reason.NOT_AVAILABLE),
+                            )
+                        }
+                        return@launch
+                    }
+                val place = selection.primary
+                updateIfCurrent(generation) {
+                    it.copy(
+                        search = SearchStatus.Resolved(place.toPlaceLabel()),
+                        selectedPlace = place,
+                        places = selection.candidates,
+                    )
                 }
-
-                today.dayOfMonth == 1 -> {
-                    _resultCurrentMonthAverage.value = "N/A"
-                    _currentMonthDayCount.value = 0
-                }
-
-                else -> {
-                    _resultCurrentMonthAverage.value = "No data yet"
-                    _currentMonthDayCount.value = 0
-                }
+                loadAllSlices(place, today, generation)
             }
-        }
-
-        if (climate == null) {
-            _resultHistoricAverage.value = "Error"
-            _historicMonthlyStdDev.value = null
-        } else {
-            // Without a complete day of the month yet, fall back to the whole month's normal.
-            val referenceMean = monthToDate?.referenceMean ?: climate.monthMean(today.monthValue)
-            _historicMonthlyStdDev.value =
-                if (monthToDate != null) monthToDate.referenceStdDev else climate.monthStdDev(today.monthValue)
-            _resultHistoricAverage.value = referenceMean?.let { "${formatDouble(it)}°C" } ?: "N/A"
-        }
-
-        _climate.value = series?.let { ClimateSnapshot(it, climate, today, lastForecast) }
-        if (lastForecast != null) publishForecast()
     }
 
     fun selectPlace(place: GeoPlace) {
-        viewModelScope.launch {
-            val data = place.toFineWeatherData()
-            val display =
-                listOfNotNull(
-                    place.name,
-                    place.admin1?.takeIf { it.isNotBlank() },
-                    place.country?.takeIf { it.isNotBlank() },
-                )
-                    .filter { it.isNotBlank() }
-                    .joinToString(", ")
-            _selectedPlace.value = place
-            _resolvedLocationName.value = place.name
-            val coordinates = formatCoordinates(data.coordinates.first, data.coordinates.second)
-            _status.value = "$display ($coordinates)"
-            _placeLabel.value = PlaceLabel(display, coordinates)
-            lastResolvedData = data
-            fetchWeatherForData(data)
+        val generation = beginSearch()
+        val today = nowProvider()
+        _state.update {
+            it.copy(
+                today = today,
+                search = SearchStatus.Resolved(place.toPlaceLabel()),
+                selectedPlace = place,
+            ).withAllLoading()
         }
+        loadAllSlices(place, today, generation)
     }
 
+    /** Cancels everything of the previous search and starts a new generation. */
+    private fun beginSearch(): Long {
+        searchJob?.cancel()
+        sliceJobs.values.forEach { it.cancel() }
+        sliceJobs.clear()
+        rateLimitShown.set(false)
+        return ++searchGeneration
+    }
+
+    /** Loads the reference of the shown place again; the other slices carry on undisturbed. */
+    private fun reloadReference() {
+        val current = _state.value
+        val place = current.selectedPlace ?: return
+        if (current.search !is SearchStatus.Resolved) return
+        _state.update { it.copy(reference = Loadable.Loading) }
+        loadReference(place, current.today, searchGeneration)
+    }
+
+    private fun loadAllSlices(
+        place: GeoPlace,
+        today: LocalDate,
+        generation: Long,
+    ) {
+        loadForecast(place, today, generation)
+        loadYear(place, today, generation)
+        loadReference(place, today, generation)
+    }
+
+    private fun loadForecast(
+        place: GeoPlace,
+        today: LocalDate,
+        generation: Long,
+    ) = launchSlice(Slice.FORECAST, generation, { copy(forecast = it) }) {
+        weatherRepository.getForecast(place.id, place.latitude, place.longitude, today)
+    }
+
+    private fun loadYear(
+        place: GeoPlace,
+        today: LocalDate,
+        generation: Long,
+    ) = launchSlice(Slice.YEAR, generation, { copy(year = it) }) {
+        weatherRepository.getYearToDate(place.id, place.latitude, place.longitude, today)
+    }
+
+    private fun loadReference(
+        place: GeoPlace,
+        today: LocalDate,
+        generation: Long,
+    ) = launchSlice(Slice.REFERENCE, generation, { copy(reference = it) }) {
+        weatherRepository.getReferenceClimate(
+            place.id,
+            place.latitude,
+            place.longitude,
+            _historicReference.value,
+            today,
+        )
+    }
+
+    /**
+     * Loads one slice in its own job, replacing a running load of the same slice. The scope's
+     * supervisor job keeps a failing slice from affecting the others, and [loadSlice] catches its
+     * errors anyway.
+     */
+    private fun <T> launchSlice(
+        slice: Slice,
+        generation: Long,
+        store: WeatherUiState.(Loadable<T>) -> WeatherUiState,
+        load: suspend () -> CacheResult<T>,
+    ) {
+        sliceJobs[slice]?.cancel()
+        sliceJobs[slice] =
+            viewModelScope.launch {
+                val result = loadSlice(slice, generation, load)
+                updateIfCurrent(generation) { it.store(result) }
+            }
+    }
+
+    private fun updateIfCurrent(
+        generation: Long,
+        transform: (WeatherUiState) -> WeatherUiState,
+    ) {
+        _state.update { if (generation == searchGeneration) transform(it) else it }
+    }
+
+    private suspend fun <T> loadSlice(
+        slice: Slice,
+        generation: Long,
+        load: suspend () -> CacheResult<T>,
+    ): Loadable<T> =
+        try {
+            val result = load()
+            if (result.fromCache) incrementCacheHits() else incrementApiCalls()
+            Loadable.Ready(result.value)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Some layer may have wrapped the cancellation of a superseded load.
+            currentCoroutineContext().ensureActive()
+            incrementApiCalls()
+            Log.e("WeatherAPI", e.message ?: "Error occurred while trying to fetch the ${slice.label}")
+            Loadable.Failed(
+                when {
+                    e is RateLimitException -> {
+                        // At most once per search, as soon as the first slice runs into the limit.
+                        if (generation == searchGeneration && rateLimitShown.compareAndSet(false, true)) {
+                            _snackbarMessages.tryEmit(RATE_LIMIT_MESSAGE)
+                        }
+                        FailKind.RATE_LIMITED
+                    }
+
+                    generateSequence<Throwable>(e) { it.cause }.any { it is IOException } -> FailKind.NETWORK
+                    else -> FailKind.OTHER
+                },
+            )
+        }
+
     fun toggleFavorite() {
-        val selected = _selectedPlace.value ?: return
+        val selected = _state.value.selectedPlace ?: return
         viewModelScope.launch {
             val isFavorite = favorites.value.any { it.id == selected.id }
             if (isFavorite) {
@@ -376,9 +315,7 @@ class WeatherViewModel(
             }
             val result = favoriteRepository.addFavorite(selected)
             if (result == FavoriteAddResult.LIMIT_REACHED) {
-                _snackbarMessages.emit(
-                    "Favorites limit reached (10). Remove one to add another.",
-                )
+                _snackbarMessages.tryEmit("Favorites limit reached (10). Remove one to add another.")
             }
         }
     }
@@ -389,12 +326,12 @@ class WeatherViewModel(
         }
     }
 
-    private fun incrementApiCalls(count: Int = 1) {
-        _apiCallCount.value += count
+    private fun incrementApiCalls() {
+        _apiCallCount.update { it + 1 }
     }
 
-    private fun incrementCacheHits(count: Int = 1) {
-        _cacheHitCount.value += count
+    private fun incrementCacheHits() {
+        _cacheHitCount.update { it + 1 }
     }
 
     fun setForecastDays(days: Int) {
@@ -411,6 +348,25 @@ class WeatherViewModel(
     }
 
 }
+
+private enum class Slice(val label: String) {
+    FORECAST("forecast"),
+    YEAR("current weather"),
+    REFERENCE("historic weather"),
+}
+
+/** All slices back to loading, so nothing of the previous place is left on screen. */
+private fun WeatherUiState.withAllLoading() =
+    copy(forecast = Loadable.Loading, year = Loadable.Loading, reference = Loadable.Loading)
+
+private fun GeoPlace.toPlaceLabel(): PlaceLabel =
+    PlaceLabel(
+        name =
+            listOfNotNull(name, admin1?.takeIf { it.isNotBlank() }, country?.takeIf { it.isNotBlank() })
+                .filter { it.isNotBlank() }
+                .joinToString(", "),
+        coordinates = formatCoordinates(latitude, longitude),
+    )
 
 class WeatherViewModelFactory(
     private val weatherRepository: WeatherRepository,

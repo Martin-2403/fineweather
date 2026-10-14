@@ -152,5 +152,35 @@ class TimeScaleViewsTest {
         composeTestRule.onNodeWithText("Search for a place to compare its months with the climate average.")
             .assertIsDisplayed()
     }
-}
 
+    @Test
+    fun monthView_whileLoading_showsPlaceholderInsteadOfThePrompt() {
+        show { shape, colors -> MonthView(null, 7, "1961–1990", shape, colors, loading = true) }
+
+        composeTestRule.onNodeWithText("Loading…").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Search for a place to see its daily temperatures.").assertDoesNotExist()
+    }
+
+    @Test
+    fun monthView_afterAFailure_saysError() {
+        show { shape, colors -> MonthView(null, 7, "1961–1990", shape, colors, failed = true) }
+
+        composeTestRule.onNodeWithText("Error").assertIsDisplayed()
+    }
+
+    @Test
+    fun yearView_whileLoading_showsPlaceholderInsteadOfThePrompt() {
+        show { shape, colors -> YearView(null, "1961–1990", shape, colors, loading = true) }
+
+        composeTestRule.onNodeWithText("Loading…").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Search for a place to compare its months with the climate average.")
+            .assertDoesNotExist()
+    }
+
+    @Test
+    fun yearView_afterAFailure_saysError() {
+        show { shape, colors -> YearView(null, "1961–1990", shape, colors, failed = true) }
+
+        composeTestRule.onNodeWithText("Error").assertIsDisplayed()
+    }
+}

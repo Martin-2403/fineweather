@@ -16,7 +16,6 @@ import com.example.fineweather.data.repositories.SettingsDefaults
 import com.example.fineweather.data.repositories.SettingsRepository
 import com.example.fineweather.data.repositories.WeatherRepository
 import com.example.fineweather.domain.DailySeries
-import com.example.fineweather.domain.ForecastOutlook
 import com.example.fineweather.domain.ReferenceClimate
 import com.example.fineweather.domain.seriesOf
 import com.example.fineweather.domain.syntheticReference
@@ -27,23 +26,36 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import java.io.IOException
 import java.time.LocalDate
 
 class WeatherViewModelTest {
@@ -97,6 +109,11 @@ class WeatherViewModelTest {
         nowProvider = { now },
     )
 
+    private val state get() = viewModel.state.value
+    private val report get() = viewModel.report.value
+
+    private fun row(index: Int) = report.rows[index].value
+
     // ---- fetching ----
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -107,17 +124,20 @@ class WeatherViewModelTest {
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
 
-        assertEquals("10.00°C", viewModel.resultCurrentAverage.value)
-        assertEquals("10.00°C", viewModel.resultCurrentMonthAverage.value)
-        assertEquals(1, viewModel.currentMonthDayCount.value)
-        assertEquals("4.00°C", viewModel.resultHistoricAverage.value)
-        assertEquals(0.0, viewModel.historicMonthlyStdDev.value!!, 1e-9)
-        assertEquals("12.00°C", viewModel.resultForecastAverage.value)
-        assertEquals("Berlin", viewModel.resolvedLocationName.value)
-        assertNotNull(viewModel.climate.value)
-        assertEquals(fixedNow, viewModel.climate.value!!.today)
-        assertEquals("Berlin, Germany (1.00, 2.00)", viewModel.status.value)
-        assertEquals(PlaceLabel("Berlin, Germany", "1.00, 2.00"), viewModel.placeLabel.value)
+        assertEquals(Loadable.Ready(10.0), row(0))
+        assertEquals(Loadable.Ready(10.0), row(1))
+        assertEquals(1, report.dayCount)
+        assertEquals(Loadable.Ready(4.0), row(3))
+        assertEquals(Loadable.Ready(12.0), row(2))
+        assertEquals(0.0, (report.headline as Loadable.Ready).value.stdDev!!, 1e-9)
+        assertEquals("Berlin", state.selectedPlace?.name)
+        val snapshot = (report.snapshot as Loadable.Ready).value
+        assertEquals(fixedNow, snapshot.today)
+        assertEquals(fixedNow, report.today)
+        assertEquals(
+            SearchStatus.Resolved(PlaceLabel("Berlin, Germany", "1.00, 2.00")),
+            state.search,
+        )
         coVerify(exactly = 1) {
             weatherRepository.getYearToDate(data.id, 1.0, 2.0, fixedNow)
         }
@@ -144,7 +164,7 @@ class WeatherViewModelTest {
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
 
-        assertEquals("12.00°C", viewModel.resultForecastAverage.value)
+        assertEquals(Loadable.Ready(12.0), row(2))
         assertEquals(1, viewModel.apiCallCount.value) // only the year series
         assertEquals(2, viewModel.cacheHitCount.value) // reference and forecast
     }
@@ -157,14 +177,14 @@ class WeatherViewModelTest {
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
 
-        assertEquals("12.00°C", viewModel.resultForecastAverage.value)
-        val outlook = viewModel.forecastOutlook.value!!
+        assertEquals(Loadable.Ready(12.0), row(2))
+        val outlook = (report.trend as Loadable.Ready).value
         assertEquals(7, outlook.days)
         assertEquals(12.0, outlook.mean, 1e-9)
         // reference days Apr 2..8 are 4.0 in every year
         assertEquals(4.0, outlook.referenceMean!!, 1e-9)
         assertEquals(8.0, outlook.delta!!, 1e-9)
-        assertEquals(forecastSeries.start, viewModel.climate.value!!.forecast!!.start)
+        assertEquals(forecastSeries.start, (report.snapshot as Loadable.Ready).value.forecast!!.start)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -177,8 +197,8 @@ class WeatherViewModelTest {
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
 
-        assertEquals("13.50°C", viewModel.resultForecastAverage.value)
-        assertEquals(14, viewModel.forecastOutlook.value!!.days)
+        assertEquals(Loadable.Ready(13.5), row(2))
+        assertEquals(14, (report.trend as Loadable.Ready).value.days)
         coVerify(exactly = 1) { weatherRepository.getForecast(data.id, 1.0, 2.0, fixedNow) }
     }
 
@@ -205,10 +225,10 @@ class WeatherViewModelTest {
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
 
-        assertEquals("N/A", viewModel.resultCurrentMonthAverage.value)
-        assertEquals(0, viewModel.currentMonthDayCount.value)
-        assertEquals("4.00°C", viewModel.resultHistoricAverage.value)
-        assertEquals("10.00°C", viewModel.resultCurrentAverage.value)
+        assertEquals(Loadable.Unavailable(Reason.NOT_AVAILABLE), row(1))
+        assertEquals(0, report.dayCount)
+        assertEquals(Loadable.Ready(4.0), row(3))
+        assertEquals(Loadable.Ready(10.0), row(0))
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -223,8 +243,8 @@ class WeatherViewModelTest {
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
 
-        assertEquals("No data yet", viewModel.resultCurrentMonthAverage.value)
-        assertEquals(0, viewModel.currentMonthDayCount.value)
+        assertEquals(Loadable.Unavailable(Reason.NO_DATA_YET), row(1))
+        assertEquals(0, report.dayCount)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -236,11 +256,12 @@ class WeatherViewModelTest {
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
 
-        assertEquals("Error", viewModel.resultCurrentAverage.value)
-        assertEquals("Error", viewModel.resultCurrentMonthAverage.value)
-        assertEquals(0, viewModel.currentMonthDayCount.value)
-        assertNull(viewModel.climate.value)
-        assertEquals("4.00°C", viewModel.resultHistoricAverage.value)
+        assertEquals(Loadable.Failed(FailKind.OTHER), state.year)
+        assertEquals(Loadable.Failed(FailKind.OTHER), row(0))
+        assertEquals(Loadable.Failed(FailKind.OTHER), row(1))
+        assertEquals(0, report.dayCount)
+        assertEquals(Loadable.Failed(FailKind.OTHER), report.snapshot)
+        assertEquals(Loadable.Ready(4.0), row(3))
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -254,11 +275,10 @@ class WeatherViewModelTest {
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
 
-        assertEquals("Error", viewModel.resultHistoricAverage.value)
-        assertNull(viewModel.historicMonthlyStdDev.value)
-        assertEquals("10.00°C", viewModel.resultCurrentMonthAverage.value)
-        assertNotNull(viewModel.climate.value)
-        assertNull(viewModel.climate.value!!.reference)
+        assertEquals(Loadable.Failed(FailKind.OTHER), row(3))
+        assertEquals(Loadable.Failed(FailKind.OTHER), report.headline)
+        assertEquals(Loadable.Ready(10.0), row(1))
+        assertNull((report.snapshot as Loadable.Ready).value.reference)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -270,10 +290,23 @@ class WeatherViewModelTest {
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
 
-        assertEquals("Error", viewModel.resultForecastAverage.value)
-        assertNull(viewModel.forecastOutlook.value)
-        assertNull(viewModel.climate.value!!.forecast)
-        assertEquals("10.00°C", viewModel.resultCurrentMonthAverage.value)
+        assertEquals(Loadable.Failed(FailKind.OTHER), row(2))
+        assertEquals(Loadable.Failed(FailKind.OTHER), report.trend)
+        assertNull((report.snapshot as Loadable.Ready).value.forecast)
+        assertEquals(Loadable.Ready(10.0), row(1))
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun fetchWeather_classifiesNetworkFailures() = runTest {
+        stubSearch()
+        coEvery { weatherRepository.getYearToDate(any(), any(), any(), any()) } throws
+            Exception("Failed to fetch weather data", IOException("offline"))
+
+        viewModel.fetchWeather("Berlin")
+        advanceUntilIdle()
+
+        assertEquals(Loadable.Failed(FailKind.NETWORK), state.year)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -290,7 +323,46 @@ class WeatherViewModelTest {
             "Weather service limit reached. Showing cached data where available.",
             message.await(),
         )
-        assertEquals("Error", viewModel.resultCurrentMonthAverage.value)
+        assertEquals(Loadable.Failed(FailKind.RATE_LIMITED), row(1))
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun fetchWeather_showsTheRateLimitSnackbarOnlyOncePerSearch() = runTest {
+        stubSearch()
+        val limit = RateLimitException()
+        coEvery { weatherRepository.getForecast(any(), any(), any(), any()) } throws limit
+        coEvery { weatherRepository.getYearToDate(any(), any(), any(), any()) } throws limit
+        coEvery { weatherRepository.getReferenceClimate(any(), any(), any(), any(), any()) } throws limit
+        val messages = collectSnackbars()
+
+        viewModel.fetchWeather("Berlin")
+        advanceUntilIdle()
+
+        assertEquals(1, messages.size)
+        assertEquals(Loadable.Failed(FailKind.RATE_LIMITED), state.forecast)
+        assertEquals(Loadable.Failed(FailKind.RATE_LIMITED), state.year)
+        assertEquals(Loadable.Failed(FailKind.RATE_LIMITED), state.reference)
+        assertEquals(3, viewModel.apiCallCount.value)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun fetchWeather_finishesLoadingWhileASnackbarIsStillShowing() = runTest {
+        stubSearch()
+        coEvery { weatherRepository.getYearToDate(any(), any(), any(), any()) } throws RateLimitException()
+        // a collector that never finishes its first message, like showSnackbar during its 4 seconds
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.snackbarMessages.collect { awaitCancellation() }
+        }
+
+        repeat(3) {
+            viewModel.fetchWeather("Berlin")
+            advanceUntilIdle()
+
+            assertEquals(Loadable.Failed(FailKind.RATE_LIMITED), state.year)
+            assertEquals(Loadable.Ready(12.0), row(2))
+        }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -301,7 +373,7 @@ class WeatherViewModelTest {
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
 
-        assertTrue(viewModel.status.value.startsWith("Berlin "))
+        assertEquals("Berlin", (state.search as SearchStatus.Resolved).label.name)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -310,18 +382,20 @@ class WeatherViewModelTest {
         stubSearch()
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
-        assertNotNull(viewModel.placeLabel.value)
+        assertTrue(state.search is SearchStatus.Resolved)
 
         viewModel.fetchWeather("   ")
         advanceUntilIdle()
 
-        assertEquals("Enter a location to see temperature averages", viewModel.status.value)
-        assertNull(viewModel.placeLabel.value)
-        assertEquals("-", viewModel.resultCurrentAverage.value)
-        assertEquals("-", viewModel.resultCurrentMonthAverage.value)
-        assertEquals("-", viewModel.resultForecastAverage.value)
-        assertEquals("-", viewModel.resultHistoricAverage.value)
-        assertNull(viewModel.climate.value)
+        assertEquals(SearchStatus.Idle, state.search)
+        assertNull(state.selectedPlace)
+        assertTrue(state.places.isEmpty())
+        assertEquals(Loadable.Idle, state.forecast)
+        assertEquals(Loadable.Idle, state.year)
+        assertEquals(Loadable.Idle, state.reference)
+        report.rows.forEach { assertEquals(Loadable.Idle, it.value) }
+        assertEquals(Loadable.Idle, report.snapshot)
+        assertEquals(StatusPicture.INITIAL, report.picture)
         coVerify(exactly = 1) { geoCodeRepository.getGeoCode(any(), any()) }
     }
 
@@ -333,12 +407,10 @@ class WeatherViewModelTest {
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
 
-        assertEquals("City not found", viewModel.status.value)
-        assertNull(viewModel.placeLabel.value)
-        assertEquals("N/A", viewModel.resultCurrentAverage.value)
-        assertEquals("N/A", viewModel.resultForecastAverage.value)
-        assertEquals("N/A", viewModel.resultHistoricAverage.value)
-        assertNull(viewModel.climate.value)
+        assertEquals(SearchStatus.NotFound("Berlin"), state.search)
+        assertNull(state.selectedPlace)
+        report.rows.forEach { assertEquals(Loadable.Unavailable(Reason.NOT_AVAILABLE), it.value) }
+        assertEquals(Loadable.Unavailable(Reason.NOT_AVAILABLE), report.snapshot)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -349,7 +421,185 @@ class WeatherViewModelTest {
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
 
-        assertEquals("City not found", viewModel.status.value)
+        assertTrue(state.search is SearchStatus.NotFound)
+    }
+
+    // ---- loading state ----
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun fetchWeather_clearsThePreviousPlaceAsSoonAsASearchStarts() = runTest {
+        stubSearch()
+        viewModel.fetchWeather("Berlin")
+        advanceUntilIdle()
+        assertTrue(report.snapshot is Loadable.Ready)
+        val geocode = CompletableDeferred<GeocodeSelection>()
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } coAnswers { geocode.await() }
+
+        viewModel.fetchWeather("Hamburg")
+
+        assertEquals(SearchStatus.Searching("Hamburg"), state.search)
+        assertEquals(Loadable.Loading, state.forecast)
+        assertEquals(Loadable.Loading, state.year)
+        assertEquals(Loadable.Loading, state.reference)
+        report.rows.forEach { assertEquals(Loadable.Loading, it.value) }
+        assertEquals(Loadable.Loading, report.snapshot)
+        assertEquals(Loadable.Loading, report.headline)
+        assertEquals(Loadable.Loading, report.trend)
+        assertEquals(Loadable.Loading, report.summary)
+        assertEquals(StatusPicture.LOADING, report.picture)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun selectPlace_clearsThePreviousPlaceAsSoonAsItIsSelected() = runTest {
+        stubSearch()
+        viewModel.fetchWeather("Berlin")
+        advanceUntilIdle()
+        val gate = CompletableDeferred<CacheResult<DailySeries>>()
+        coEvery { weatherRepository.getYearToDate(any(), any(), any(), any()) } coAnswers { gate.await() }
+
+        viewModel.selectPlace(GeoPlace("loc-2", "Hamburg", "Germany", null, 3.0, 4.0))
+
+        assertEquals(Loadable.Loading, report.snapshot)
+        assertEquals(Loadable.Loading, row(1))
+        assertEquals("Hamburg", state.selectedPlace?.name)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun fetchWeather_loadsForecastYearAndReferenceInParallel() = runTest {
+        stubSearch()
+        val forecast = CompletableDeferred<CacheResult<DailySeries>>()
+        val year = CompletableDeferred<CacheResult<DailySeries>>()
+        val reference = CompletableDeferred<CacheResult<ReferenceClimate>>()
+        var started = 0
+        coEvery { weatherRepository.getForecast(any(), any(), any(), any()) } coAnswers {
+            started++
+            forecast.await()
+        }
+        coEvery { weatherRepository.getYearToDate(any(), any(), any(), any()) } coAnswers {
+            started++
+            year.await()
+        }
+        coEvery { weatherRepository.getReferenceClimate(any(), any(), any(), any(), any()) } coAnswers {
+            started++
+            reference.await()
+        }
+
+        viewModel.fetchWeather("Berlin")
+        advanceUntilIdle()
+
+        // all three requests are on their way before any of them finished
+        assertEquals(3, started)
+        assertEquals(Loadable.Loading, state.forecast)
+
+        reference.complete(CacheResult(monthlyClimate, false))
+        advanceUntilIdle()
+        assertTrue(state.reference is Loadable.Ready)
+        assertEquals(Loadable.Loading, state.year)
+        // the reference alone does not complete the month, so the headline waits for the year
+        assertEquals(Loadable.Loading, report.headline)
+
+        year.complete(CacheResult(yearSeries, false))
+        forecast.complete(CacheResult(forecastSeries, false))
+        advanceUntilIdle()
+        assertEquals(Loadable.Ready(12.0), row(2))
+        assertTrue(report.snapshot is Loadable.Ready)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun fetchWeather_oneFailingSliceDoesNotAffectTheOthers() = runTest {
+        stubSearch()
+        val forecast = CompletableDeferred<CacheResult<DailySeries>>()
+        coEvery { weatherRepository.getForecast(any(), any(), any(), any()) } coAnswers { forecast.await() }
+        coEvery { weatherRepository.getReferenceClimate(any(), any(), any(), any(), any()) } throws
+            RuntimeException("boom")
+
+        viewModel.fetchWeather("Berlin")
+        advanceUntilIdle()
+
+        // the failure came while the forecast was still on its way
+        assertEquals(Loadable.Failed(FailKind.OTHER), state.reference)
+        assertEquals(Loadable.Loading, state.forecast)
+        assertEquals(Loadable.Ready(yearSeries), state.year)
+
+        forecast.complete(CacheResult(forecastSeries, false))
+        advanceUntilIdle()
+
+        assertEquals(Loadable.Ready(forecastSeries), state.forecast)
+        assertEquals(Loadable.Failed(FailKind.OTHER), state.reference)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun fetchWeather_aNewSearchCancelsThePreviousOne() = runTest {
+        val berlin = stubSearch()
+        val hamburg = FineWeatherData("Hamburg", Pair(3.0, 4.0), "loc-2", "Germany")
+        val berlinGate = CompletableDeferred<Unit>()
+        coEvery { geoCodeRepository.getGeoCode("Hamburg", any()) } returns buildSelectionFromData(hamburg)
+        coEvery { weatherRepository.getYearToDate(any(), any(), any(), any()) } coAnswers {
+            if (firstArg<String>() == berlin.id) {
+                berlinGate.await()
+                CacheResult(seriesOf(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 4, 1)) { 99.0 }, false)
+            } else {
+                CacheResult(yearSeries, false)
+            }
+        }
+
+        viewModel.fetchWeather("Berlin")
+        advanceUntilIdle()
+        assertEquals(Loadable.Loading, state.year)
+
+        viewModel.fetchWeather("Hamburg")
+        advanceUntilIdle()
+        berlinGate.complete(Unit)
+        advanceUntilIdle()
+
+        // Berlin's late answer must not replace Hamburg's data
+        assertEquals("Hamburg", state.selectedPlace?.name)
+        assertEquals(Loadable.Ready(10.0), row(1))
+        assertEquals(Loadable.Ready(yearSeries), state.year)
+        // Berlin's cancelled year request is neither a failure nor a result and is not counted:
+        // Berlin's other two finished before the second search, plus Hamburg's three
+        assertEquals(5, viewModel.apiCallCount.value)
+        assertEquals(0, viewModel.cacheHitCount.value)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun selectPlace_cancelsTheSearchStillRunning() = runTest {
+        stubSearch()
+        val geocode = CompletableDeferred<GeocodeSelection>()
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } coAnswers { geocode.await() }
+        viewModel.fetchWeather("Berlin")
+
+        viewModel.selectPlace(GeoPlace("loc-2", "Hamburg", "Germany", null, 3.0, 4.0))
+        advanceUntilIdle()
+        geocode.complete(buildSelectionFromData(FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1", "Germany")))
+        advanceUntilIdle()
+
+        assertEquals("Hamburg", state.selectedPlace?.name)
+        assertEquals(Loadable.Ready(yearSeries), state.year)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun fetchWeather_blankLocationCancelsTheRunningSearch() = runTest {
+        stubSearch()
+        val gate = CompletableDeferred<CacheResult<DailySeries>>()
+        coEvery { weatherRepository.getYearToDate(any(), any(), any(), any()) } coAnswers { gate.await() }
+        viewModel.fetchWeather("Berlin")
+
+        viewModel.fetchWeather("")
+        gate.complete(CacheResult(yearSeries, false))
+        advanceUntilIdle()
+
+        assertEquals(SearchStatus.Idle, state.search)
+        assertEquals(Loadable.Idle, state.year)
+        // the cancelled year request is not counted, the two that had finished are
+        assertEquals(2, viewModel.apiCallCount.value)
     }
 
     // ---- settings ----
@@ -357,7 +607,10 @@ class WeatherViewModelTest {
     @Test
     fun exposesForecastAndHistoricStateFlows() {
         assertEquals(WeatherViewModel.FORECAST_DAYS_SHORT, viewModel.forecastDays.value)
-        assertEquals(SettingsDefaults.DEFAULT_HISTORIC_REFERENCE, viewModel.historicReference.value)
+        assertEquals(
+            SettingsDefaults.DEFAULT_HISTORIC_REFERENCE.displayLabel(fixedNow),
+            report.referenceLabel,
+        )
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -373,15 +626,113 @@ class WeatherViewModelTest {
 
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
-        assertEquals("4.00°C", viewModel.resultHistoricAverage.value)
+        assertEquals(Loadable.Ready(4.0), row(3))
 
         settings.setHistoricReference(HistoricReference.CURRENT)
         advanceUntilIdle()
 
-        assertEquals("6.00°C", viewModel.resultHistoricAverage.value)
-        assertEquals(6.0, viewModel.forecastOutlook.value!!.referenceMean!!, 1e-9)
+        assertEquals(Loadable.Ready(6.0), row(3))
+        assertEquals(6.0, (report.trend as Loadable.Ready).value.referenceMean!!, 1e-9)
         coVerify(exactly = 1) {
             weatherRepository.getReferenceClimate(data.id, 1.0, 2.0, HistoricReference.CURRENT, fixedNow)
+        }
+        // nothing but the reference was requested again
+        coVerify(exactly = 1) { weatherRepository.getForecast(data.id, 1.0, 2.0, fixedNow) }
+        coVerify(exactly = 1) { weatherRepository.getYearToDate(data.id, 1.0, 2.0, fixedNow) }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun settingsUpdates_clearTheReferenceWhileItReloads() = runTest {
+        val settings = FakeSettingsRepository()
+        viewModel = newViewModel(settings = settings)
+        stubSearch()
+        viewModel.fetchWeather("Berlin")
+        advanceUntilIdle()
+        val gate = CompletableDeferred<CacheResult<ReferenceClimate>>()
+        coEvery {
+            weatherRepository.getReferenceClimate(any(), any(), any(), HistoricReference.CURRENT, any())
+        } coAnswers { gate.await() }
+
+        settings.setHistoricReference(HistoricReference.CURRENT)
+
+        assertEquals(Loadable.Loading, state.reference)
+        assertEquals(Loadable.Loading, row(3))
+        assertEquals(Loadable.Ready(10.0), row(1))
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun settingsUpdates_reloadOnlyTheReferenceWhileOtherSlicesAreStillLoading() = runTest {
+        val settings = FakeSettingsRepository()
+        viewModel = newViewModel(settings = settings)
+        stubSearch()
+        val forecast = CompletableDeferred<CacheResult<DailySeries>>()
+        coEvery { weatherRepository.getForecast(any(), any(), any(), any()) } coAnswers { forecast.await() }
+        coEvery {
+            weatherRepository.getReferenceClimate(any(), any(), any(), HistoricReference.CURRENT, any())
+        } returns CacheResult(syntheticReference(1991, 2020) { 6.0 }, fromCache = false)
+        viewModel.fetchWeather("Berlin")
+        advanceUntilIdle()
+
+        settings.setHistoricReference(HistoricReference.CURRENT)
+        advanceUntilIdle()
+        // the forecast still runs, unharmed by the reference reload
+        assertEquals(Loadable.Loading, state.forecast)
+        forecast.complete(CacheResult(forecastSeries, false))
+        advanceUntilIdle()
+
+        assertEquals(Loadable.Ready(forecastSeries), state.forecast)
+        assertEquals(Loadable.Ready(6.0), row(3))
+        coVerify(exactly = 1) { weatherRepository.getForecast(any(), any(), any(), any()) }
+        coVerify(exactly = 1) { weatherRepository.getYearToDate(any(), any(), any(), any()) }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun settingsUpdates_aReferenceReloadReplacesTheOneStillRunning() = runTest {
+        val settings = FakeSettingsRepository()
+        viewModel = newViewModel(settings = settings)
+        stubSearch()
+        val classic = CompletableDeferred<CacheResult<ReferenceClimate>>()
+        coEvery {
+            weatherRepository.getReferenceClimate(any(), any(), any(), HistoricReference.CLASSIC, any())
+        } coAnswers { classic.await() }
+        coEvery {
+            weatherRepository.getReferenceClimate(any(), any(), any(), HistoricReference.CURRENT, any())
+        } returns CacheResult(syntheticReference(1991, 2020) { 6.0 }, fromCache = false)
+        viewModel.fetchWeather("Berlin")
+        advanceUntilIdle()
+
+        settings.setHistoricReference(HistoricReference.CURRENT)
+        advanceUntilIdle()
+        classic.complete(CacheResult(monthlyClimate, false))
+        advanceUntilIdle()
+
+        assertEquals(Loadable.Ready(6.0), row(3))
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun settingsUpdates_ignoreAReferenceChangeWhileSearching() = runTest {
+        val settings = FakeSettingsRepository()
+        viewModel = newViewModel(settings = settings)
+        stubSearch()
+        val geocode = CompletableDeferred<GeocodeSelection>()
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } coAnswers { geocode.await() }
+        viewModel.fetchWeather("Berlin")
+
+        settings.setHistoricReference(HistoricReference.CURRENT)
+        geocode.complete(buildSelectionFromData(FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1", "Germany")))
+        advanceUntilIdle()
+
+        // the search carried on and used the new reference right away
+        assertTrue(state.reference is Loadable.Ready)
+        coVerify(exactly = 1) {
+            weatherRepository.getReferenceClimate(any(), any(), any(), HistoricReference.CURRENT, any())
+        }
+        coVerify(exactly = 0) {
+            weatherRepository.getReferenceClimate(any(), any(), any(), HistoricReference.CLASSIC, any())
         }
     }
 
@@ -394,13 +745,13 @@ class WeatherViewModelTest {
 
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
-        assertEquals("12.00°C", viewModel.resultForecastAverage.value)
+        assertEquals(Loadable.Ready(12.0), row(2))
 
         settings.setForecastDays(WeatherViewModel.FORECAST_DAYS_LONG)
         advanceUntilIdle()
 
-        assertEquals("13.50°C", viewModel.resultForecastAverage.value)
-        assertEquals(14, viewModel.forecastOutlook.value!!.days)
+        assertEquals(Loadable.Ready(13.5), row(2))
+        assertEquals(14, (report.trend as Loadable.Ready).value.days)
         coVerify(exactly = 1) { weatherRepository.getForecast(data.id, 1.0, 2.0, fixedNow) }
     }
 
@@ -432,11 +783,12 @@ class WeatherViewModelTest {
         viewModel.selectPlace(selected)
         advanceUntilIdle()
 
-        assertEquals(selected, viewModel.selectedPlace.value)
-        assertEquals("Hamburg", viewModel.resolvedLocationName.value)
-        assertEquals("Hamburg, Germany (3.00, 4.00)", viewModel.status.value)
-        assertEquals(PlaceLabel("Hamburg, Germany", "3.00, 4.00"), viewModel.placeLabel.value)
-        assertEquals("10.00°C", viewModel.resultCurrentMonthAverage.value)
+        assertEquals(selected, state.selectedPlace)
+        assertEquals(
+            SearchStatus.Resolved(PlaceLabel("Hamburg, Germany", "3.00, 4.00")),
+            state.search,
+        )
+        assertEquals(Loadable.Ready(10.0), row(1))
         coVerify(exactly = 1) { weatherRepository.getYearToDate("loc-2", 3.0, 4.0, fixedNow) }
     }
 
@@ -486,6 +838,220 @@ class WeatherViewModelTest {
         assertEquals(fullFavorites, viewModel.favorites.value)
     }
 
+    // ---- superseded searches (the main dispatcher is a standard one here, so a cancelled job
+    // runs its handlers only after the new search has changed the state) ----
+
+    private fun useStandardMainDispatcher() {
+        Dispatchers.setMain(StandardTestDispatcher())
+        viewModel = newViewModel()
+    }
+
+    /** Like a layer that wraps whatever it catches, cancellation included. */
+    private fun <T> CompletableDeferred<T>.awaitWrappingCancellation(): suspend () -> T = {
+        try {
+            await()
+        } catch (cancellation: CancellationException) {
+            throw Exception("Failed to fetch geocoding", cancellation)
+        }
+    }
+
+    private val hamburgPlace = GeoPlace("loc-2", "Hamburg", "Germany", null, 3.0, 4.0)
+
+    private fun stubHamburg() {
+        coEvery { geoCodeRepository.getGeoCode("Hamburg", any()) } returns
+            buildSelectionFromData(FineWeatherData("Hamburg", Pair(3.0, 4.0), "loc-2", "Germany"))
+    }
+
+    private fun assertHamburgIsShown() {
+        assertEquals(hamburgPlace, state.selectedPlace)
+        assertEquals(
+            SearchStatus.Resolved(PlaceLabel("Hamburg, Germany", "3.00, 4.00")),
+            state.search,
+        )
+        assertEquals(Loadable.Ready(yearSeries), state.year)
+        assertEquals(Loadable.Ready(forecastSeries), state.forecast)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun selectPlace_aWrappedCancellationOfTheSupersededSearchDoesNotClearTheState() {
+        useStandardMainDispatcher()
+        runTest {
+            stubSearch()
+            val geocode = CompletableDeferred<GeocodeSelection>()
+            val wrapped = geocode.awaitWrappingCancellation()
+            coEvery { geoCodeRepository.getGeoCode("Berlin", any()) } coAnswers { wrapped() }
+            viewModel.fetchWeather("Berlin")
+            runCurrent()
+
+            viewModel.selectPlace(hamburgPlace)
+            advanceUntilIdle()
+
+            assertHamburgIsShown()
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun fetchWeather_aWrappedCancellationOfTheSupersededSearchDoesNotClearTheState() {
+        useStandardMainDispatcher()
+        runTest {
+            stubSearch()
+            stubHamburg()
+            val geocode = CompletableDeferred<GeocodeSelection>()
+            val wrapped = geocode.awaitWrappingCancellation()
+            coEvery { geoCodeRepository.getGeoCode("Berlin", any()) } coAnswers { wrapped() }
+            viewModel.fetchWeather("Berlin")
+            runCurrent()
+
+            viewModel.fetchWeather("Hamburg")
+            advanceUntilIdle()
+
+            assertHamburgIsShown()
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun fetchWeather_aWrappedCancellationOfASupersededSliceIsNotAFailure() {
+        useStandardMainDispatcher()
+        runTest {
+            stubSearch()
+            stubHamburg()
+            val berlinYear = CompletableDeferred<CacheResult<DailySeries>>()
+            coEvery { weatherRepository.getYearToDate("loc-1", any(), any(), any()) } coAnswers {
+                try {
+                    berlinYear.await()
+                } catch (cancellation: CancellationException) {
+                    throw Exception("Failed to fetch weather data", cancellation)
+                }
+            }
+            viewModel.fetchWeather("Berlin")
+            runCurrent()
+
+            viewModel.fetchWeather("Hamburg")
+            advanceUntilIdle()
+
+            assertHamburgIsShown()
+            // Berlin's forecast and reference had finished; its cancelled year is not counted
+            assertEquals(5, viewModel.apiCallCount.value)
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun fetchWeather_aResultOfASupersededSearchIsNotApplied() {
+        useStandardMainDispatcher()
+        runTest {
+            stubSearch()
+            stubHamburg()
+            val gate = CompletableDeferred<Unit>()
+            // a load that cannot be cancelled and still returns after the next search began
+            coEvery { weatherRepository.getYearToDate("loc-1", any(), any(), any()) } coAnswers {
+                withContext(NonCancellable) { gate.await() }
+                CacheResult(seriesOf(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 4, 1)) { 99.0 }, false)
+            }
+            viewModel.fetchWeather("Berlin")
+            runCurrent()
+            viewModel.fetchWeather("Hamburg")
+            runCurrent()
+
+            gate.complete(Unit)
+            advanceUntilIdle()
+
+            assertHamburgIsShown()
+        }
+    }
+
+    // ---- rate limit snackbar ----
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun fetchWeather_showsTheRateLimitSnackbarAsSoonAsItIsHitWithoutWaitingForTheOtherSlices() = runTest {
+        stubSearch()
+        coEvery { weatherRepository.getForecast(any(), any(), any(), any()) } throws RateLimitException()
+        val reference = CompletableDeferred<CacheResult<ReferenceClimate>>()
+        coEvery { weatherRepository.getReferenceClimate(any(), any(), any(), any(), any()) } coAnswers {
+            reference.await()
+        }
+        val messages = collectSnackbars()
+
+        viewModel.fetchWeather("Berlin")
+        advanceUntilIdle()
+
+        assertEquals(Loadable.Loading, state.reference)
+        assertEquals(1, messages.size)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun settingsUpdates_aReferenceReloadAfterARateLimitDoesNotShowTheSnackbarAgain() = runTest {
+        val settings = FakeSettingsRepository()
+        viewModel = newViewModel(settings = settings)
+        stubSearch()
+        coEvery { weatherRepository.getForecast(any(), any(), any(), any()) } throws RateLimitException()
+        val classic = CompletableDeferred<CacheResult<ReferenceClimate>>()
+        coEvery {
+            weatherRepository.getReferenceClimate(any(), any(), any(), HistoricReference.CLASSIC, any())
+        } coAnswers { classic.await() }
+        coEvery {
+            weatherRepository.getReferenceClimate(any(), any(), any(), HistoricReference.CURRENT, any())
+        } throws RateLimitException()
+        val messages = collectSnackbars()
+        viewModel.fetchWeather("Berlin")
+        advanceUntilIdle()
+        assertEquals(1, messages.size)
+
+        // the reference setting changes while the reference still loads, and runs into the limit too
+        settings.setHistoricReference(HistoricReference.CURRENT)
+        advanceUntilIdle()
+
+        assertEquals(1, messages.size)
+        assertEquals(Loadable.Failed(FailKind.RATE_LIMITED), state.reference)
+        assertEquals(Loadable.Failed(FailKind.RATE_LIMITED), state.forecast)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun fetchWeather_everySearchMayShowTheRateLimitSnackbarOnce() = runTest {
+        stubSearch()
+        coEvery { weatherRepository.getForecast(any(), any(), any(), any()) } throws RateLimitException()
+        val messages = collectSnackbars()
+
+        viewModel.fetchWeather("Berlin")
+        viewModel.fetchWeather("Berlin")
+        advanceUntilIdle()
+
+        assertEquals(2, messages.size)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun fetchWeather_aSupersededSearchShowsNoRateLimitSnackbar() {
+        useStandardMainDispatcher()
+        runTest {
+            stubSearch()
+            stubHamburg()
+            val gate = CompletableDeferred<Unit>()
+            // keeps running after its cancellation and then hits the limit
+            coEvery { weatherRepository.getYearToDate("loc-1", any(), any(), any()) } coAnswers {
+                withContext(NonCancellable) { gate.await() }
+                throw RateLimitException()
+            }
+            val messages = collectSnackbars()
+            viewModel.fetchWeather("Berlin")
+            runCurrent()
+            viewModel.fetchWeather("Hamburg")
+            runCurrent()
+
+            gate.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals(emptyList<String>(), messages)
+            assertHamburgIsShown()
+        }
+    }
+
     // ---- factory ----
 
     @Test
@@ -517,6 +1083,14 @@ class WeatherViewModelTest {
     }
 
     // ---- helpers ----
+
+    private fun TestScope.collectSnackbars(): List<String> {
+        val messages = mutableListOf<String>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.snackbarMessages.toList(messages)
+        }
+        return messages
+    }
 
     private fun factory() =
         WeatherViewModelFactory(

@@ -102,6 +102,18 @@ private fun Caption(
     )
 }
 
+/** What a view says while it has no snapshot to draw. */
+private fun emptyText(
+    loading: Boolean,
+    failed: Boolean,
+    prompt: String,
+): String =
+    when {
+        loading -> "Loading…"
+        failed -> "Error"
+        else -> prompt
+    }
+
 private fun monthName(
     month: Int,
     style: TextStyle = TextStyle.FULL,
@@ -117,6 +129,8 @@ internal fun MonthView(
     referenceLabel: String,
     shape: RoundedCornerShape,
     colors: CardColors,
+    loading: Boolean = false,
+    failed: Boolean = false,
 ) {
     var window by rememberSaveable { mutableStateOf(MonthWindow.THIS_MONTH) }
     var showLegend by rememberSaveable { mutableStateOf(false) }
@@ -151,7 +165,7 @@ internal fun MonthView(
             }
         }
         if (snapshot == null) {
-            Caption("Search for a place to see its daily temperatures.")
+            Caption(emptyText(loading, failed, "Search for a place to see its daily temperatures."))
             return@ViewCard
         }
         val points = remember(snapshot, window, forecastDays) { dayPoints(snapshot, window, forecastDays) }
@@ -258,11 +272,13 @@ internal fun YearView(
     referenceLabel: String,
     shape: RoundedCornerShape,
     colors: CardColors,
+    loading: Boolean = false,
+    failed: Boolean = false,
 ) {
     ViewCard(shape, colors, Modifier.testTag("yearView")) {
         if (snapshot == null) {
             CardTitle("Months of the year")
-            Caption("Search for a place to compare its months with the climate average.")
+            Caption(emptyText(loading, failed, "Search for a place to compare its months with the climate average."))
             return@ViewCard
         }
         val year = snapshot.today.minusDays(1).year
