@@ -198,8 +198,8 @@ fun WeatherApp() {
                         actions =
                             listOf(
                                 TopBarAction(
-                                    R.drawable.search,
-                                    "Back to weather",
+                                    R.drawable.close,
+                                    "Close settings",
                                     "backToWeatherButton"
                                 ) {
                                     currentScreen = AppScreen.WEATHER

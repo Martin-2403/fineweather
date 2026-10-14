@@ -677,7 +677,7 @@ internal fun LocationStatus(
 }
 
 @Composable
-private fun InfoOverlay(
+internal fun InfoOverlay(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -709,12 +709,29 @@ private fun InfoOverlay(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Text(
-                        text = "Welcome to FineWeather",
-                        fontFamily = nunitoSansFamily,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "Welcome to FineWeather",
+                            fontFamily = nunitoSansFamily,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.weight(1f),
+                        )
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .testTag("infoCloseButton"),
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.close),
+                                contentDescription = "Close",
+                            )
+                        }
+                    }
                     EarthStatusStack()
                     Text(
                         text = "FineWeather compares recent temperature averages with historic averages and the forecast average so you can watch climate changes in real time. \n\nFeatures:",
