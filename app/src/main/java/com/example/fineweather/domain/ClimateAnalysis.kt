@@ -124,6 +124,34 @@ fun dayPoints(
     }
 }
 
+/** The next [days] of the forecast compared with the normal of exactly those calendar days. */
+data class ForecastOutlook(
+    val days: Int,
+    val mean: Double,
+    val referenceMean: Double?,
+) {
+    val delta: Double? get() = referenceMean?.let { mean - it }
+}
+
+fun forecastOutlook(
+    forecast: DailySeries?,
+    reference: ReferenceClimate?,
+    days: Int,
+): ForecastOutlook? {
+    if (forecast == null || days <= 0) return null
+    val values = forecast.days(forecast.start, forecast.start.plusDays(days - 1L))
+    if (values.isEmpty()) return null
+    val referenceMeans =
+        reference?.let { climate ->
+            values.mapNotNull { (date, _) -> climate.dailyStats(date.monthValue, date.dayOfMonth, halfWindow = 0)?.mean }
+        }
+    return ForecastOutlook(
+        days = values.size,
+        mean = values.map { it.second }.average(),
+        referenceMean = referenceMeans?.takeIf { it.isNotEmpty() }?.average(),
+    )
+}
+
 data class WindowSummary(
     val observedDays: Int,
     val observedMean: Double?,

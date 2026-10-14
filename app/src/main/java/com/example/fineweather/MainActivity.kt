@@ -93,6 +93,7 @@ fun WeatherApp() {
                 weatherDao = db.weatherDao(),
                 referenceClimateDao = db.referenceClimateDao(),
                 yearSeriesDao = db.yearSeriesDao(),
+                forecastSeriesDao = db.forecastSeriesDao(),
             )
         }
     val geoCodeRepository =
@@ -112,7 +113,13 @@ fun WeatherApp() {
         }
     val cacheRepository: CacheRepository =
         remember {
-            RoomCacheRepository(db.weatherDao(), db.geoCodeDao(), db.referenceClimateDao(), db.yearSeriesDao())
+            RoomCacheRepository(
+                db.weatherDao(),
+                db.geoCodeDao(),
+                db.referenceClimateDao(),
+                db.yearSeriesDao(),
+                db.forecastSeriesDao()
+            )
         }
 
     val weatherViewModel: WeatherViewModel =

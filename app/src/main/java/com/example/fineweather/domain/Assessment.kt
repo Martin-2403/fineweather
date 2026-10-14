@@ -61,27 +61,3 @@ fun assess(
     stdDev: Double?,
     mode: TemperatureComparisonMode,
 ): Assessment = Assessment(current - reference, stdDev, mode)
-
-/** Direction and strength of the forecast relative to the period observed so far. */
-data class TrendAssessment(val delta: Double) {
-    val steady: Boolean get() = abs(delta) < STEADY_BELOW
-    val warming: Boolean get() = delta > 0
-
-    /** 1..3 */
-    val strength: Int
-        get() =
-            when {
-                abs(delta) > 2.25 -> 3
-                abs(delta) > 1.25 -> 2
-                else -> 1
-            }
-
-    private companion object {
-        const val STEADY_BELOW = 0.25
-    }
-}
-
-fun assessTrend(
-    forecast: Double,
-    observed: Double,
-): TrendAssessment = TrendAssessment(forecast - observed)

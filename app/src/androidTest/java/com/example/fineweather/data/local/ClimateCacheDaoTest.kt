@@ -4,9 +4,11 @@ import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.example.fineweather.data.local.dao.FavoriteDao
+import com.example.fineweather.data.local.dao.ForecastSeriesDao
 import com.example.fineweather.data.local.dao.ReferenceClimateDao
 import com.example.fineweather.data.local.dao.YearSeriesDao
 import com.example.fineweather.data.local.entities.FavoritePlaceEntity
+import com.example.fineweather.data.local.entities.ForecastSeriesEntity
 import com.example.fineweather.data.local.entities.ReferenceClimateEntity
 import com.example.fineweather.data.local.entities.YearSeriesEntity
 import kotlinx.coroutines.flow.first
@@ -27,6 +29,7 @@ class ClimateCacheDaoTest {
     private lateinit var referenceDao: ReferenceClimateDao
     private lateinit var yearSeriesDao: YearSeriesDao
     private lateinit var favoriteDao: FavoriteDao
+    private lateinit var forecastDao: ForecastSeriesDao
 
     @Before
     fun setup() {
@@ -39,6 +42,7 @@ class ClimateCacheDaoTest {
         referenceDao = db.referenceClimateDao()
         yearSeriesDao = db.yearSeriesDao()
         favoriteDao = db.favoriteDao()
+        forecastDao = db.forecastSeriesDao()
     }
 
     @After
@@ -141,6 +145,49 @@ class ClimateCacheDaoTest {
         yearSeriesDao.clearAll()
 
         assertNull(yearSeriesDao.get("loc-1"))
+    }
+
+    @Test
+    fun reference_locationCountCountsEachPlaceOnce() = runBlocking {
+        referenceDao.insert(reference("loc-1", lastUsed = 1))
+        referenceDao.insert(reference("loc-1", lastUsed = 2).copy(referenceId = "current"))
+        referenceDao.insert(reference("loc-2", lastUsed = 3))
+
+        assertEquals(2, referenceDao.observeLocationCount().first())
+        assertEquals(3, referenceDao.observeCount().first())
+    }
+
+    @Test
+    fun forecast_roundTripsAndReplaces() = runBlocking {
+        forecastDao.insert(ForecastSeriesEntity("loc-1", "2026-10-13", "2026-10-26", byteArrayOf(1), "2026-10-13"))
+        forecastDao.insert(ForecastSeriesEntity("loc-1", "2026-10-14", "2026-10-27", byteArrayOf(2), "2026-10-14"))
+
+        val loaded = forecastDao.get("loc-1")
+
+        assertEquals("2026-10-14", loaded!!.startDate)
+        assertArrayEquals(byteArrayOf(2), loaded.data)
+        assertNull(forecastDao.get("other"))
+    }
+
+    @Test
+    fun forecast_cleanOutdatedRemovesEarlierDaysEvenForFavorites() = runBlocking {
+        favoriteDao.upsert(favorite("fav"))
+        forecastDao.insert(ForecastSeriesEntity("fav", "2026-10-13", "2026-10-26", byteArrayOf(1), "2026-10-13"))
+        forecastDao.insert(ForecastSeriesEntity("today", "2026-10-14", "2026-10-27", byteArrayOf(1), "2026-10-14"))
+
+        forecastDao.cleanOutdated("2026-10-14")
+
+        assertNull(forecastDao.get("fav"))
+        assertNotNull(forecastDao.get("today"))
+    }
+
+    @Test
+    fun forecast_clearAll() = runBlocking {
+        forecastDao.insert(ForecastSeriesEntity("loc-1", "2026-10-14", "2026-10-27", byteArrayOf(1), "2026-10-14"))
+
+        forecastDao.clearAll()
+
+        assertNull(forecastDao.get("loc-1"))
     }
 
     private fun reference(

@@ -12,7 +12,7 @@ class SummaryBuilderTest {
         reference: Double? = 11.0,
         stdDev: Double? = null,
         mode: TemperatureComparisonMode = TemperatureComparisonMode.ABSOLUTE_DELTA,
-        forecast: Double? = null,
+        outlook: ForecastOutlook? = null,
         daysObserved: Int = 13,
     ) = SummaryInput(
         monthName = "October",
@@ -21,8 +21,7 @@ class SummaryBuilderTest {
         referenceLabel = "1961–1990",
         stdDev = stdDev,
         mode = mode,
-        forecast = forecast,
-        forecastDays = 7,
+        outlook = outlook,
         daysObserved = daysObserved,
     )
 
@@ -54,7 +53,7 @@ class SummaryBuilderTest {
         val headline = buildSummary(input()).first() as SummaryBlock.Headline
 
         assertEquals(
-            "October so far is clearly warmer than the 1961–1990 average (+2.00°C).",
+            "October: This month so far is clearly warmer than the 1961–1990 average (+2.00°C).",
             headline.text,
         )
         assertEquals(Band.WARM, headline.band)
@@ -65,7 +64,7 @@ class SummaryBuilderTest {
         val headline = buildSummary(input(monthToDate = 6.0)).first() as SummaryBlock.Headline
 
         assertEquals(
-            "October so far is much colder than the 1961–1990 average (-5.00°C).",
+            "October: This month so far is much colder than the 1961–1990 average (-5.00°C).",
             headline.text,
         )
         assertEquals(Band.COLD, headline.band)
@@ -76,7 +75,7 @@ class SummaryBuilderTest {
         val headline = buildSummary(input(monthToDate = 11.4)).first() as SummaryBlock.Headline
 
         assertEquals(
-            "October so far is close to the 1961–1990 average (+0.40°C).",
+            "October: This month so far is close to the 1961–1990 average (+0.40°C).",
             headline.text,
         )
         assertEquals(Band.NEUTRAL, headline.band)
@@ -98,15 +97,24 @@ class SummaryBuilderTest {
         assertEquals(1, neutral.size)
     }
 
-    @Test
-    fun forecast_steadyWarmerAndCooler() {
-        val steady = buildSummary(input(forecast = 13.1)).last().text
-        val warmer = buildSummary(input(forecast = 15.0)).last().text
-        val cooler = buildSummary(input(forecast = 10.0)).last().text
+    private fun outlook(mean: Double, reference: Double?) = ForecastOutlook(days = 7, mean = mean, referenceMean = reference)
 
-        assertEquals("The next 7 days look about as warm as October so far.", steady)
-        assertEquals("The next 7 days are forecast to be about 2.0°C warmer than October so far.", warmer)
-        assertEquals("The next 7 days are forecast to be about 3.0°C cooler than October so far.", cooler)
+    @Test
+    fun outlook_isComparedWithTheNormalOfThoseDays() {
+        val steady = buildSummary(input(outlook = outlook(10.4, 10.0))).last().text
+        val warmer = buildSummary(input(outlook = outlook(14.0, 10.0))).last().text
+        val cooler = buildSummary(input(outlook = outlook(7.5, 10.0))).last().text
+
+        assertEquals("The next 7 days look about as warm as usual for those days.", steady)
+        assertEquals("The next 7 days are forecast to be about 4.0°C warmer than usual for those days.", warmer)
+        assertEquals("The next 7 days are forecast to be about 2.5°C cooler than usual for those days.", cooler)
+    }
+
+    @Test
+    fun outlookWithoutReference_justStatesTheAverage() {
+        val text = buildSummary(input(outlook = outlook(9.8, null))).last().text
+
+        assertEquals("The next 7 days are forecast to average 9.8°C.", text)
     }
 
     @Test

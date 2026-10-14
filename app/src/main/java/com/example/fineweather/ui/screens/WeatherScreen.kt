@@ -107,6 +107,7 @@ fun WeatherScreen(
         initial = WeatherViewModel.FORECAST_DAYS_SHORT,
     )
     val historicReference by viewModel.historicReference.collectAsState()
+    val forecastOutlook by viewModel.forecastOutlook.collectAsState()
     val currentMonthDayCount by viewModel.currentMonthDayCount.collectAsState(initial = 0)
     val apiCallCount by viewModel.apiCallCount.collectAsState(initial = 0)
     val cacheHitCount by viewModel.cacheHitCount.collectAsState(initial = 0)
@@ -121,7 +122,7 @@ fun WeatherScreen(
         historicMonthlyStdDev = historicMonthlyStdDev,
         mode = temperatureComparisonMode,
     )
-    val trendCardValue = buildTrendCardValue(resultForecast, resultCurrentMonth)
+    val trendCardValue = buildTrendCardValue(forecastOutlook)
     val statusImageRes = resolveStatusImageRes(
         currentMonth = resultCurrentMonth,
         historic = resultHistoric,
@@ -133,23 +134,24 @@ fun WeatherScreen(
         remember(
             resultCurrentMonth,
             resultHistoric,
-            resultForecast,
+            forecastOutlook,
             historicMonthlyStdDev,
             temperatureComparisonMode,
-            forecastDays,
             currentMonthDayCount,
             historicReference,
         ) {
             buildSummary(
                 SummaryInput(
-                    monthName = LocalDate.now().month.getDisplayName(TextStyle.FULL, Locale.ENGLISH),
+                    monthName = LocalDate.now().month.getDisplayName(
+                        TextStyle.FULL,
+                        Locale.ENGLISH
+                    ),
                     monthToDate = parseTemperature(resultCurrentMonth),
                     reference = parseTemperature(resultHistoric),
                     referenceLabel = historicReference.displayLabel(),
                     stdDev = historicMonthlyStdDev,
                     mode = temperatureComparisonMode,
-                    forecast = parseTemperature(resultForecast),
-                    forecastDays = forecastDays,
+                    outlook = forecastOutlook,
                     daysObserved = currentMonthDayCount,
                 ),
             )
@@ -838,7 +840,7 @@ private fun InfoOverlay(
                             Spacer(Modifier.width(8.dp))
                             Text(
                                 text = "The divergence compares this month so far with exactly the same days of the 30 year baseline, " +
-                                        "and Trend compares the forecast average to this months average. " +
+                                        "and Trend shows whether the coming days are forecast to be warmer or cooler than normal for those days. " +
                                         "A short text next to the picture sums it up.",
                                 fontFamily = nunitoSansFamily,
                                 style = MaterialTheme.typography.bodyMedium,

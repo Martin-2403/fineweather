@@ -3,9 +3,11 @@ package com.example.fineweather.data.repositories
 import android.util.Log
 import com.example.fineweather.api.OpenMeteoArchiveApiService
 import com.example.fineweather.api.OpenMeteoWeatherApiService
+import com.example.fineweather.data.local.dao.ForecastSeriesDao
 import com.example.fineweather.data.local.dao.ReferenceClimateDao
 import com.example.fineweather.data.local.dao.WeatherDao
 import com.example.fineweather.data.local.dao.YearSeriesDao
+import com.example.fineweather.data.local.entities.ForecastSeriesEntity
 import com.example.fineweather.data.local.entities.ReferenceClimateEntity
 import com.example.fineweather.data.local.entities.YearSeriesEntity
 import com.example.fineweather.data.models.Daily
@@ -40,8 +42,17 @@ class WeatherRepositoryTest {
     private val weatherDao = mockk<WeatherDao>(relaxed = true)
     private val referenceDao = mockk<ReferenceClimateDao>(relaxed = true)
     private val yearSeriesDao = mockk<YearSeriesDao>(relaxed = true)
+    private val forecastDao = mockk<ForecastSeriesDao>(relaxed = true)
     private val repository =
-        WeatherRepository(weatherApi, archiveApi, weatherDao, referenceDao, yearSeriesDao, clock = { NOW_MILLIS })
+        WeatherRepository(
+            weatherApi,
+            archiveApi,
+            weatherDao,
+            referenceDao,
+            yearSeriesDao,
+            forecastDao,
+            clock = { NOW_MILLIS },
+        )
 
     private val today = LocalDate.of(2026, 10, 14)
 
@@ -51,6 +62,7 @@ class WeatherRepositoryTest {
         every { Log.e(any(), any()) } returns 0
         coEvery { referenceDao.get(any(), any()) } returns null
         coEvery { yearSeriesDao.get(any()) } returns null
+        coEvery { forecastDao.get(any()) } returns null
     }
 
     @After
@@ -60,44 +72,104 @@ class WeatherRepositoryTest {
 
     // ---- forecast ----
 
-    @Test
-    fun calculateAverageForecastTemperature_usesCachedForecast() = runTest {
-        stubForecast(sampleResponse(listOf("2026-03-01", "2026-03-02"), listOf(10.0, 14.0)))
-
-        repository.getWeatherForecast(1.0, 2.0, 2)
-
-        assertEquals(12.0, repository.calculateAverageForecastTemperature(), 0.0001)
+    private fun forecastResponse(start: LocalDate, days: Int = 14, valueOf: (LocalDate) -> Double? = { 10.0 }): WeatherResponse {
+        val dates = (0 until days).map { start.plusDays(it.toLong()) }
+        return sampleResponse(dates.map { it.toString() }, dates.map(valueOf))
     }
 
     @Test
-    fun calculateAverageForecastTemperature_ignoresMissingDays() = runTest {
-        stubForecast(sampleResponse(listOf("2026-03-01", "2026-03-02", "2026-03-03"), listOf(10.0, null, 14.0)))
+    fun getForecast_requestsFourteenDaysAndCachesThem() = runTest {
+        stubForecast(forecastResponse(LocalDate.of(2026, 10, 14)) { it.dayOfMonth.toDouble() })
+        val saved = slot<ForecastSeriesEntity>()
+        coEvery { forecastDao.insert(capture(saved)) } returns Unit
 
-        repository.getWeatherForecast(1.0, 2.0, 3)
+        val result = repository.getForecast("loc-1", 1.0, 2.0, today)
 
-        assertEquals(12.0, repository.calculateAverageForecastTemperature(), 0.0001)
+        assertFalse(result.fromCache)
+        coVerify(exactly = 1) { weatherApi.getForecast(1.0, 2.0, any(), 14, 0, any()) }
+        assertEquals(LocalDate.of(2026, 10, 14), result.value.start)
+        assertEquals(LocalDate.of(2026, 10, 27), result.value.end)
+        assertEquals(20.0, result.value.valueOrNull(LocalDate.of(2026, 10, 20))!!, 1e-6)
+        assertEquals("loc-1", saved.captured.locationId)
+        assertEquals("2026-10-14", saved.captured.startDate)
+        assertEquals("2026-10-14", saved.captured.fetchedDate)
     }
 
     @Test
-    fun calculateAverageForecastTemperature_returnsFallbackWhenNoCache() {
-        assertEquals(-273.15, repository.calculateAverageForecastTemperature(), 0.0001)
+    fun getForecast_startsAtTheFirstDayTheApiReturns() = runTest {
+        // the place's local date can already be tomorrow
+        stubForecast(forecastResponse(LocalDate.of(2026, 10, 15)))
+
+        val result = repository.getForecast("loc-1", 1.0, 2.0, today)
+
+        assertEquals(LocalDate.of(2026, 10, 15), result.value.start)
     }
 
     @Test
-    fun getWeatherForecast_throwsWhenApiFails() = runTest {
+    fun getForecast_usesTheCacheFromToday() = runTest {
+        val series = DailySeries.fromApi(
+            LocalDate.of(2026, 10, 14),
+            LocalDate.of(2026, 10, 27),
+            listOf("2026-10-14"),
+            listOf(6.5),
+        )
+        coEvery { forecastDao.get("loc-1") } returns
+            ForecastSeriesEntity("loc-1", "2026-10-14", "2026-10-27", series.toBytes(), "2026-10-14")
+
+        val result = repository.getForecast("loc-1", 1.0, 2.0, today)
+
+        assertTrue(result.fromCache)
+        assertEquals(6.5, result.value.valueOrNull(LocalDate.of(2026, 10, 14))!!, 1e-6)
+        coVerify(exactly = 0) { weatherApi.getForecast(any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun getForecast_refetchesWhenTheCacheIsFromAnEarlierDay() = runTest {
+        stubForecast(forecastResponse(LocalDate.of(2026, 10, 14)))
+        coEvery { forecastDao.get("loc-1") } returns
+            ForecastSeriesEntity("loc-1", "2026-10-13", "2026-10-26", ByteArray(0), "2026-10-13")
+
+        val result = repository.getForecast("loc-1", 1.0, 2.0, today)
+
+        assertFalse(result.fromCache)
+        coVerify(exactly = 1) { weatherApi.getForecast(any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun getForecast_treatsNullValuesAsMissingDays() = runTest {
+        stubForecast(forecastResponse(LocalDate.of(2026, 10, 14)) { if (it.dayOfMonth == 16) null else 9.0 })
+
+        val series = repository.getForecast("loc-1", 1.0, 2.0, today).value
+
+        assertNull(series.valueOrNull(LocalDate.of(2026, 10, 16)))
+        assertEquals(9.0, series.valueOrNull(LocalDate.of(2026, 10, 17))!!, 1e-6)
+    }
+
+    @Test
+    fun getForecast_failsWhenTheResponseHasNoDays() = runTest {
+        stubForecast(sampleResponse(emptyList(), emptyList()))
+
+        val thrown = runCatching { repository.getForecast("loc-1", 1.0, 2.0, today) }.exceptionOrNull()
+
+        assertTrue(thrown is Exception)
+        coVerify(exactly = 0) { forecastDao.insert(any()) }
+    }
+
+    @Test
+    fun getForecast_wrapsGenericErrors() = runTest {
         stubForecastFailure(RuntimeException("boom"))
 
-        val thrown = runCatching { repository.getWeatherForecast(1.0, 2.0, 2) }.exceptionOrNull()
+        val thrown = runCatching { repository.getForecast("loc-1", 1.0, 2.0, today) }.exceptionOrNull()
 
         assertTrue(thrown is Exception)
         assertFalse(thrown is RateLimitException)
     }
 
     @Test
-    fun getWeatherForecast_mapsHttp429ToRateLimit() = runTest {
+    fun getForecast_mapsHttp429ToRateLimit() = runTest {
         stubForecastFailure(httpError(429))
 
-        val thrown = runCatching { repository.getWeatherForecast(1.0, 2.0, 2) }.exceptionOrNull()
+        val thrown = runCatching { repository.getForecast("loc-1", 1.0, 2.0, today) }.exceptionOrNull()
 
         assertTrue(thrown is RateLimitException)
     }
@@ -280,15 +352,12 @@ class WeatherRepositoryTest {
     // ---- weather cache delegation ----
 
     @Test
-    fun daoDelegations_invokeRoom() = runTest {
+    fun cleanOutdatedWeatherDate_cleansEveryCache() = runTest {
         repository.cleanOutdatedWeatherDate()
-        repository.getCachedWeatherById("loc-1")
-        repository.insertWeather(mockk(relaxed = true))
 
         coVerify(exactly = 1) { weatherDao.cleanOutdatedCache(any()) }
         coVerify(exactly = 1) { yearSeriesDao.cleanOutdated(any()) }
-        coVerify(exactly = 1) { weatherDao.getWeatherById("loc-1") }
-        coVerify(exactly = 1) { weatherDao.insertWeather(any()) }
+        coVerify(exactly = 1) { forecastDao.cleanOutdated(LocalDate.now().toString()) }
     }
 
     // ---- helpers ----

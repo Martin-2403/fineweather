@@ -3,14 +3,14 @@ package com.example.fineweather.data.repositories
 import android.util.Log
 import com.example.fineweather.api.OpenMeteoArchiveApiService
 import com.example.fineweather.api.OpenMeteoWeatherApiService
+import com.example.fineweather.data.local.dao.ForecastSeriesDao
 import com.example.fineweather.data.local.dao.ReferenceClimateDao
 import com.example.fineweather.data.local.dao.WeatherDao
 import com.example.fineweather.data.local.dao.YearSeriesDao
+import com.example.fineweather.data.local.entities.ForecastSeriesEntity
 import com.example.fineweather.data.local.entities.ReferenceClimateEntity
-import com.example.fineweather.data.local.entities.WeatherEntity
 import com.example.fineweather.data.local.entities.YearSeriesEntity
 import com.example.fineweather.data.models.HistoricReference
-import com.example.fineweather.data.models.WeatherResponse
 import com.example.fineweather.domain.DailySeries
 import com.example.fineweather.domain.ReferenceClimate
 import kotlinx.coroutines.sync.Mutex
@@ -34,11 +34,12 @@ class WeatherRepository(
     private val weatherDao: WeatherDao,
     private val referenceClimateDao: ReferenceClimateDao,
     private val yearSeriesDao: YearSeriesDao,
+    private val forecastSeriesDao: ForecastSeriesDao,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
     companion object {
         private const val DAILY_TEMPERATURE = "temperature_2m_mean"
-        private const val FALLBACK_TEMPERATURE = -273.15
+        private const val FORECAST_DAYS = 14
         private const val YEAR_SERIES_LOOKBACK_DAYS = 30L
         private const val HTTP_TOO_MANY_REQUESTS = 429
 
@@ -58,35 +59,66 @@ class WeatherRepository(
             }
     }
 
-    private var cachedForecast: WeatherResponse? = null
-
     // Serializes cache-or-fetch so identical concurrent requests hit the API once.
     private val fetchLock = Mutex()
 
-    suspend fun getWeatherForecast(
+    /**
+     * The 14-day daily forecast starting today in the place's time zone. Always 14 days, so a
+     * 7-day view is just its first week and switching needs no request. Cached for the day.
+     */
+    suspend fun getForecast(
+        locationId: String,
         latitude: Double,
         longitude: Double,
-        forecastDays: Int,
-    ): WeatherResponse {
+        today: LocalDate,
+    ): CacheResult<DailySeries> =
+        fetchLock.withLock {
+            val cached = forecastSeriesDao.get(locationId)
+            if (cached != null && cached.fetchedDate == today.toString()) {
+                return@withLock CacheResult(
+                    DailySeries.fromBytes(LocalDate.parse(cached.startDate), cached.data),
+                    fromCache = true,
+                )
+            }
+            val series = fetchForecast(latitude, longitude)
+            forecastSeriesDao.insert(
+                ForecastSeriesEntity(
+                    locationId = locationId,
+                    startDate = series.start.toString(),
+                    endDate = series.end.toString(),
+                    data = series.toBytes(),
+                    fetchedDate = today.toString(),
+                ),
+            )
+            CacheResult(series, fromCache = false)
+        }
+
+    private suspend fun fetchForecast(
+        latitude: Double,
+        longitude: Double,
+    ): DailySeries {
         try {
-            val weatherData =
+            val response =
                 openMeteoWeatherApi.getForecast(
                     latitude = latitude,
                     longitude = longitude,
                     daily = DAILY_TEMPERATURE,
-                    forecastDays = forecastDays,
+                    forecastDays = FORECAST_DAYS,
                     pastDays = 0,
                     timezone = "auto",
                 )
-            cachedForecast = weatherData
-            return weatherData
+            val first = response.daily.time.firstOrNull()?.let { LocalDate.parse(it) }
+                ?: throw IllegalStateException("The forecast contained no days")
+            return DailySeries.fromApi(
+                first,
+                first.plusDays(FORECAST_DAYS - 1L),
+                response.daily.time,
+                response.daily.temperature_2m_mean,
+            )
         } catch (e: Exception) {
+            Log.e("WeatherAPI", "Forecast error: ${e.message}")
             throw if (e.isRateLimit()) RateLimitException(e) else Exception("Failed to fetch weather data", e)
         }
-    }
-
-    fun calculateAverageForecastTemperature(): Double {
-        return averageTemperature(cachedForecast?.daily?.temperature_2m_mean, "forecast")
     }
 
     /**
@@ -193,25 +225,6 @@ class WeatherRepository(
         val minDate = LocalDate.now().minusDays(7).toString()
         weatherDao.cleanOutdatedCache(minDate)
         yearSeriesDao.cleanOutdated(minDate)
-    }
-
-    suspend fun getCachedWeatherById(
-        locId: String,
-    ) = weatherDao.getWeatherById(locId)
-
-    suspend fun insertWeather(entity: WeatherEntity) {
-        weatherDao.insertWeather(entity)
-    }
-
-    private fun averageTemperature(
-        temperatures: List<Double?>?,
-        label: String,
-    ): Double {
-        val values = temperatures?.filterNotNull()
-        if (values.isNullOrEmpty()) {
-            Log.e("WeatherRepository", "No $label data available")
-            return FALLBACK_TEMPERATURE
-        }
-        return values.average()
+        forecastSeriesDao.cleanOutdated(LocalDate.now().toString())
     }
 }

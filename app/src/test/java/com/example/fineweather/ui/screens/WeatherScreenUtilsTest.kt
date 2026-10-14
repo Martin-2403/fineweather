@@ -3,6 +3,7 @@ package com.example.fineweather.ui.screens
 import androidx.compose.ui.graphics.Color
 import com.example.fineweather.R
 import com.example.fineweather.data.models.TemperatureComparisonMode
+import com.example.fineweather.domain.ForecastOutlook
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -61,23 +62,39 @@ class WeatherScreenUtilsTest {
         assertEquals(2, value.icons?.count)
     }
 
+    private fun outlook(delta: Double?) =
+        ForecastOutlook(days = 7, mean = 10.0 + (delta ?: 0.0), referenceMean = delta?.let { 10.0 })
+
     @Test
-    fun buildTrendCardValue_returnsUpDownOrDash() {
-        val up = buildTrendCardValue("11.00°C", "10.00°C")
-        assertEquals(R.drawable.up, up.icons?.resId)
-        assertEquals(1, up.icons?.count)
-        assertEquals(Color(0xFFE53935), up.icons?.tint)
+    fun buildTrendCardValue_returnsWarmerCoolerOrSteadyAgainstTheNormal() {
+        val warmer = buildTrendCardValue(outlook(1.5))
+        assertEquals(R.drawable.up, warmer.icons?.resId)
+        assertEquals(1, warmer.icons?.count)
+        assertEquals(Color(0xFFE53935), warmer.icons?.tint)
+        assertEquals("Forecast warmer than normal", warmer.icons?.contentDescription)
 
-        val down = buildTrendCardValue("9.00°C", "10.00°C")
-        assertEquals(R.drawable.down, down.icons?.resId)
-        assertEquals(1, down.icons?.count)
-        assertEquals(Color(0xFF1E88E5), down.icons?.tint)
+        val cooler = buildTrendCardValue(outlook(-2.4))
+        assertEquals(R.drawable.down, cooler.icons?.resId)
+        assertEquals(2, cooler.icons?.count)
+        assertEquals(Color(0xFF1E88E5), cooler.icons?.tint)
+        assertEquals("Forecast cooler than normal", cooler.icons?.contentDescription)
 
-        val flat = buildTrendCardValue("10.10°C", "10.00°C")
-        assertEquals("", flat.text)
-        assertEquals(R.drawable.arrow_right, flat.icons?.resId)
-        assertEquals(1, flat.icons?.count)
-        assertEquals(Color(0xFF43A047), flat.icons?.tint)
+        val much = buildTrendCardValue(outlook(3.5))
+        assertEquals(3, much.icons?.count)
+
+        val steady = buildTrendCardValue(outlook(0.6))
+        assertEquals("", steady.text)
+        assertEquals(R.drawable.arrow_right, steady.icons?.resId)
+        assertEquals(1, steady.icons?.count)
+        assertEquals(Color(0xFF43A047), steady.icons?.tint)
+        assertEquals("Forecast near normal", steady.icons?.contentDescription)
+    }
+
+    @Test
+    fun buildTrendCardValue_returnsDashWithoutAnOutlookOrReference() {
+        assertEquals("-", buildTrendCardValue(null).text)
+        assertEquals("-", buildTrendCardValue(outlook(null)).text)
+        assertEquals(null, buildTrendCardValue(null).icons)
     }
 
     @Test

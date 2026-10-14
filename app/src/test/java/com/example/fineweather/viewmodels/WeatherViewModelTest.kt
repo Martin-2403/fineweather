@@ -2,7 +2,6 @@ package com.example.fineweather.viewmodels
 
 import android.util.Log
 import androidx.lifecycle.viewmodel.CreationExtras
-import com.example.fineweather.data.local.entities.WeatherEntity
 import com.example.fineweather.data.models.FineWeatherData
 import com.example.fineweather.data.models.GeoPlace
 import com.example.fineweather.data.models.GeocodeSelection
@@ -17,6 +16,7 @@ import com.example.fineweather.data.repositories.SettingsDefaults
 import com.example.fineweather.data.repositories.SettingsRepository
 import com.example.fineweather.data.repositories.WeatherRepository
 import com.example.fineweather.domain.DailySeries
+import com.example.fineweather.domain.ForecastOutlook
 import com.example.fineweather.domain.ReferenceClimate
 import com.example.fineweather.domain.seriesOf
 import com.example.fineweather.domain.syntheticReference
@@ -27,7 +27,6 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
-import io.mockk.slot
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
@@ -61,6 +60,10 @@ class WeatherViewModelTest {
 
     /** Complete days Jan 1..Apr 1 2026, all 10.0. */
     private val yearSeries = seriesOf(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 4, 1)) { 10.0 }
+
+    /** 14 forecast days from today: 12.0 for the first week, 15.0 for the second. */
+    private val forecastSeries =
+        seriesOf(fixedNow, fixedNow.plusDays(13)) { date -> if (date.isBefore(fixedNow.plusDays(7))) 12.0 else 15.0 }
 
     /** Every day of month m is worth m in all reference years (April: 4.0, std 0). */
     private val monthlyClimate = syntheticReference { it.monthValue.toDouble() }
@@ -109,7 +112,7 @@ class WeatherViewModelTest {
         assertEquals(1, viewModel.currentMonthDayCount.value)
         assertEquals("4.00°C", viewModel.resultHistoricAverage.value)
         assertEquals(0.0, viewModel.historicMonthlyStdDev.value!!, 1e-9)
-        assertEquals("12.34°C", viewModel.resultForecastAverage.value)
+        assertEquals("12.00°C", viewModel.resultForecastAverage.value)
         assertEquals("Berlin", viewModel.resolvedLocationName.value)
         assertNotNull(viewModel.climate.value)
         assertEquals(fixedNow, viewModel.climate.value!!.today)
@@ -134,43 +137,33 @@ class WeatherViewModelTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun fetchWeather_usesCachedForecastWhenAvailable() = runTest {
-        val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1", "Germany")
-        stubSearch(
-            data = data,
-            cached = forecastEntity(data.id, data.timestamp, forecast = 12.0),
-        )
+    fun fetchWeather_countsTheForecastAsACacheHitWhenItIsStored() = runTest {
+        stubSearch(climateFromCache = true, forecastFromCache = true)
 
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
 
-        coVerify(exactly = 0) { weatherRepository.getWeatherForecast(any(), any(), any()) }
         assertEquals("12.00°C", viewModel.resultForecastAverage.value)
-        assertTrue(viewModel.cacheHitCount.value >= 1)
+        assertEquals(1, viewModel.apiCallCount.value) // only the year series
+        assertEquals(2, viewModel.cacheHitCount.value) // reference and forecast
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun fetchWeather_ignoresCachedForecastWhenDaysMismatch() = runTest {
-        val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1", "Germany")
-        // cached for 14 days, but the setting is 7
-        stubSearch(
-            data = data,
-            cached = forecastEntity(
-                data.id,
-                data.timestamp,
-                days = WeatherViewModel.FORECAST_DAYS_LONG,
-                forecast = 15.0,
-            ),
-        )
+    fun fetchWeather_averagesTheFirstSevenOfTheStoredFourteenDays() = runTest {
+        stubSearch()
 
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
 
-        coVerify(exactly = 1) {
-            weatherRepository.getWeatherForecast(1.0, 2.0, WeatherViewModel.FORECAST_DAYS_SHORT)
-        }
-        assertEquals("12.34°C", viewModel.resultForecastAverage.value)
+        assertEquals("12.00°C", viewModel.resultForecastAverage.value)
+        val outlook = viewModel.forecastOutlook.value!!
+        assertEquals(7, outlook.days)
+        assertEquals(12.0, outlook.mean, 1e-9)
+        // reference days Apr 2..8 are 4.0 in every year
+        assertEquals(4.0, outlook.referenceMean!!, 1e-9)
+        assertEquals(8.0, outlook.delta!!, 1e-9)
+        assertEquals(forecastSeries.start, viewModel.climate.value!!.forecast!!.start)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -178,32 +171,25 @@ class WeatherViewModelTest {
     fun fetchWeather_usesConfiguredForecastDays() = runTest {
         val settings = FakeSettingsRepository(initialDays = WeatherViewModel.FORECAST_DAYS_LONG)
         viewModel = newViewModel(settings = settings)
-        stubSearch()
+        val data = stubSearch()
 
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
 
-        coVerify(exactly = 1) {
-            weatherRepository.getWeatherForecast(1.0, 2.0, WeatherViewModel.FORECAST_DAYS_LONG)
-        }
+        assertEquals("13.50°C", viewModel.resultForecastAverage.value)
+        assertEquals(14, viewModel.forecastOutlook.value!!.days)
+        coVerify(exactly = 1) { weatherRepository.getForecast(data.id, 1.0, 2.0, fixedNow) }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun fetchWeather_persistsOnlyTheForecast() = runTest {
-        val saved = slot<WeatherEntity>()
+    fun fetchWeather_requestsTheForecastOnce() = runTest {
         val data = stubSearch()
-        coEvery { weatherRepository.insertWeather(capture(saved)) } returns Unit
 
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
 
-        assertEquals(data.id, saved.captured.id)
-        assertEquals(12.34, saved.captured.forecastAverage7!!, 1e-9)
-        assertEquals(data.timestamp, saved.captured.forecastDate7)
-        assertNull(saved.captured.forecastAverage14)
-        assertNull(saved.captured.currentAverage)
-        assertNull(saved.captured.historicMonthlyAverageClassic)
+        coVerify(exactly = 1) { weatherRepository.getForecast(data.id, 1.0, 2.0, fixedNow) }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -278,12 +264,14 @@ class WeatherViewModelTest {
     @Test
     fun fetchWeather_handlesForecastFetchFailure() = runTest {
         stubSearch()
-        coEvery { weatherRepository.getWeatherForecast(any(), any(), any()) } throws RuntimeException("boom")
+        coEvery { weatherRepository.getForecast(any(), any(), any(), any()) } throws RuntimeException("boom")
 
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
 
         assertEquals("Error", viewModel.resultForecastAverage.value)
+        assertNull(viewModel.forecastOutlook.value)
+        assertNull(viewModel.climate.value!!.forecast)
         assertEquals("10.00°C", viewModel.resultCurrentMonthAverage.value)
     }
 
@@ -387,6 +375,7 @@ class WeatherViewModelTest {
         advanceUntilIdle()
 
         assertEquals("6.00°C", viewModel.resultHistoricAverage.value)
+        assertEquals(6.0, viewModel.forecastOutlook.value!!.referenceMean!!, 1e-9)
         coVerify(exactly = 1) {
             weatherRepository.getReferenceClimate(data.id, 1.0, 2.0, HistoricReference.CURRENT, fixedNow)
         }
@@ -394,39 +383,21 @@ class WeatherViewModelTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun settingsUpdates_useCachedForecastForTheNewForecastDays() = runTest {
+    fun settingsUpdates_recomputeTheForecastWithoutRequestingItAgain() = runTest {
         val settings = FakeSettingsRepository()
         viewModel = newViewModel(settings = settings)
-        val data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1", "Germany")
-        val cached =
-            forecastEntity(data.id, data.timestamp, forecast = 12.0)
-                .copy(forecastAverage14 = 15.0, forecastDate14 = data.timestamp)
-        stubSearch(data = data, cached = cached)
+        val data = stubSearch()
 
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
+        assertEquals("12.00°C", viewModel.resultForecastAverage.value)
+
         settings.setForecastDays(WeatherViewModel.FORECAST_DAYS_LONG)
         advanceUntilIdle()
 
-        assertEquals("15.00°C", viewModel.resultForecastAverage.value)
-        coVerify(exactly = 0) { weatherRepository.getWeatherForecast(any(), any(), any()) }
-    }
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    @Test
-    fun settingsUpdates_fetchForecastWhenNotCachedForTheNewDays() = runTest {
-        val settings = FakeSettingsRepository()
-        viewModel = newViewModel(settings = settings)
-        stubSearch()
-
-        viewModel.fetchWeather("Berlin")
-        advanceUntilIdle()
-        settings.setForecastDays(WeatherViewModel.FORECAST_DAYS_LONG)
-        advanceUntilIdle()
-
-        coVerify(exactly = 1) {
-            weatherRepository.getWeatherForecast(1.0, 2.0, WeatherViewModel.FORECAST_DAYS_LONG)
-        }
+        assertEquals("13.50°C", viewModel.resultForecastAverage.value)
+        assertEquals(14, viewModel.forecastOutlook.value!!.days)
+        coVerify(exactly = 1) { weatherRepository.getForecast(data.id, 1.0, 2.0, fixedNow) }
     }
 
     @Test
@@ -550,52 +521,28 @@ class WeatherViewModelTest {
         )
 
     /**
-     * Stubs a successful search for [data]: geocoding, cached forecast row [cached], a fresh
-     * forecast of 12.34 °C and the given daily [series] and reference [climate].
+     * Stubs a successful search for [data]: geocoding, the 14-day [forecast] and the given daily
+     * [series] and reference [climate].
      */
     private fun stubSearch(
         data: FineWeatherData = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1", "Germany"),
-        cached: WeatherEntity? = null,
         series: DailySeries = yearSeries,
         climate: ReferenceClimate = monthlyClimate,
+        forecast: DailySeries = forecastSeries,
         seriesFromCache: Boolean = false,
         climateFromCache: Boolean = false,
+        forecastFromCache: Boolean = false,
     ): FineWeatherData {
         coEvery { weatherRepository.cleanOutdatedWeatherDate() } returns Unit
         coEvery { geoCodeRepository.getGeoCode(any(), any()) } returns buildSelectionFromData(data)
-        coEvery { weatherRepository.getCachedWeatherById(any()) } returns cached
-        coEvery { weatherRepository.getWeatherForecast(any(), any(), any()) } returns mockk()
-        every { weatherRepository.calculateAverageForecastTemperature() } returns 12.34
+        coEvery { weatherRepository.getForecast(any(), any(), any(), any()) } returns
+            CacheResult(forecast, forecastFromCache)
         coEvery { weatherRepository.getYearToDate(any(), any(), any(), any()) } returns
             CacheResult(series, seriesFromCache)
         coEvery { weatherRepository.getReferenceClimate(any(), any(), any(), any(), any()) } returns
             CacheResult(climate, climateFromCache)
-        coEvery { weatherRepository.insertWeather(any()) } returns Unit
         return data
     }
-
-    private fun forecastEntity(
-        id: String,
-        date: String,
-        days: Int = WeatherViewModel.FORECAST_DAYS_SHORT,
-        forecast: Double? = null,
-    ): WeatherEntity =
-        WeatherEntity(
-            id = id,
-            date = date,
-            locationName = "Test City",
-            country = "TC",
-            latitude = 1.0,
-            longitude = 2.0,
-            currentAverage = null,
-            currentMonthAverage = null,
-            forecastAverage7 = if (days == WeatherViewModel.FORECAST_DAYS_SHORT) forecast else null,
-            forecastAverage14 = if (days == WeatherViewModel.FORECAST_DAYS_LONG) forecast else null,
-            forecastDate7 = if (days == WeatherViewModel.FORECAST_DAYS_SHORT && forecast != null) date else null,
-            forecastDate14 = if (days == WeatherViewModel.FORECAST_DAYS_LONG && forecast != null) date else null,
-            historicMonthlyAverageClassic = null,
-            historicMonthlyAverageCurrent = null,
-        )
 
     private fun buildSelectionFromData(
         data: FineWeatherData,

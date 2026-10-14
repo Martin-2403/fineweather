@@ -43,6 +43,9 @@ interface ReferenceClimateDao {
     @Query("SELECT COUNT(*) FROM reference_climate")
     fun observeCount(): Flow<Int>
 
+    @Query("SELECT COUNT(DISTINCT locationId) FROM reference_climate")
+    fun observeLocationCount(): Flow<Int>
+
     @Query("DELETE FROM reference_climate")
     suspend fun clearAll()
 }

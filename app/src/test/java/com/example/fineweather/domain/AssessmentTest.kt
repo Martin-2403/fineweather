@@ -50,20 +50,4 @@ class AssessmentTest {
         assertEquals(Band.NEUTRAL, assess(10.5, 10.0, 1.0, anomaly).band)
         assertEquals(Band.WARM, assess(10.6, 10.0, 1.0, anomaly).band)
     }
-
-    @Test
-    fun trend_steadyBelowQuarterDegree() {
-        assertTrue(assessTrend(10.2, 10.0).steady)
-        assertTrue(assessTrend(9.8, 10.0).steady)
-        assertFalse(assessTrend(10.25, 10.0).steady)
-    }
-
-    @Test
-    fun trend_strengthAndDirection() {
-        assertEquals(1, assessTrend(11.0, 10.0).strength)
-        assertEquals(2, assessTrend(11.5, 10.0).strength)
-        assertEquals(3, assessTrend(12.5, 10.0).strength)
-        assertTrue(assessTrend(11.0, 10.0).warming)
-        assertFalse(assessTrend(9.0, 10.0).warming)
-    }
 }

@@ -1,5 +1,6 @@
 package com.example.fineweather.data.repositories
 
+import com.example.fineweather.data.local.dao.ForecastSeriesDao
 import com.example.fineweather.data.local.dao.GeoCodeDao
 import com.example.fineweather.data.local.dao.ReferenceClimateDao
 import com.example.fineweather.data.local.dao.WeatherDao
@@ -26,10 +27,11 @@ class RoomCacheRepository(
     private val geoCodeDao: GeoCodeDao,
     private val referenceClimateDao: ReferenceClimateDao,
     private val yearSeriesDao: YearSeriesDao,
+    private val forecastSeriesDao: ForecastSeriesDao,
 ) : CacheRepository {
 
     override val stats: Flow<CacheStats> =
-        combine(weatherDao.observeCount(), geoCodeDao.observeSearchCount()) { weather, searches ->
+        combine(referenceClimateDao.observeLocationCount(), geoCodeDao.observeSearchCount()) { weather, searches ->
             CacheStats(weatherEntries = weather, searchEntries = searches)
         }.distinctUntilChanged()
 
@@ -38,5 +40,6 @@ class RoomCacheRepository(
         geoCodeDao.clearAll()
         referenceClimateDao.clearAll()
         yearSeriesDao.clearAll()
+        forecastSeriesDao.clearAll()
     }
 }

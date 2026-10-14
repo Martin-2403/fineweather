@@ -22,8 +22,7 @@ data class SummaryInput(
     val referenceLabel: String,
     val stdDev: Double?,
     val mode: TemperatureComparisonMode,
-    val forecast: Double?,
-    val forecastDays: Int,
+    val outlook: ForecastOutlook?,
     val daysObserved: Int,
 )
 
@@ -55,19 +54,7 @@ fun buildSummary(input: SummaryInput): List<SummaryBlock> {
             )
     }
 
-    input.forecast?.let { forecast ->
-        val trend = assessTrend(forecast, observed)
-        blocks +=
-            SummaryBlock.Detail(
-                if (trend.steady) {
-                    "The next ${input.forecastDays} days look about as warm as $month so far."
-                } else {
-                    val side = if (trend.warming) "warmer" else "cooler"
-                    "The next ${input.forecastDays} days are forecast to be about " +
-                        "${format1(abs(trend.delta))}°C $side than $month so far."
-                },
-            )
-    }
+    input.outlook?.let { outlook -> blocks += SummaryBlock.Detail(outlookText(outlook, input.mode)) }
 
     if (input.daysObserved in 1..6) {
         val days = if (input.daysObserved == 1) "1 day" else "${input.daysObserved} days"
@@ -93,6 +80,21 @@ private fun headline(
             }
         }
     return "${input.monthName}: This month so far is $phrase the ${input.referenceLabel} average ($signedDelta°C)."
+}
+
+private fun outlookText(
+    outlook: ForecastOutlook,
+    mode: TemperatureComparisonMode,
+): String {
+    val period = "next ${outlook.days} days"
+    val delta = outlook.delta
+        ?: return "The $period are forecast to average ${format1(outlook.mean)}°C."
+    val assessment = assess(outlook.mean, outlook.mean - delta, null, mode)
+    if (assessment.band == Band.NEUTRAL) {
+        return "The $period look about as warm as usual for those days."
+    }
+    val side = if (assessment.band == Band.WARM) "warmer" else "cooler"
+    return "The $period are forecast to be about ${format1(abs(delta))}°C $side than usual for those days."
 }
 
 private fun format1(value: Double): String = String.format(Locale.US, "%.1f", value)

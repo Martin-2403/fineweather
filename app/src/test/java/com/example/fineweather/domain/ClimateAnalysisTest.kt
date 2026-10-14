@@ -184,3 +184,59 @@ class MonthViewDataTest {
         assertNull(summarizeYear(emptyList()).delta)
     }
 }
+
+class ForecastDataTest {
+
+    private val today = LocalDate.of(2026, 10, 14) // yesterday: Oct 13
+    private val climate = syntheticReference { it.monthValue + it.dayOfMonth / 100.0 }
+
+    private fun forecast(
+        start: LocalDate = today,
+        days: Int = 14,
+        valueOf: (LocalDate) -> Double? = { 8.0 },
+    ) = seriesOf(start, start.plusDays(days - 1L), valueOf)
+
+    @Test
+    fun outlook_averagesTheRequestedDaysAndComparesThemWithTheSameDaysOfTheReference() {
+        val outlook = forecastOutlook(forecast(), climate, days = 7)!!
+
+        assertEquals(7, outlook.days)
+        assertEquals(8.0, outlook.mean, 1e-6)
+        // Oct 14..20 -> 10.14 .. 10.20, mean 10.17
+        assertEquals(10.17, outlook.referenceMean!!, 1e-6)
+        assertEquals(8.0 - 10.17, outlook.delta!!, 1e-6)
+    }
+
+    @Test
+    fun outlook_fourteenDaysUsesTheLongerPeriod() {
+        val outlook = forecastOutlook(forecast(), climate, days = 14)!!
+
+        assertEquals(14, outlook.days)
+        assertEquals(10.205, outlook.referenceMean!!, 1e-6)
+    }
+
+    @Test
+    fun outlook_spanningTheMonthBoundaryUsesEachDaysOwnMonth() {
+        val start = LocalDate.of(2026, 10, 29)
+        val outlook = forecastOutlook(forecast(start = start, days = 4), climate, days = 4)!!
+
+        // Oct 29, 30, 31 and Nov 1 -> 10.29 10.30 10.31 11.01
+        assertEquals((10.29 + 10.30 + 10.31 + 11.01) / 4, outlook.referenceMean!!, 1e-6)
+    }
+
+    @Test
+    fun outlook_withoutReferenceStillHasTheMean() {
+        val outlook = forecastOutlook(forecast(), reference = null, days = 7)!!
+
+        assertEquals(8.0, outlook.mean, 1e-6)
+        assertNull(outlook.referenceMean)
+        assertNull(outlook.delta)
+    }
+
+    @Test
+    fun outlook_isNullWithoutForecastOrDays() {
+        assertNull(forecastOutlook(null, climate, 7))
+        assertNull(forecastOutlook(forecast(), climate, 0))
+        assertNull(forecastOutlook(forecast(valueOf = { null }), climate, 7))
+    }
+}

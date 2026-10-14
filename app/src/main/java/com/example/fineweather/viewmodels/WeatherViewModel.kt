@@ -19,10 +19,11 @@ import com.example.fineweather.data.repositories.RateLimitException
 import com.example.fineweather.data.repositories.WeatherRepository
 import com.example.fineweather.domain.ClimateSnapshot
 import com.example.fineweather.domain.DailySeries
+import com.example.fineweather.domain.ForecastOutlook
 import com.example.fineweather.domain.ReferenceClimate
+import com.example.fineweather.domain.forecastOutlook
 import com.example.fineweather.domain.lastDaysMean
 import com.example.fineweather.domain.monthToDate
-import com.example.fineweather.data.local.entities.WeatherEntity
 import com.example.fineweather.utils.formatDouble
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -63,6 +64,9 @@ class WeatherViewModel(
     val resultHistoricAverage: StateFlow<String> = _resultHistoricAverage
     private val _historicMonthlyStdDev = MutableStateFlow<Double?>(null)
     val historicMonthlyStdDev: StateFlow<Double?> = _historicMonthlyStdDev
+    private val _forecastOutlook = MutableStateFlow<ForecastOutlook?>(null)
+    val forecastOutlook: StateFlow<ForecastOutlook?> = _forecastOutlook
+    private var lastForecast: DailySeries? = null
     private val _climate = MutableStateFlow<ClimateSnapshot?>(null)
     val climate: StateFlow<ClimateSnapshot?> = _climate
     private val _currentMonthDayCount = MutableStateFlow(0)
@@ -97,10 +101,8 @@ class WeatherViewModel(
             settingsRepository.forecastDays.collect { days ->
                 val changed = _forecastDays.value != days
                 _forecastDays.value = days
-                if (changed) {
-                    lastResolvedData?.let { data ->
-                        loadForecast(data)
-                    }
+                if (changed && lastForecast != null) {
+                    publishForecast()
                 }
             }
         }
@@ -130,6 +132,7 @@ class WeatherViewModel(
     fun fetchWeather(location: String) {
         if (location.trim().isEmpty()) {
             _status.value = "Enter a location to see temperature averages"
+            clearForecast()
             setDataValues("-")
             _currentMonthDayCount.value = 0
             _coordinates.value = Pair(0.0, 0.0)
@@ -143,6 +146,7 @@ class WeatherViewModel(
         }
         viewModelScope.launch {
             _status.value = "Searching for $location..."
+            clearForecast()
             setDataValues("Loading...")
             try {
                 weatherRepository.cleanOutdatedWeatherDate()
@@ -172,6 +176,7 @@ class WeatherViewModel(
                 fetchWeatherForData(data)
             } catch (ex: Exception) {
                 _status.value = "City not found"
+                clearForecast()
                 setDataValues("N/A")
                 _resolvedLocationName.value = ""
                 _currentMonthDayCount.value = 0
@@ -200,19 +205,34 @@ class WeatherViewModel(
     }
 
     private suspend fun loadForecast(data: FineWeatherData) {
-        val cachedLatest = weatherRepository.getCachedWeatherById(data.id)
-        val isLong = _forecastDays.value == FORECAST_DAYS_LONG
-        val cachedForecastAverage =
-            if (isLong) cachedLatest?.forecastAverage14 else cachedLatest?.forecastAverage7
-        val cachedForecastDate =
-            if (isLong) cachedLatest?.forecastDate14 else cachedLatest?.forecastDate7
-        if (cachedForecastAverage != null && cachedForecastDate == data.timestamp) {
-            incrementCacheHits()
-            data.forecastAverage = cachedForecastAverage
-            _resultForecastAverage.value = "${formatDouble(data.forecastAverage)}°C"
+        _resultForecastAverage.value = "Fetching..."
+        lastForecast =
+            loadOrNull("forecast") {
+                weatherRepository.getForecast(
+                    data.id,
+                    data.coordinates.first,
+                    data.coordinates.second,
+                    nowProvider(),
+                )
+            }
+        if (lastForecast == null) {
+            _resultForecastAverage.value = "Error"
+            _forecastOutlook.value = null
         } else {
-            fetchForecastWeather(data)
+            publishForecast()
         }
+    }
+
+    /** The average and outlook of the next forecast days, from the stored 14-day series. */
+    private fun publishForecast() {
+        val outlook = forecastOutlook(lastForecast, _climate.value?.reference, _forecastDays.value)
+        _forecastOutlook.value = outlook
+        _resultForecastAverage.value = outlook?.let { "${formatDouble(it.mean)}°C" } ?: "N/A"
+    }
+
+    private fun clearForecast() {
+        lastForecast = null
+        _forecastOutlook.value = null
     }
 
     private suspend fun loadClimate(data: FineWeatherData) {
@@ -307,7 +327,8 @@ class WeatherViewModel(
             _resultHistoricAverage.value = referenceMean?.let { "${formatDouble(it)}°C" } ?: "N/A"
         }
 
-        _climate.value = series?.let { ClimateSnapshot(it, climate, today) }
+        _climate.value = series?.let { ClimateSnapshot(it, climate, today, lastForecast) }
+        if (lastForecast != null) publishForecast()
     }
 
     fun selectPlace(place: GeoPlace) {
@@ -351,53 +372,6 @@ class WeatherViewModel(
         viewModelScope.launch {
             favoriteRepository.removeFavorite(placeId)
         }
-    }
-
-    private suspend fun fetchForecastWeather(data: FineWeatherData) {
-        _resultForecastAverage.value = "Fetching..."
-        runCatching {
-            incrementApiCalls()
-            weatherRepository.getWeatherForecast(
-                data.coordinates.first,
-                data.coordinates.second,
-                _forecastDays.value,
-            )
-            data.forecastAverage = weatherRepository.calculateAverageForecastTemperature()
-            _resultForecastAverage.value = "${formatDouble(data.forecastAverage)}°C"
-            persistForecast(data)
-        }.onFailure { e ->
-            _resultForecastAverage.value = "Error"
-
-            Log.e(
-                "WeatherAPI",
-                e.message ?: "Error occurred while trying to fetch the forecast",
-            )
-        }
-    }
-
-    private suspend fun persistForecast(data: FineWeatherData) {
-        val existing = weatherRepository.getCachedWeatherById(data.id)
-        val isShort = _forecastDays.value == FORECAST_DAYS_SHORT
-        val isLong = _forecastDays.value == FORECAST_DAYS_LONG
-        val fresh = data.forecastAverage
-        val entity =
-            WeatherEntity(
-                id = data.id,
-                date = data.timestamp,
-                locationName = data.location,
-                country = data.country,
-                latitude = data.coordinates.first,
-                longitude = data.coordinates.second,
-                currentAverage = null,
-                currentMonthAverage = null,
-                forecastAverage7 = if (isShort && fresh != null) fresh else existing?.forecastAverage7,
-                forecastAverage14 = if (isLong && fresh != null) fresh else existing?.forecastAverage14,
-                forecastDate7 = if (isShort && fresh != null) data.timestamp else existing?.forecastDate7,
-                forecastDate14 = if (isLong && fresh != null) data.timestamp else existing?.forecastDate14,
-                historicMonthlyAverageClassic = null,
-                historicMonthlyAverageCurrent = null,
-            )
-        weatherRepository.insertWeather(entity)
     }
 
     private fun incrementApiCalls(count: Int = 1) {

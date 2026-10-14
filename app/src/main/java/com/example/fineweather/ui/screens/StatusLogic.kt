@@ -5,7 +5,8 @@ import com.example.fineweather.R
 import com.example.fineweather.data.models.TemperatureComparisonMode
 import com.example.fineweather.domain.Band
 import com.example.fineweather.domain.assess
-import com.example.fineweather.domain.assessTrend
+import com.example.fineweather.domain.Assessment
+import com.example.fineweather.domain.ForecastOutlook
 import com.example.fineweather.ui.models.IconStack
 import com.example.fineweather.ui.models.ValueWithIcons
 import java.util.Locale
@@ -52,40 +53,33 @@ internal fun buildStatusCardValue(
     )
 }
 
-internal fun buildTrendCardValue(
-    forecast: String,
-    currentMonth: String,
-): ValueWithIcons {
-    val forecastValue = parseTemperature(forecast)
-    val currentMonthValue = parseTemperature(currentMonth)
-    if (forecastValue == null || currentMonthValue == null) {
-        return ValueWithIcons("-", null)
-    }
-    val trend = assessTrend(forecastValue, currentMonthValue)
-    if (trend.steady) {
-        return ValueWithIcons(
-            text = "",
-            icons =
-                IconStack(
-                    resId = R.drawable.arrow_right,
-                    count = 1,
-                    tint = NeutralIconTint,
-                    contentDescription = "Trend steady",
-                ),
-        )
-    }
+/** Whether the next forecast days are warmer or cooler than normal for those same days. */
+internal fun buildTrendCardValue(outlook: ForecastOutlook?): ValueWithIcons {
+    val delta = outlook?.delta ?: return ValueWithIcons("-", null)
+    val assessment = Assessment(delta, null, TemperatureComparisonMode.ABSOLUTE_DELTA)
     val (resId, tint, description) =
-        if (trend.warming) {
-            Triple(R.drawable.up, WarmIconTint, "Trending warmer")
-        } else {
-            Triple(R.drawable.down, CoolIconTint, "Trending cooler")
+        when (assessment.band) {
+            Band.NEUTRAL ->
+                return ValueWithIcons(
+                    text = "",
+                    icons =
+                        IconStack(
+                            resId = R.drawable.arrow_right,
+                            count = 1,
+                            tint = NeutralIconTint,
+                            contentDescription = "Forecast near normal",
+                        ),
+                )
+
+            Band.WARM -> Triple(R.drawable.up, WarmIconTint, "Forecast warmer than normal")
+            Band.COLD -> Triple(R.drawable.down, CoolIconTint, "Forecast cooler than normal")
         }
     return ValueWithIcons(
         text = "",
         icons =
             IconStack(
                 resId = resId,
-                count = trend.strength,
+                count = assessment.severity.coerceAtLeast(1),
                 tint = tint,
                 contentDescription = description,
             ),
