@@ -116,7 +116,8 @@ class WeatherViewModelTest {
         assertEquals("Berlin", viewModel.resolvedLocationName.value)
         assertNotNull(viewModel.climate.value)
         assertEquals(fixedNow, viewModel.climate.value!!.today)
-        assertTrue(viewModel.status.value.startsWith("Berlin"))
+        assertEquals("Berlin, Germany (1.00, 2.00)", viewModel.status.value)
+        assertEquals(PlaceLabel("Berlin, Germany", "1.00, 2.00"), viewModel.placeLabel.value)
         coVerify(exactly = 1) {
             weatherRepository.getYearToDate(data.id, 1.0, 2.0, fixedNow)
         }
@@ -309,11 +310,13 @@ class WeatherViewModelTest {
         stubSearch()
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
+        assertNotNull(viewModel.placeLabel.value)
 
         viewModel.fetchWeather("   ")
         advanceUntilIdle()
 
         assertEquals("Enter a location to see temperature averages", viewModel.status.value)
+        assertNull(viewModel.placeLabel.value)
         assertEquals("-", viewModel.resultCurrentAverage.value)
         assertEquals("-", viewModel.resultCurrentMonthAverage.value)
         assertEquals("-", viewModel.resultForecastAverage.value)
@@ -331,6 +334,7 @@ class WeatherViewModelTest {
         advanceUntilIdle()
 
         assertEquals("City not found", viewModel.status.value)
+        assertNull(viewModel.placeLabel.value)
         assertEquals("N/A", viewModel.resultCurrentAverage.value)
         assertEquals("N/A", viewModel.resultForecastAverage.value)
         assertEquals("N/A", viewModel.resultHistoricAverage.value)
@@ -430,6 +434,8 @@ class WeatherViewModelTest {
 
         assertEquals(selected, viewModel.selectedPlace.value)
         assertEquals("Hamburg", viewModel.resolvedLocationName.value)
+        assertEquals("Hamburg, Germany (3.00, 4.00)", viewModel.status.value)
+        assertEquals(PlaceLabel("Hamburg, Germany", "3.00, 4.00"), viewModel.placeLabel.value)
         assertEquals("10.00°C", viewModel.resultCurrentMonthAverage.value)
         coVerify(exactly = 1) { weatherRepository.getYearToDate("loc-2", 3.0, 4.0, fixedNow) }
     }

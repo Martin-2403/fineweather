@@ -28,4 +28,10 @@ class UtilsTest {
             Locale.setDefault(original)
         }
     }
+
+    @Test
+    fun formatCoordinates_usesTwoDecimalsWithDotSeparator() {
+        assertEquals("48.37, 10.90", formatCoordinates(48.37154, 10.89851))
+        assertEquals("-33.87, 151.21", formatCoordinates(-33.8688, 151.2093))
+    }
 }

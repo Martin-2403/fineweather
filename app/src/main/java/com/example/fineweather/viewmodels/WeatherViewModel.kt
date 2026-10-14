@@ -24,6 +24,7 @@ import com.example.fineweather.domain.ReferenceClimate
 import com.example.fineweather.domain.forecastOutlook
 import com.example.fineweather.domain.lastDaysMean
 import com.example.fineweather.domain.monthToDate
+import com.example.fineweather.utils.formatCoordinates
 import com.example.fineweather.utils.formatDouble
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -33,6 +34,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+
+/** A resolved place for the one-line status: [name] may be shortened by the UI, [coordinates] never. */
+data class PlaceLabel(
+    val name: String,
+    val coordinates: String,
+)
 
 class WeatherViewModel(
     private val weatherRepository: WeatherRepository,
@@ -78,6 +85,9 @@ class WeatherViewModel(
 
     private val _resolvedLocationName = MutableStateFlow("")
     val resolvedLocationName: StateFlow<String> = _resolvedLocationName
+
+    private val _placeLabel = MutableStateFlow<PlaceLabel?>(null)
+    val placeLabel: StateFlow<PlaceLabel?> = _placeLabel
 
     private val _status = MutableStateFlow("Enter a city to see temperature averages")
     val status: StateFlow<String> = _status
@@ -132,6 +142,7 @@ class WeatherViewModel(
     fun fetchWeather(location: String) {
         if (location.trim().isEmpty()) {
             _status.value = "Enter a location to see temperature averages"
+            _placeLabel.value = null
             clearForecast()
             setDataValues("-")
             _currentMonthDayCount.value = 0
@@ -146,6 +157,7 @@ class WeatherViewModel(
         }
         viewModelScope.launch {
             _status.value = "Searching for $location..."
+            _placeLabel.value = null
             clearForecast()
             setDataValues("Loading...")
             try {
@@ -171,11 +183,13 @@ class WeatherViewModel(
                         .filter { it.isNotBlank() }
                         .joinToString(", ")
                 _resolvedLocationName.value = primaryPlace.name
-                _status.value =
-                    "$resolvedLocationDisplay ${data.coordinates}"
+                val coordinates = formatCoordinates(data.coordinates.first, data.coordinates.second)
+                _status.value = "$resolvedLocationDisplay ($coordinates)"
+                _placeLabel.value = PlaceLabel(resolvedLocationDisplay, coordinates)
                 fetchWeatherForData(data)
             } catch (ex: Exception) {
                 _status.value = "City not found"
+                _placeLabel.value = null
                 clearForecast()
                 setDataValues("N/A")
                 _resolvedLocationName.value = ""
@@ -344,8 +358,9 @@ class WeatherViewModel(
                     .joinToString(", ")
             _selectedPlace.value = place
             _resolvedLocationName.value = place.name
-            _status.value =
-                "$display\nCoordinates: ${data.coordinates}"
+            val coordinates = formatCoordinates(data.coordinates.first, data.coordinates.second)
+            _status.value = "$display ($coordinates)"
+            _placeLabel.value = PlaceLabel(display, coordinates)
             lastResolvedData = data
             fetchWeatherForData(data)
         }

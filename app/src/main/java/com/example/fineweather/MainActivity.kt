@@ -151,6 +151,7 @@ fun WeatherApp() {
     val cacheStats by settingsViewModel.cacheStats.collectAsState(initial = CacheStats())
     val hasSeenInfo by settingsViewModel.hasSeenInfo.collectAsState(initial = null)
     var showInfo by rememberSaveable { mutableStateOf(false) }
+    var showFavorites by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(hasSeenInfo) {
@@ -167,23 +168,43 @@ fun WeatherApp() {
                 AppScreen.WEATHER ->
                     CompactTopBar(
                         title = "FineWeather",
-                        actionIconRes = R.drawable.settings,
-                        actionContentDescription = "Open settings",
-                        actionTestTag = "settingsButton",
-                        onAction = { currentScreen = AppScreen.SETTINGS },
-                        secondaryActionIconRes = R.drawable.info,
-                        secondaryActionContentDescription = "Open info",
-                        secondaryActionTestTag = "infoButton",
-                        onSecondaryAction = { showInfo = true },
+                        actions =
+                            listOf(
+                                TopBarAction(
+                                    R.drawable.info,
+                                    "Open info",
+                                    "infoButton"
+                                ) { showInfo = true },
+                                TopBarAction(
+                                    R.drawable.favorites_list,
+                                    "Open favorites",
+                                    "favoritesButton"
+                                ) {
+                                    showFavorites = true
+                                },
+                                TopBarAction(
+                                    R.drawable.settings,
+                                    "Open settings",
+                                    "settingsButton"
+                                ) {
+                                    currentScreen = AppScreen.SETTINGS
+                                },
+                            ),
                     )
 
                 AppScreen.SETTINGS ->
                     CompactTopBar(
                         title = "Settings",
-                        actionIconRes = R.drawable.search,
-                        actionContentDescription = "Back to weather",
-                        actionTestTag = "backToWeatherButton",
-                        onAction = { currentScreen = AppScreen.WEATHER },
+                        actions =
+                            listOf(
+                                TopBarAction(
+                                    R.drawable.search,
+                                    "Back to weather",
+                                    "backToWeatherButton"
+                                ) {
+                                    currentScreen = AppScreen.WEATHER
+                                },
+                            ),
                     )
             }
         },
@@ -208,6 +229,8 @@ fun WeatherApp() {
                         showInfo = false
                         settingsViewModel.setHasSeenInfo(true)
                     },
+                    showFavorites = showFavorites,
+                    onDismissFavorites = { showFavorites = false },
                     modifier = Modifier.padding(top = innerPadding.calculateTopPadding()),
                 )
 
@@ -234,17 +257,17 @@ private enum class AppScreen {
     SETTINGS,
 }
 
+private class TopBarAction(
+    val iconRes: Int,
+    val contentDescription: String,
+    val testTag: String,
+    val onClick: () -> Unit,
+)
+
 @Composable
 private fun CompactTopBar(
     title: String,
-    actionIconRes: Int,
-    actionContentDescription: String,
-    actionTestTag: String,
-    onAction: () -> Unit,
-    secondaryActionIconRes: Int? = null,
-    secondaryActionContentDescription: String? = null,
-    secondaryActionTestTag: String? = null,
-    onSecondaryAction: (() -> Unit)? = null,
+    actions: List<TopBarAction>,
 ) {
     Surface(tonalElevation = 2.dp) {
         Row(
@@ -262,30 +285,16 @@ private fun CompactTopBar(
                 style = MaterialTheme.typography.titleMedium,
             )
             Spacer(modifier = Modifier.weight(1f))
-            if (secondaryActionIconRes != null && onSecondaryAction != null) {
+            actions.forEach { action ->
                 IconButton(
-                    onClick = onSecondaryAction,
-                    modifier =
-                        if (secondaryActionTestTag != null) {
-                            Modifier.testTag(secondaryActionTestTag)
-                        } else {
-                            Modifier
-                        },
+                    onClick = action.onClick,
+                    modifier = Modifier.testTag(action.testTag),
                 ) {
                     Icon(
-                        painter = painterResource(id = secondaryActionIconRes),
-                        contentDescription = secondaryActionContentDescription,
+                        painter = painterResource(id = action.iconRes),
+                        contentDescription = action.contentDescription,
                     )
                 }
-            }
-            IconButton(
-                onClick = onAction,
-                modifier = Modifier.testTag(actionTestTag),
-            ) {
-                Icon(
-                    painter = painterResource(id = actionIconRes),
-                    contentDescription = actionContentDescription,
-                )
             }
         }
     }

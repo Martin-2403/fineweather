@@ -56,6 +56,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
+import com.example.fineweather.viewmodels.PlaceLabel
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.widthIn
@@ -87,11 +91,13 @@ fun WeatherScreen(
     viewModel: WeatherViewModel,
     showInfo: Boolean,
     onDismissInfo: () -> Unit,
+    showFavorites: Boolean,
+    onDismissFavorites: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var location by rememberSaveable { mutableStateOf("") }
     var showCurrentMonthWarning by rememberSaveable { mutableStateOf(false) }
-    var selectedTab by rememberSaveable { mutableStateOf(WeatherTab.SEARCH) }
+    var showAlternatives by rememberSaveable { mutableStateOf(false) }
     var timeScale by rememberSaveable { mutableStateOf(TimeScale.CURRENT) }
     val climate by viewModel.climate.collectAsState()
     val status by viewModel.status.collectAsState(initial = "Enter a location to see temperature averages")
@@ -115,7 +121,11 @@ fun WeatherScreen(
     val places by viewModel.places.collectAsState(initial = emptyList())
     val favorites by viewModel.favorites.collectAsState(initial = emptyList())
     val selectedPlace by viewModel.selectedPlace.collectAsState(initial = null)
+    val placeLabel by viewModel.placeLabel.collectAsState()
     val isFavoriteSelected = favorites.any { it.id == selectedPlace?.id }
+    // Other matches of the last search; only meaningful while the shown place came from that search.
+    val alternatives =
+        if (places.any { it.id == selectedPlace?.id }) places.filter { it.id != selectedPlace?.id } else emptyList()
     val statusCardValue = buildStatusCardValue(
         currentMonth = resultCurrentMonth,
         historic = resultHistoric,
@@ -200,12 +210,42 @@ fun WeatherScreen(
                 .fillMaxSize(),
         verticalArrangement = Arrangement.Top,
         horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
+    ) {
         Column(
             modifier = Modifier.verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Top,
         ) {
+            SearchBar(
+                location = location,
+                onLocationChange = { location = it },
+                onSearch = {
+                    focusManager.clearFocus()
+                    keyboardController?.hide()
+                    viewModel.fetchWeather(location)
+                },
+                onClear = {
+                    keyboardController?.hide()
+                    location = ""
+                    viewModel.fetchWeather("")
+                },
+                isFavorite = isFavoriteSelected,
+                canFavorite = selectedPlace != null,
+                onToggleFavorite = { viewModel.toggleFavorite() },
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            LocationStatus(
+                status = status,
+                label = placeLabel,
+                onShowAlternatives = if (alternatives.isNotEmpty()) ({
+                    showAlternatives = true
+                }) else null,
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
             StatusHeaderCard(
                 imageRes = statusImageRes,
                 summary = summaryBlocks,
@@ -213,108 +253,6 @@ fun WeatherScreen(
                 trendCardValue = trendCardValue,
                 shape = cardShape,
             )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            SegmentedTabs(
-                labels = WeatherTab.entries.map { it.label },
-                selectedIndex = selectedTab.ordinal,
-                onSelect = { selectedTab = WeatherTab.entries[it] },
-                tagPrefix = "placeTab",
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            when (selectedTab) {
-                WeatherTab.SEARCH -> {
-                    Card(
-                        shape = cardShape,
-                        colors = cardColors,
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .border(
-                                    1.dp,
-                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f),
-                                    cardShape,
-                                ),
-                    ) {
-                        Column(
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            SearchBar(
-                                location = location,
-                                onLocationChange = { location = it },
-                                onSearch = {
-                                    focusManager.clearFocus()
-                                    keyboardController?.hide()
-                                    selectedTab = WeatherTab.SEARCH
-                                    viewModel.fetchWeather(location)
-                                },
-                                onClear = {
-                                    keyboardController?.hide()
-                                    location = ""
-                                    selectedTab = WeatherTab.SEARCH
-                                    viewModel.fetchWeather("")
-                                },
-                                isFavorite = isFavoriteSelected,
-                                canFavorite = selectedPlace != null,
-                                onToggleFavorite = { viewModel.toggleFavorite() },
-                            )
-                            StatusDisplay(status)
-                        }
-                    }
-                }
-
-                WeatherTab.FAVORITE -> {
-                    if (favorites.isEmpty()) {
-                        EmptySectionCard(
-                            title = "Favorites",
-                            message = "No favorites yet. Tap the star next to the search bar to save one.",
-                            shape = cardShape,
-                            colors = cardColors,
-                        )
-                    } else {
-                        PlacesCard(
-                            title = "Favorites",
-                            places = favorites,
-                            onPlaceClick = { place ->
-                                selectedTab = WeatherTab.SEARCH
-                                viewModel.selectPlace(place)
-                            },
-                            onPlaceRemove = { place -> viewModel.removeFavorite(place.id) },
-                            shape = cardShape,
-                            colors = cardColors,
-                        )
-                    }
-                }
-
-                WeatherTab.HOMONYMS -> {
-                    if (places.isEmpty()) {
-                        EmptySectionCard(
-                            title = "Homonyms",
-                            message = "Search to see alternate matches here.",
-                            shape = cardShape,
-                            colors = cardColors,
-                        )
-                    } else {
-                        PlacesCard(
-                            title = "Homonyms",
-                            places = places,
-                            onPlaceClick = { place ->
-                                selectedTab = WeatherTab.SEARCH
-                                viewModel.selectPlace(place)
-                            },
-                            shape = cardShape,
-                            colors = cardColors,
-                        )
-                    }
-                }
-            }
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -354,6 +292,7 @@ fun WeatherScreen(
                     )
             }
 
+
             Spacer(modifier = Modifier.weight(1f))
 
             Text(
@@ -363,6 +302,31 @@ fun WeatherScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
             )
         }
+    }
+    if (showFavorites) {
+        PlacesSheet(
+            title = "Favorites",
+            places = favorites,
+            emptyMessage = "No favorites yet. Tap the star next to the search bar to save a place.",
+            onSelect = { place ->
+                onDismissFavorites()
+                viewModel.selectPlace(place)
+            },
+            onDismiss = onDismissFavorites,
+            onRemove = { place -> viewModel.removeFavorite(place.id) },
+        )
+    }
+    if (showAlternatives) {
+        PlacesSheet(
+            title = "Other matches",
+            places = alternatives,
+            emptyMessage = "No other matches for this search.",
+            onSelect = { place ->
+                showAlternatives = false
+                viewModel.selectPlace(place)
+            },
+            onDismiss = { showAlternatives = false },
+        )
     }
     if (showCurrentMonthWarning) {
         AlertDialog(
@@ -414,7 +378,7 @@ internal fun SearchBar(
     OutlinedTextField(
         value = location,
         onValueChange = onLocationChange,
-        label = {
+        placeholder = {
             Text(
                 "City or place",
                 fontFamily = nunitoSansFamily,
@@ -449,48 +413,69 @@ internal fun SearchBar(
                 )
             }
         },
-        trailingIcon = {
-            IconButton(
-                onClick = onClear,
-                modifier = Modifier.testTag("clearButton"),
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.delete_24),
-                    contentDescription = "Clear search",
-                )
-            }
-        },
+        trailingIcon = { SearchActions(onClear = onClear, onSearch = onSearch) },
         modifier =
             Modifier
                 .fillMaxWidth()
                 .testTag("searchField"),
     )
-    Row {
-        val isDarkTheme = isSystemInDarkTheme()
+}
 
-        ElevatedButton(
-            onClick = onSearch,
-            colors = ButtonDefaults.elevatedButtonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-            ),
-            elevation = ButtonDefaults.buttonElevation(
-                defaultElevation = if (isDarkTheme) 16.dp else 12.dp,
-                pressedElevation = if (isDarkTheme) 20.dp else 14.dp,
-
-                ),
-            border = BorderStroke(
-                width = 1.dp,
-                color = if (isDarkTheme) HazyBlue else MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
-            ),
-            modifier = Modifier
-                .weight(2f),
+/** One pill inside the search field: delete on the left half, search on the right half. */
+@Composable
+private fun SearchActions(
+    onClear: () -> Unit,
+    onSearch: () -> Unit,
+) {
+    val shape = RoundedCornerShape(50)
+    val outline = MaterialTheme.colorScheme.outline
+    Row(
+        modifier =
+            Modifier
+                .padding(end = 10.dp)
+                .height(38.dp)
+                .clip(shape)
+                .border(1.dp, outline, shape),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier =
+                Modifier
+                    .width(46.dp)
+                    .fillMaxHeight()
+                    .clickable(role = Role.Button, onClick = onClear)
+                    .testTag("clearButton"),
+            contentAlignment = Alignment.Center,
         ) {
-            Text(
-                "Search",
-                fontFamily = nunitoSansFamily,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Bold
+            Icon(
+                painter = painterResource(id = R.drawable.delete_24),
+                contentDescription = "Clear search",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        Box(
+            modifier =
+                Modifier
+                    .width(1.dp)
+                    .fillMaxHeight()
+                    .background(outline),
+        )
+        Box(
+            modifier =
+                Modifier
+                    .width(50.dp)
+                    .fillMaxHeight()
+                    .background(MaterialTheme.colorScheme.primary)
+                    .clickable(role = Role.Button, onClick = onSearch)
+                    .testTag("searchButton"),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(id = R.drawable.search),
+                contentDescription = "Search",
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(20.dp),
             )
         }
     }
@@ -604,179 +589,87 @@ private fun isPlaceholderValue(value: String): Boolean {
             trimmed.equals("No data yet", ignoreCase = true)
 }
 
-private enum class WeatherTab(val label: String) {
-    SEARCH("Search"),
-    FAVORITE("Favorites"),
-    HOMONYMS("Homonyms"),
-    //HISTORY("History"),
-}
-
+/**
+ * Place name and coordinates on one line; a long name is shortened, the coordinates never are.
+ * [onShowAlternatives] adds a "Not your city?" link when the search had other matches.
+ */
 @Composable
-private fun StatusDisplay(status: String) {
-    Column(
-        modifier =
-            Modifier
-                .fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
+internal fun LocationStatus(
+    status: String,
+    label: PlaceLabel?,
+    onShowAlternatives: (() -> Unit)? = null,
+) {
+    val color = MaterialTheme.colorScheme.onSurfaceVariant
+    val style = MaterialTheme.typography.bodyMedium
+    if (label == null) {
         Text(
             text = status,
-            modifier = Modifier.fillMaxWidth(),
-            fontFamily = nunitoSansFamily,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
-private fun EmptySectionCard(
-    title: String,
-    message: String,
-    shape: RoundedCornerShape,
-    colors: CardColors,
-) {
-    Card(
-        shape = shape,
-        colors = colors,
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .border(
-                    1.dp,
-                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f),
-                    shape,
-                ),
-    ) {
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Text(
-                text = title,
-                fontFamily = nunitoSansFamily,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = message,
-                fontFamily = nunitoSansFamily,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-@Composable
-private fun PlacesCard(
-    title: String,
-    places: List<GeoPlace>,
-    onPlaceClick: (GeoPlace) -> Unit,
-    onPlaceRemove: ((GeoPlace) -> Unit)? = null,
-    shape: RoundedCornerShape,
-    colors: CardColors,
-) {
-    Card(
-        shape = shape,
-        colors = colors,
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .border(
-                    1.dp,
-                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f),
-                    shape,
-                ),
-    ) {
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Text(
-                text = title,
-                fontFamily = nunitoSansFamily,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-            DividerLine()
-            places.forEachIndexed { index, place ->
-                PlaceListItem(
-                    place = place,
-                    onClick = { onPlaceClick(place) },
-                    onRemove = onPlaceRemove?.let { remove -> { remove(place) } },
-                )
-                if (index != places.lastIndex) {
-                    DividerLine()
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PlaceListItem(
-    place: GeoPlace,
-    onClick: () -> Unit,
-    onRemove: (() -> Unit)? = null,
-) {
-    val subtitle = place.displaySubtitle()
-    Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (onRemove != null) {
-            IconButton(
-                onClick = onRemove,
-                modifier = Modifier.testTag("removeFavoriteButton"),
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.delete_24),
-                    contentDescription = "Remove favorite",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-            Spacer(modifier = Modifier.width(4.dp))
-        }
-        Column(
-            modifier =
-                Modifier
-                    .weight(1f)
-                    .clickable { onClick() },
-        ) {
-            Text(
-                text = place.displayName(),
-                fontFamily = nunitoSansFamily,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
-            if (subtitle.isNotBlank()) {
-                Text(
-                    text = subtitle,
-                    fontFamily = nunitoSansFamily,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        Icon(
-            painter = painterResource(id = R.drawable.search),
-            contentDescription = "Select place",
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
-                .size(18.dp)
-                .clickable { onClick() },
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp)
+                .testTag("locationStatus"),
+            fontFamily = nunitoSansFamily,
+            style = style,
+            color = color,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
+    } else {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp)
+                .testTag("locationStatus"),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = label.name,
+                        modifier = Modifier.weight(1f, fill = false),
+                        fontFamily = nunitoSansFamily,
+                        style = style,
+                        color = color,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "(${label.coordinates})",
+                        fontFamily = nunitoSansFamily,
+                        style = style,
+                        color = color.copy(alpha = 0.8f),
+                        maxLines = 1,
+                        softWrap = false,
+                    )
+                    if (onShowAlternatives != null) {
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            text = "Not your city?",
+                            modifier =
+                                Modifier
+                                    .clickable(role = Role.Button, onClick = onShowAlternatives)
+                                    .padding(vertical = 6.dp)
+                                    .testTag("alternativesLink"),
+                            fontFamily = nunitoSansFamily,
+                            style = style,
+                            color = MaterialTheme.colorScheme.primary,
+                            textDecoration = TextDecoration.Underline,
+                            maxLines = 1,
+                            softWrap = false,
+                        )
+                    }
+                }
+
+            }
+        }
     }
 }
 
@@ -808,7 +701,8 @@ private fun InfoOverlay(
                     .fillMaxWidth()
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp)
+                    modifier = Modifier
+                        .padding(16.dp)
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
@@ -873,7 +767,8 @@ private fun InfoOverlay(
                             Text(text = "\u2022")
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                text = "Use favorites (star icon) to pin places and look them up in the favorites tab. Click homonyms to switch between places with the same or a similar name.",
+                                text = "Tap the star next to the search bar to save a place, and open your saved places with the list icon at the top. " +
+                                        "If a search finds several places with the same name, tap \"Not your city?\" to switch.",
                                 fontFamily = nunitoSansFamily,
                                 style = MaterialTheme.typography.bodyMedium,
                             )
