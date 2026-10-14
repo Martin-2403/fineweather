@@ -703,10 +703,12 @@ internal fun InfoOverlay(
                     .widthIn(max = 480.dp)
                     .fillMaxWidth()
             ) {
+                val scrollState = rememberScrollState()
                 Column(
                     modifier = Modifier
+                        .verticalScrollbar(scrollState, MaterialTheme.colorScheme.onSurfaceVariant)
                         .padding(16.dp)
-                        .verticalScroll(rememberScrollState()),
+                        .verticalScroll(scrollState),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     Row(
