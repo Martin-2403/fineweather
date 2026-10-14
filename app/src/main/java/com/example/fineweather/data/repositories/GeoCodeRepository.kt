@@ -6,6 +6,7 @@ import com.example.fineweather.data.local.entities.GeoCodeCacheEntity
 import com.example.fineweather.data.models.GeoPlace
 import com.example.fineweather.data.models.GeocodeSelection
 import com.example.fineweather.data.models.GeocodingResult
+import kotlinx.coroutines.CancellationException
 import java.util.Locale
 
 class GeoCodeRepository(
@@ -64,6 +65,8 @@ class GeoCodeRepository(
                 primary = primaryPlace,
                 candidates = candidates,
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             throw Exception("Failed to fetch geocoding", e)
         }

@@ -8,6 +8,11 @@ import com.example.fineweather.data.models.GeocodingResult
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -162,5 +167,25 @@ class GeoCodeRepositoryTest {
         val thrown = runCatching { repository.getGeoCode("Rome", "en") }.exceptionOrNull()
 
         assertTrue(thrown is Exception)
+    }
+
+    @Test
+    fun getGeoCode_cancellationIsNotWrappedInAnotherException() = runTest {
+        val gate = CompletableDeferred<GeoCodingResponse>()
+        coEvery { api.getGeoCoding(any(), any(), any(), any()) } coAnswers { gate.await() }
+        var caught: Throwable? = null
+
+        val search = launch {
+            try {
+                repository.getGeoCode("Berlin", "en")
+            } catch (e: Throwable) {
+                caught = e
+            }
+        }
+        runCurrent()
+        search.cancel()
+        advanceUntilIdle()
+
+        assertTrue("was $caught", caught is CancellationException)
     }
 }

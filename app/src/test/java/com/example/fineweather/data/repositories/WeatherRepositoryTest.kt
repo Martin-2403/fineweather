@@ -22,12 +22,18 @@ import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.slot
 import io.mockk.unmockkStatic
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -358,6 +364,129 @@ class WeatherRepositoryTest {
         coVerify(exactly = 1) { weatherDao.cleanOutdatedCache(any()) }
         coVerify(exactly = 1) { yearSeriesDao.cleanOutdated(any()) }
         coVerify(exactly = 1) { forecastDao.cleanOutdated(LocalDate.now().toString()) }
+    }
+
+    // ---- concurrency ----
+
+    /** Lets the DAOs remember what was inserted, like the database would. */
+    private fun useStatefulCaches() {
+        val forecasts = mutableMapOf<String, ForecastSeriesEntity>()
+        coEvery { forecastDao.get(any()) } coAnswers { forecasts[firstArg()] }
+        coEvery { forecastDao.insert(any()) } coAnswers {
+            forecasts[firstArg<ForecastSeriesEntity>().locationId] = firstArg()
+        }
+        val years = mutableMapOf<String, YearSeriesEntity>()
+        coEvery { yearSeriesDao.get(any()) } coAnswers { years[firstArg()] }
+        coEvery { yearSeriesDao.insert(any()) } coAnswers {
+            years[firstArg<YearSeriesEntity>().locationId] = firstArg()
+        }
+    }
+
+    @Test
+    fun getForecast_concurrentIdenticalCallsRequestItOnce() = runTest {
+        useStatefulCaches()
+        val gate = CompletableDeferred<WeatherResponse>()
+        coEvery { weatherApi.getForecast(any(), any(), any(), any(), any(), any()) } coAnswers { gate.await() }
+
+        val first = async { repository.getForecast("loc-1", 1.0, 2.0, today) }
+        val second = async { repository.getForecast("loc-1", 1.0, 2.0, today) }
+        advanceUntilIdle()
+        gate.complete(forecastResponse(today))
+
+        assertFalse(first.await().fromCache)
+        // the second caller waited, then found what the first had stored
+        assertTrue(second.await().fromCache)
+        coVerify(exactly = 1) { weatherApi.getForecast(any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun getYearToDate_concurrentIdenticalCallsRequestItOnce() = runTest {
+        useStatefulCaches()
+        val gate = CompletableDeferred<Unit>()
+        coEvery { archiveApi.getHistoricData(any(), any(), any(), any(), any(), any()) } coAnswers {
+            gate.await()
+            val start = LocalDate.parse(thirdArg<String>())
+            val end = LocalDate.parse(arg<String>(3))
+            val dates = generateSequence(start) { it.plusDays(1) }.takeWhile { !it.isAfter(end) }.toList()
+            sampleResponse(dates.map { it.toString() }, dates.map { 1.0 })
+        }
+
+        val calls = List(3) { async { repository.getYearToDate("loc-1", 1.0, 2.0, today) } }
+        advanceUntilIdle()
+        gate.complete(Unit)
+
+        assertEquals(listOf(false, true, true), calls.map { it.await().fromCache })
+        coVerify(exactly = 1) { archiveApi.getHistoricData(any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun differentRequestsRunInParallel() = runTest {
+        useStatefulCaches()
+        val gate = CompletableDeferred<Unit>()
+        var started = 0
+        coEvery { weatherApi.getForecast(any(), any(), any(), any(), any(), any()) } coAnswers {
+            started++
+            gate.await()
+            forecastResponse(today)
+        }
+        coEvery { archiveApi.getHistoricData(any(), any(), any(), any(), any(), any()) } coAnswers {
+            started++
+            gate.await()
+            val start = LocalDate.parse(thirdArg<String>())
+            val end = LocalDate.parse(arg<String>(3))
+            val dates = generateSequence(start) { it.plusDays(1) }.takeWhile { !it.isAfter(end) }.toList()
+            sampleResponse(dates.map { it.toString() }, dates.map { 1.0 })
+        }
+
+        val calls =
+            listOf(
+                async { repository.getForecast("loc-1", 1.0, 2.0, today) },
+                async { repository.getForecast("loc-2", 3.0, 4.0, today) },
+                async { repository.getYearToDate("loc-1", 1.0, 2.0, today) },
+                async { repository.getReferenceClimate("loc-1", 1.0, 2.0, HistoricReference.CLASSIC, today) },
+                async { repository.getReferenceClimate("loc-1", 1.0, 2.0, HistoricReference.CURRENT, today) },
+            )
+        advanceUntilIdle()
+
+        // every one of them is on its way before any can finish
+        assertEquals(5, started)
+        gate.complete(Unit)
+        calls.forEach { assertFalse(it.await().fromCache) }
+    }
+
+    @Test
+    fun cancellationIsNotTurnedIntoAnotherException() = runTest {
+        coEvery { weatherApi.getForecast(any(), any(), any(), any(), any(), any()) } throws CancellationException("cancelled")
+        coEvery { archiveApi.getHistoricData(any(), any(), any(), any(), any(), any()) } throws CancellationException("cancelled")
+
+        assertThrows(CancellationException::class.java) {
+            runBlocking { repository.getForecast("loc-1", 1.0, 2.0, today) }
+        }
+        assertThrows(CancellationException::class.java) {
+            runBlocking { repository.getYearToDate("loc-1", 1.0, 2.0, today) }
+        }
+        assertThrows(CancellationException::class.java) {
+            runBlocking { repository.getReferenceClimate("loc-1", 1.0, 2.0, HistoricReference.CLASSIC, today) }
+        }
+    }
+
+    @Test
+    fun aCancelledRequestLetsTheWaitingOneThrough() = runTest {
+        useStatefulCaches()
+        val gate = CompletableDeferred<WeatherResponse>()
+        var calls = 0
+        coEvery { weatherApi.getForecast(any(), any(), any(), any(), any(), any()) } coAnswers {
+            if (calls++ == 0) gate.await() else forecastResponse(today)
+        }
+
+        val first = async { repository.getForecast("loc-1", 1.0, 2.0, today) }
+        val second = async { repository.getForecast("loc-1", 1.0, 2.0, today) }
+        advanceUntilIdle()
+        first.cancel()
+        advanceUntilIdle()
+
+        assertFalse(second.await().fromCache)
+        assertEquals(2, calls)
     }
 
     // ---- helpers ----

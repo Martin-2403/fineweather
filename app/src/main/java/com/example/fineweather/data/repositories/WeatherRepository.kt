@@ -13,8 +13,7 @@ import com.example.fineweather.data.local.entities.YearSeriesEntity
 import com.example.fineweather.data.models.HistoricReference
 import com.example.fineweather.domain.DailySeries
 import com.example.fineweather.domain.ReferenceClimate
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.CancellationException
 import retrofit2.HttpException
 import java.time.LocalDate
 
@@ -59,8 +58,9 @@ class WeatherRepository(
             }
     }
 
-    // Serializes cache-or-fetch so identical concurrent requests hit the API once.
-    private val fetchLock = Mutex()
+    // Serializes cache-or-fetch per key, so identical concurrent requests hit the API once while
+    // different ones run in parallel.
+    private val fetchLocks = KeyedMutex()
 
     /**
      * The 14-day daily forecast starting today in the place's time zone. Always 14 days, so a
@@ -72,7 +72,7 @@ class WeatherRepository(
         longitude: Double,
         today: LocalDate,
     ): CacheResult<DailySeries> =
-        fetchLock.withLock {
+        fetchLocks.withLock("forecast|$locationId") {
             val cached = forecastSeriesDao.get(locationId)
             if (cached != null && cached.fetchedDate == today.toString()) {
                 return@withLock CacheResult(
@@ -115,6 +115,8 @@ class WeatherRepository(
                 response.daily.time,
                 response.daily.temperature_2m_mean,
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e("WeatherAPI", "Forecast error: ${e.message}")
             throw if (e.isRateLimit()) RateLimitException(e) else Exception("Failed to fetch weather data", e)
@@ -131,7 +133,7 @@ class WeatherRepository(
         longitude: Double,
         today: LocalDate,
     ): CacheResult<DailySeries> =
-        fetchLock.withLock {
+        fetchLocks.withLock("year|$locationId") {
             val yesterday = today.minusDays(1)
             val start =
                 minOf(LocalDate.of(yesterday.year, 1, 1), yesterday.minusDays(YEAR_SERIES_LOOKBACK_DAYS))
@@ -167,7 +169,7 @@ class WeatherRepository(
         reference: HistoricReference,
         today: LocalDate,
     ): CacheResult<ReferenceClimate> =
-        fetchLock.withLock {
+        fetchLocks.withLock("ref|$locationId|${reference.id}") {
             val (firstYear, lastYear) = referenceYears(reference, today)
             val start = LocalDate.of(firstYear, 1, 1)
             val now = clock()
@@ -210,6 +212,8 @@ class WeatherRepository(
                     endDate = end.toString(),
                 )
             return DailySeries.fromApi(start, end, response.daily.time, response.daily.temperature_2m_mean)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: HttpException) {
             Log.e("WeatherAPI", "HTTP error: ${e.code()} - ${e.message()}")
             throw if (e.isRateLimit()) RateLimitException(e) else Exception("Failed to fetch weather data: HTTP ${e.code()}", e)
