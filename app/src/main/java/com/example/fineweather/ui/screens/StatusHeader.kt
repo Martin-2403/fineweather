@@ -74,22 +74,16 @@ internal fun StatusHeaderCard(
         ) {
             BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
                 val cardWidth = maxWidth
+                val imageWidth =
+                    if (wide) minOf(cardWidth * 0.5f, WideImageMaxWidth) else cardWidth * COMPACT_IMAGE_FRACTION
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    if (wide) {
-                        val imageWidth = minOf(cardWidth * 0.5f, WideImageMaxWidth)
-                        ImageWithText(
-                            imageRes = imageRes,
-                            imageWidth = imageWidth,
-                            blocks = summary,
-                        )
-                    } else {
-                        ImageWithText(
-                            imageRes = imageRes,
-                            imageWidth = cardWidth * COMPACT_IMAGE_FRACTION,
-                            blocks = summary.take(1),
-                        )
-                    }
+                    ImageWithText(
+                        imageRes = imageRes,
+                        imageWidth = imageWidth,
+                        blocks = summary,
+                    )
                     DividerLine()
+                    // The split lines up with the edge of the picture above.
                     Row(
                         modifier =
                             Modifier
@@ -97,22 +91,15 @@ internal fun StatusHeaderCard(
                                 .height(IntrinsicSize.Min),
                     ) {
                         StatusTrendCell(
-                            label = "Divergence",
-                            value = statusCardValue,
-                            modifier = Modifier.weight(3f),
+                            label = "Trend",
+                            value = trendCardValue,
+                            modifier = Modifier.width(imageWidth),
                         )
                         VerticalDividerLine()
                         StatusTrendCell(
-                            label = "Trend",
-                            value = trendCardValue,
-                            modifier = Modifier.weight(2f),
-                        )
-                    }
-                    if (!wide && summary.size > 1) {
-                        DividerLine()
-                        SummaryBlocks(
-                            blocks = summary.drop(1),
-                            modifier = Modifier.padding(12.dp),
+                            label = "Divergence",
+                            value = statusCardValue,
+                            modifier = Modifier.weight(1f),
                         )
                     }
                 }

@@ -78,7 +78,7 @@ class TimeScaleViewsTest {
         composeTestRule.onNodeWithTag("monthSummary").assertTextContains("13 days averaged 12.0°C", substring = true)
         composeTestRule.onNodeWithTag("monthSummary").assertTextContains("+4.0°C compared with the same days of 1961–1990", substring = true)
 
-        composeTestRule.onNodeWithText("Last 30 days").performClick()
+        composeTestRule.onNodeWithText("30 days").performClick()
 
         composeTestRule.onNodeWithTag("monthSummary").assertTextContains("30 days averaged 12.0°C", substring = true)
     }

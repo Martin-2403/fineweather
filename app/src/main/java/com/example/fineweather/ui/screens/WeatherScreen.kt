@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -256,20 +257,22 @@ fun WeatherScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            SegmentedTabs(
+            UnderlineTabs(
                 labels = TimeScale.entries.map { it.label },
                 selectedIndex = timeScale.ordinal,
                 onSelect = { timeScale = TimeScale.entries[it] },
                 tagPrefix = "timeScale",
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            // The tab bar sits flush on the card, so the card's top edge doubles as its baseline.
+            val attachedShape =
+                cardShape.copy(topStart = CornerSize(0.dp), topEnd = CornerSize(0.dp))
 
             when (timeScale) {
                 TimeScale.CURRENT ->
                     CurrentView(
                         rows = temperatureRows,
-                        shape = cardShape,
+                        shape = attachedShape,
                         colors = cardColors,
                         onWarningClick = { showCurrentMonthWarning = true },
                     )
@@ -279,7 +282,7 @@ fun WeatherScreen(
                         snapshot = climate,
                         forecastDays = forecastDays,
                         referenceLabel = historicReference.displayLabel(),
-                        shape = cardShape,
+                        shape = attachedShape,
                         colors = cardColors,
                     )
 
@@ -287,7 +290,7 @@ fun WeatherScreen(
                     YearView(
                         snapshot = climate,
                         referenceLabel = historicReference.displayLabel(),
-                        shape = cardShape,
+                        shape = attachedShape,
                         colors = cardColors,
                     )
             }
@@ -746,7 +749,7 @@ private fun InfoOverlay(
                             Text(text = "\u2022")
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                text = "Below the search, switch between Current (the averages), Month (a daily chart against the typical range, " +
+                                text = "Below the report, switch between Current (the averages), Month (a daily chart against the typical range, " +
                                         "for this month or the last 30 days, with the forecast as a dashed line) and Year (every month of the year so far compared with the climate average).",
                                 fontFamily = nunitoSansFamily,
                                 style = MaterialTheme.typography.bodyMedium,

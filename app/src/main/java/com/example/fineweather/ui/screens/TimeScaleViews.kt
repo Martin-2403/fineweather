@@ -3,6 +3,8 @@ package com.example.fineweather.ui.screens
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -107,6 +109,7 @@ private fun monthName(
 
 private fun degrees(value: Double?): String = value?.let { String.format(Locale.US, "%.1f°C", it) } ?: "–"
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun MonthView(
     snapshot: ClimateSnapshot?,
@@ -118,17 +121,32 @@ internal fun MonthView(
     var window by rememberSaveable { mutableStateOf(MonthWindow.THIS_MONTH) }
     var showLegend by rememberSaveable { mutableStateOf(false) }
     ViewCard(shape, colors, Modifier.testTag("monthView")) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            CardTitle("Daily temperatures")
-            IconButton(
-                onClick = { showLegend = true },
-                modifier = Modifier.size(32.dp).testTag("monthInfoButton"),
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.info),
-                    contentDescription = "About this chart",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp),
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            itemVerticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CardTitle("Daily temperatures")
+                IconButton(
+                    onClick = { showLegend = true },
+                    modifier = Modifier.size(32.dp).testTag("monthInfoButton"),
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.info),
+                        contentDescription = "About this chart",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
+            if (snapshot != null) {
+                CompactToggle(
+                    labels = listOf("Month", "30 days"),
+                    selectedIndex = window.ordinal,
+                    onSelect = { window = MonthWindow.entries[it] },
+                    tagPrefix = "monthWindow",
                 )
             }
         }
@@ -136,13 +154,6 @@ internal fun MonthView(
             Caption("Search for a place to see its daily temperatures.")
             return@ViewCard
         }
-        val yesterday = snapshot.today.minusDays(1)
-        SegmentedTabs(
-            labels = listOf(monthName(yesterday.monthValue), "Last 30 days"),
-            selectedIndex = window.ordinal,
-            onSelect = { window = MonthWindow.entries[it] },
-            tagPrefix = "monthWindow",
-        )
         val points = remember(snapshot, window, forecastDays) { dayPoints(snapshot, window, forecastDays) }
         val summary = remember(points) { summarize(points) }
         val outlook =

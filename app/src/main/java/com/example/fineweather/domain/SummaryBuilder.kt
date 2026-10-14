@@ -46,19 +46,11 @@ fun buildSummary(input: SummaryInput): List<SummaryBlock> {
     val blocks = mutableListOf<SummaryBlock>()
     blocks += SummaryBlock.Headline(headline(input, assessment), assessment.band)
 
-    if (assessment.normalized && assessment.band != Band.NEUTRAL) {
-        val side = if (assessment.score > 0) "above" else "below"
-        blocks +=
-            SummaryBlock.Detail(
-                "That is ${format1(abs(assessment.score))} standard deviations $side what is typical for $month.",
-            )
-    }
-
     input.outlook?.let { outlook -> blocks += SummaryBlock.Detail(outlookText(outlook, input.mode)) }
 
     if (input.daysObserved in 1..6) {
         val days = if (input.daysObserved == 1) "1 day" else "${input.daysObserved} days"
-        blocks += SummaryBlock.Caveat("Only $days of $month so far, so this can change quickly.")
+        blocks += SummaryBlock.Caveat("Only $days so far, so this can change quickly.")
     }
     return blocks
 }
@@ -79,22 +71,22 @@ private fun headline(
                 else -> "a little $side than"
             }
         }
-    return "${input.monthName}: This month so far is $phrase the ${input.referenceLabel} average ($signedDelta°C)."
+    return "${input.monthName} so far: $phrase the ${input.referenceLabel} average ($signedDelta°C)."
 }
 
 private fun outlookText(
     outlook: ForecastOutlook,
     mode: TemperatureComparisonMode,
 ): String {
-    val period = "next ${outlook.days} days"
+    val period = "Next ${outlook.days} days"
     val delta = outlook.delta
-        ?: return "The $period are forecast to average ${format1(outlook.mean)}°C."
+        ?: return "$period: forecast to average ${format1(outlook.mean)}°C."
     val assessment = assess(outlook.mean, outlook.mean - delta, null, mode)
     if (assessment.band == Band.NEUTRAL) {
-        return "The $period look about as warm as usual for those days."
+        return "$period: about as warm as usual."
     }
     val side = if (assessment.band == Band.WARM) "warmer" else "cooler"
-    return "The $period are forecast to be about ${format1(abs(delta))}°C $side than usual for those days."
+    return "$period: about ${format1(abs(delta))}°C $side than usual."
 }
 
 private fun format1(value: Double): String = String.format(Locale.US, "%.1f", value)
