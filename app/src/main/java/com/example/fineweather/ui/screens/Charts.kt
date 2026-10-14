@@ -40,6 +40,7 @@ internal fun DailyChart(
     val gridColor = textColor.copy(alpha = 0.15f)
     val bandColor = textColor.copy(alpha = 0.16f)
     val lineColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+    val forecastColor = MaterialTheme.colorScheme.primary
 
     Canvas(
         modifier =
@@ -59,6 +60,7 @@ internal fun DailyChart(
             points.flatMap { point ->
                 listOfNotNull(
                     point.observed,
+                    point.forecast,
                     point.band?.let { it.mean + it.stdDev },
                     point.band?.let { it.mean - it.stdDev },
                 )
@@ -132,6 +134,56 @@ internal fun DailyChart(
                     else -> NeutralIconTint
                 }
             drawCircle(tint, radius = 3.dp.toPx(), center = Offset(x(index), y(value)))
+        }
+
+        val forecastIndices = points.indices.filter { points[it].forecast != null }
+        if (forecastIndices.isNotEmpty()) {
+            val lastObserved = points.indices.lastOrNull { points[it].observed != null }
+            val firstForecast = forecastIndices.first()
+            if (lastObserved != null && lastObserved < firstForecast) {
+                val divider = (x(lastObserved) + x(firstForecast)) / 2f
+                drawLine(
+                    textColor.copy(alpha = 0.3f),
+                    Offset(divider, top),
+                    Offset(divider, top + chartHeight),
+                    1.dp.toPx(),
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 8f)),
+                )
+            }
+            val forecast = Path()
+            if (lastObserved != null && lastObserved < firstForecast) {
+                forecast.moveTo(x(lastObserved), y(points[lastObserved].observed!!))
+            }
+            forecastIndices.forEachIndexed { k, index ->
+                val point = Offset(x(index), y(points[index].forecast!!))
+                if (k == 0 && (lastObserved == null || lastObserved >= firstForecast)) {
+                    forecast.moveTo(point.x, point.y)
+                } else {
+                    forecast.lineTo(point.x, point.y)
+                }
+            }
+            drawPath(
+                forecast,
+                forecastColor,
+                style = Stroke(2.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 10f))),
+            )
+            forecastIndices.forEach { index ->
+                val value = points[index].forecast!!
+                val reference = points[index].band?.mean
+                val tint =
+                    when {
+                        reference == null -> forecastColor
+                        value > reference -> WarmIconTint
+                        value < reference -> CoolIconTint
+                        else -> NeutralIconTint
+                    }
+                drawCircle(
+                    tint,
+                    radius = 3.dp.toPx(),
+                    center = Offset(x(index), y(value)),
+                    style = Stroke(1.5.dp.toPx()),
+                )
+            }
         }
 
         xLabels.forEach { (index, label) ->

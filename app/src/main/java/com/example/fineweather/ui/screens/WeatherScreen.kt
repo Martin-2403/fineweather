@@ -339,6 +339,7 @@ fun WeatherScreen(
                 TimeScale.MONTH ->
                     MonthView(
                         snapshot = climate,
+                        forecastDays = forecastDays,
                         referenceLabel = historicReference.displayLabel(),
                         shape = cardShape,
                         colors = cardColors,
@@ -852,7 +853,7 @@ private fun InfoOverlay(
                             Spacer(Modifier.width(8.dp))
                             Text(
                                 text = "Below the search, switch between Current (the averages), Month (a daily chart against the typical range, " +
-                                        "for this month or the last 30 days) and Year (every month of the year so far compared with the climate average).",
+                                        "for this month or the last 30 days, with the forecast as a dashed line) and Year (every month of the year so far compared with the climate average).",
                                 fontFamily = nunitoSansFamily,
                                 style = MaterialTheme.typography.bodyMedium,
                             )

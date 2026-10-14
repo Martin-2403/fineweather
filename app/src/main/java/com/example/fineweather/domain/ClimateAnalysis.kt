@@ -95,16 +95,23 @@ enum class MonthWindow { THIS_MONTH, LAST_30_DAYS }
 data class DayPoint(
     val date: LocalDate,
     val observed: Double?,
+    val forecast: Double?,
     val band: DailyStats?,
     val referenceMean: Double?,
 )
 
-/** The days of the month of yesterday, or the 30 days ending yesterday. */
+/**
+ * The days of the month of yesterday, or the 30 days ending yesterday followed by the forecast days.
+ * Forecast values are attached to the days from today on, for at most [forecastDays] days.
+ */
 fun dayPoints(
     snapshot: ClimateSnapshot,
     window: MonthWindow,
+    forecastDays: Int = 0,
 ): List<DayPoint> {
     val yesterday = snapshot.today.minusDays(1)
+    val forecast = snapshot.forecast
+    val forecastEnd = forecast?.start?.plusDays((forecastDays - 1).toLong())
     val dates =
         when (window) {
             MonthWindow.THIS_MONTH -> {
@@ -112,12 +119,27 @@ fun dayPoints(
                 (0 until yesterday.lengthOfMonth()).map { first.plusDays(it.toLong()) }
             }
 
-            MonthWindow.LAST_30_DAYS -> (29 downTo 0).map { yesterday.minusDays(it.toLong()) }
+            MonthWindow.LAST_30_DAYS -> {
+                val observed = (29 downTo 0).map { yesterday.minusDays(it.toLong()) }
+                val ahead =
+                    if (forecastEnd == null || !forecastEnd.isAfter(yesterday)) {
+                        emptyList()
+                    } else {
+                        generateSequence(yesterday.plusDays(1)) { it.plusDays(1) }
+                            .takeWhile { !it.isAfter(forecastEnd) }
+                            .toList()
+                    }
+                observed + ahead
+            }
         }
     return dates.map { date ->
+        val inForecast =
+            forecast != null && forecastEnd != null && date.isAfter(yesterday) &&
+                !date.isBefore(forecast.start) && !date.isAfter(forecastEnd)
         DayPoint(
             date = date,
             observed = if (date.isAfter(yesterday)) null else snapshot.series.valueOrNull(date),
+            forecast = if (inForecast) forecast!!.valueOrNull(date) else null,
             band = snapshot.reference?.dailyStats(date.monthValue, date.dayOfMonth),
             referenceMean = snapshot.reference?.dailyStats(date.monthValue, date.dayOfMonth, halfWindow = 0)?.mean,
         )

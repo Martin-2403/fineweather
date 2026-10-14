@@ -8,11 +8,16 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardColors
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -22,10 +27,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.example.fineweather.R
 import com.example.fineweather.domain.ClimateSnapshot
+import com.example.fineweather.domain.ForecastOutlook
+import com.example.fineweather.domain.forecastOutlook
 import com.example.fineweather.domain.MonthWindow
 import com.example.fineweather.domain.dayPoints
 import com.example.fineweather.domain.summarize
@@ -101,13 +110,28 @@ private fun degrees(value: Double?): String = value?.let { String.format(Locale.
 @Composable
 internal fun MonthView(
     snapshot: ClimateSnapshot?,
+    forecastDays: Int,
     referenceLabel: String,
     shape: RoundedCornerShape,
     colors: CardColors,
 ) {
     var window by rememberSaveable { mutableStateOf(MonthWindow.THIS_MONTH) }
+    var showLegend by rememberSaveable { mutableStateOf(false) }
     ViewCard(shape, colors, Modifier.testTag("monthView")) {
-        CardTitle("Daily temperatures")
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            CardTitle("Daily temperatures")
+            IconButton(
+                onClick = { showLegend = true },
+                modifier = Modifier.size(32.dp).testTag("monthInfoButton"),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.info),
+                    contentDescription = "About this chart",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
         if (snapshot == null) {
             Caption("Search for a place to see its daily temperatures.")
             return@ViewCard
@@ -119,8 +143,10 @@ internal fun MonthView(
             onSelect = { window = MonthWindow.entries[it] },
             tagPrefix = "monthWindow",
         )
-        val points = remember(snapshot, window) { dayPoints(snapshot, window) }
+        val points = remember(snapshot, window, forecastDays) { dayPoints(snapshot, window, forecastDays) }
         val summary = remember(points) { summarize(points) }
+        val outlook =
+            remember(snapshot, forecastDays) { forecastOutlook(snapshot.forecast, snapshot.reference, forecastDays) }
         if (summary.observedDays == 0) {
             Caption("No daily data available for this period yet.")
             return@ViewCard
@@ -129,9 +155,9 @@ internal fun MonthView(
             points = points,
             xLabels = remember(points, window) { dayAxisLabels(points.map { it.date }, window) },
             description =
-                "Daily mean temperatures, ${summary.observedDays} days, averaging ${degrees(summary.observedMean)}.",
+                "Daily mean temperatures, ${summary.observedDays} days, averaging ${degrees(summary.observedMean)}" +
+                    if (points.any { it.forecast != null }) ", with the forecast for the coming days." else ".",
         )
-        Caption("Line: daily mean. Band: typical range of $referenceLabel (±1 standard deviation).")
         Spacer(Modifier.height(2.dp))
         Text(
             text = monthSummaryText(summary.observedDays, summary.observedMean, summary.delta, referenceLabel),
@@ -143,7 +169,45 @@ internal fun MonthView(
             "${summary.warmerDays} ${if (summary.warmerDays == 1) "day" else "days"} warmer and " +
                 "${summary.colderDays} ${if (summary.colderDays == 1) "day" else "days"} colder than the typical day.",
         )
+        outlook?.let {
+            Text(
+                text = forecastSummaryText(it),
+                fontFamily = nunitoSansFamily,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.testTag("forecastSummary"),
+            )
+        }
     }
+    if (showLegend) {
+        AlertDialog(
+            onDismissRequest = { showLegend = false },
+            title = { Text("Reading the chart", fontFamily = nunitoSansFamily, fontWeight = FontWeight.SemiBold) },
+            text = {
+                Text(
+                    text = chartLegendText(referenceLabel),
+                    fontFamily = nunitoSansFamily,
+                    modifier = Modifier.testTag("chartLegend"),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showLegend = false }) { Text("OK", fontFamily = nunitoSansFamily) }
+            },
+        )
+    }
+}
+
+internal fun chartLegendText(referenceLabel: String): String =
+    "Line: daily mean.\n" +
+        "Band: typical range of $referenceLabel (±1 standard deviation); the dashed line in it is the average.\n" +
+        "Dots are red on days warmer than typical and blue on days colder than typical.\n" +
+        "Dashed line with hollow dots: the forecast. Forecasts become less certain the further " +
+        "ahead they look, so treat days beyond about a week as a rough guide."
+
+internal fun forecastSummaryText(outlook: ForecastOutlook): String {
+    val period = "next ${outlook.days} days"
+    val delta = outlook.delta ?: return "Forecast: the $period average ${degrees(outlook.mean)}."
+    return "Forecast: the $period average ${degrees(outlook.mean)}, ${formatSigned(delta)}°C compared with " +
+        "normal for those days."
 }
 
 internal fun monthSummaryText(
@@ -171,7 +235,8 @@ private fun dayAxisLabels(
                 .map { it to dates[it].dayOfMonth.toString() }
 
         MonthWindow.LAST_30_DAYS ->
-            listOf(0, 7, 14, 21, 29).filter { it < dates.size }.map {
+            (listOf(0, 7, 14, 21, 29) + listOfNotNull((dates.size - 1).takeIf { it >= 34 }))
+                .filter { it < dates.size }.map {
                 it to "${monthName(dates[it].monthValue, TextStyle.SHORT)} ${dates[it].dayOfMonth}"
             }
     }

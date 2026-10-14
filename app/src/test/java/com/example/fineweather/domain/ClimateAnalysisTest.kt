@@ -196,6 +196,14 @@ class ForecastDataTest {
         valueOf: (LocalDate) -> Double? = { 8.0 },
     ) = seriesOf(start, start.plusDays(days - 1L), valueOf)
 
+    private fun snapshot(forecast: DailySeries? = forecast()) =
+        ClimateSnapshot(
+            series = seriesOf(LocalDate.of(2026, 1, 1), today.minusDays(1)) { 12.0 },
+            reference = climate,
+            today = today,
+            forecast = forecast,
+        )
+
     @Test
     fun outlook_averagesTheRequestedDaysAndComparesThemWithTheSameDaysOfTheReference() {
         val outlook = forecastOutlook(forecast(), climate, days = 7)!!
@@ -238,5 +246,53 @@ class ForecastDataTest {
         assertNull(forecastOutlook(null, climate, 7))
         assertNull(forecastOutlook(forecast(), climate, 0))
         assertNull(forecastOutlook(forecast(valueOf = { null }), climate, 7))
+    }
+
+    @Test
+    fun thisMonth_attachesTheForecastFromTodayOnAndClipsAtTheMonthEnd() {
+        val points = dayPoints(snapshot(), MonthWindow.THIS_MONTH, forecastDays = 7)
+
+        assertEquals(31, points.size)
+        assertNull(points.first { it.date == LocalDate.of(2026, 10, 13) }.forecast)
+        assertEquals(8.0, points.first { it.date == LocalDate.of(2026, 10, 14) }.forecast!!, 1e-6)
+        assertEquals(8.0, points.first { it.date == LocalDate.of(2026, 10, 20) }.forecast!!, 1e-6)
+        assertNull(points.first { it.date == LocalDate.of(2026, 10, 21) }.forecast)
+        assertEquals(13, points.count { it.observed != null })
+    }
+
+    @Test
+    fun thisMonth_forecastDaysSettingLimitsTheForecastDrawn() {
+        val short = dayPoints(snapshot(), MonthWindow.THIS_MONTH, forecastDays = 7).count { it.forecast != null }
+        val long = dayPoints(snapshot(), MonthWindow.THIS_MONTH, forecastDays = 14).count { it.forecast != null }
+
+        assertEquals(7, short)
+        assertEquals(14, long)
+    }
+
+    @Test
+    fun last30Days_isExtendedByTheForecastDays() {
+        val points = dayPoints(snapshot(), MonthWindow.LAST_30_DAYS, forecastDays = 7)
+
+        assertEquals(37, points.size)
+        assertEquals(LocalDate.of(2026, 10, 20), points.last().date)
+        assertEquals(30, points.count { it.observed != null })
+        assertEquals(7, points.count { it.forecast != null })
+        assertTrue(points.all { it.band != null })
+    }
+
+    @Test
+    fun withoutForecast_nothingIsAdded() {
+        val points = dayPoints(snapshot(forecast = null), MonthWindow.LAST_30_DAYS, forecastDays = 7)
+
+        assertEquals(30, points.size)
+        assertTrue(points.none { it.forecast != null })
+    }
+
+    @Test
+    fun forecastDoesNotChangeTheObservedSummary() {
+        val withForecast = summarize(dayPoints(snapshot(), MonthWindow.THIS_MONTH, forecastDays = 14))
+        val without = summarize(dayPoints(snapshot(forecast = null), MonthWindow.THIS_MONTH))
+
+        assertEquals(without, withForecast)
     }
 }

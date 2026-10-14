@@ -36,7 +36,7 @@ class TimeScaleViewsTest {
         return DailySeries.fromApi(start, end, dates.map { it.toString() }, dates.map(valueOf))
     }
 
-    private fun snapshot(withReference: Boolean = true) =
+    private fun snapshot(withReference: Boolean = true, withForecast: Boolean = false) =
         ClimateSnapshot(
             series = series(LocalDate.of(2026, 1, 1), today.minusDays(1)) { 12.0 },
             reference =
@@ -50,6 +50,7 @@ class TimeScaleViewsTest {
                     null
                 },
             today = today,
+            forecast = if (withForecast) series(today, today.plusDays(13)) { 14.0 } else null,
         )
 
     private fun show(content: @Composable (RoundedCornerShape, CardColors) -> Unit) {
@@ -65,14 +66,14 @@ class TimeScaleViewsTest {
 
     @Test
     fun monthView_withoutData_promptsForSearch() {
-        show { shape, colors -> MonthView(null, "1961–1990", shape, colors) }
+        show { shape, colors -> MonthView(null, 7, "1961–1990", shape, colors) }
 
         composeTestRule.onNodeWithText("Search for a place to see its daily temperatures.").assertIsDisplayed()
     }
 
     @Test
     fun monthView_summarisesTheMonthAndSwitchesToThirtyDays() {
-        show { shape, colors -> MonthView(snapshot(), "1961–1990", shape, colors) }
+        show { shape, colors -> MonthView(snapshot(), 7, "1961–1990", shape, colors) }
 
         composeTestRule.onNodeWithTag("monthSummary").assertTextContains("13 days averaged 12.0°C", substring = true)
         composeTestRule.onNodeWithTag("monthSummary").assertTextContains("+4.0°C compared with the same days of 1961–1990", substring = true)
@@ -93,6 +94,48 @@ class TimeScaleViewsTest {
             )
         composeTestRule.onNodeWithText("Jan").assertExists()
         composeTestRule.onNodeWithText("Oct*").assertExists()
+    }
+
+    @Test
+    fun monthView_infoButtonExplainsTheChartAndTheForecastUncertainty() {
+        show { shape, colors -> MonthView(snapshot(withForecast = true), 7, "1961–1990", shape, colors) }
+
+        composeTestRule.onNodeWithTag("monthInfoButton").performClick()
+
+        composeTestRule.onNodeWithTag("chartLegend")
+            .assertTextContains("Line: daily mean.", substring = true)
+        composeTestRule.onNodeWithTag("chartLegend")
+            .assertTextContains("typical range of 1961–1990 (±1 standard deviation)", substring = true)
+        composeTestRule.onNodeWithTag("chartLegend")
+            .assertTextContains("less certain", substring = true)
+
+        composeTestRule.onNodeWithText("OK").performClick()
+        composeTestRule.onNodeWithTag("chartLegend").assertDoesNotExist()
+    }
+
+    @Test
+    fun monthView_summarisesTheForecastAgainstTheNormalOfThoseDays() {
+        show { shape, colors -> MonthView(snapshot(withForecast = true), 7, "1961–1990", shape, colors) }
+
+        composeTestRule.onNodeWithTag("forecastSummary").assertTextContains(
+            "Forecast: the next 7 days average 14.0°C, +6.0°C compared with normal for those days.",
+            substring = true,
+        )
+    }
+
+    @Test
+    fun monthView_followsTheForecastDaysSetting() {
+        show { shape, colors -> MonthView(snapshot(withForecast = true), 14, "1961–1990", shape, colors) }
+
+        composeTestRule.onNodeWithTag("forecastSummary")
+            .assertTextContains("the next 14 days average", substring = true)
+    }
+
+    @Test
+    fun monthView_withoutForecastHasNoForecastSentence() {
+        show { shape, colors -> MonthView(snapshot(withForecast = false), 7, "1961–1990", shape, colors) }
+
+        composeTestRule.onNodeWithTag("forecastSummary").assertDoesNotExist()
     }
 
     @Test
