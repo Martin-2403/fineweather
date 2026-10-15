@@ -16,6 +16,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Before
@@ -188,6 +189,129 @@ class ClimateCacheDaoTest {
         forecastDao.clearAll()
 
         assertNull(forecastDao.get("loc-1"))
+    }
+
+    // ---- sunshine and precipitation blobs ----
+
+    private val sun = byteArrayOf(1, 1, 1, 1)
+    private val rain = byteArrayOf(2, 2, 2, 2)
+
+    @Test
+    fun reference_extrasDefaultToNullAndRoundTrip() = runBlocking {
+        referenceDao.insert(reference("plain", lastUsed = 1))
+        referenceDao.insert(reference("full", lastUsed = 2).copy(sunshineData = sun, precipitationData = rain))
+
+        val plain = referenceDao.get("plain", "1961_1990")!!
+        val full = referenceDao.get("full", "1961_1990")!!
+
+        assertNull(plain.sunshineData)
+        assertNull(plain.precipitationData)
+        assertArrayEquals(sun, full.sunshineData)
+        assertArrayEquals(rain, full.precipitationData)
+    }
+
+    @Test
+    fun reference_updateExtrasStoresBothBlobsAndKeepsTheRest() = runBlocking {
+        referenceDao.insert(reference("loc-1", lastUsed = 7, data = byteArrayOf(5, 6)))
+
+        val updated = referenceDao.updateExtras("loc-1", "1961_1990", 1961, 1990, sun, rain)
+
+        assertEquals(1, updated)
+        val loaded = referenceDao.get("loc-1", "1961_1990")!!
+        assertArrayEquals(sun, loaded.sunshineData)
+        assertArrayEquals(rain, loaded.precipitationData)
+        assertArrayEquals(byteArrayOf(5, 6), loaded.data)
+        assertEquals(7L, loaded.lastUsed)
+    }
+
+    @Test
+    fun reference_updateExtrasHitsNothingWithoutARowOfExactlyThoseYears() = runBlocking {
+        referenceDao.insert(reference("loc-1", lastUsed = 1))
+
+        assertEquals(0, referenceDao.updateExtras("missing", "1961_1990", 1961, 1990, sun, rain))
+        assertEquals(0, referenceDao.updateExtras("loc-1", "current", 1961, 1990, sun, rain))
+        assertEquals(0, referenceDao.updateExtras("loc-1", "1961_1990", 1991, 2020, sun, rain))
+        assertNull(referenceDao.get("loc-1", "1961_1990")!!.sunshineData)
+        assertNull(referenceDao.get("missing", "1961_1990"))
+    }
+
+    @Test
+    fun reference_replacingTheRowWipesTheExtras() = runBlocking {
+        referenceDao.insert(reference("loc-1", lastUsed = 1))
+        referenceDao.updateExtras("loc-1", "1961_1990", 1961, 1990, sun, rain)
+
+        referenceDao.insert(reference("loc-1", lastUsed = 2, data = byteArrayOf(9)))
+
+        val loaded = referenceDao.get("loc-1", "1961_1990")!!
+        assertNull(loaded.sunshineData)
+        assertNull(loaded.precipitationData)
+    }
+
+    @Test
+    fun reference_extrasFollowTheRowThroughEvictionAndFavorites() = runBlocking {
+        favoriteDao.upsert(favorite("loc-1"))
+        (1..4).forEach {
+            referenceDao.insert(reference("loc-$it", lastUsed = it.toLong()))
+            referenceDao.updateExtras("loc-$it", "1961_1990", 1961, 1990, sun, rain)
+        }
+        referenceDao.touch("loc-2", "1961_1990", now = 10)
+
+        referenceDao.evictLeastRecentlyUsed(keep = 1)
+
+        // the favorite and the most recently used other place keep their extras, the rest is gone
+        assertArrayEquals(sun, referenceDao.get("loc-1", "1961_1990")!!.sunshineData)
+        assertArrayEquals(rain, referenceDao.get("loc-2", "1961_1990")!!.precipitationData)
+        assertNull(referenceDao.get("loc-3", "1961_1990"))
+        assertNull(referenceDao.get("loc-4", "1961_1990"))
+    }
+
+    @Test
+    fun yearSeries_extrasRoundTripAndDefaultToNull() = runBlocking {
+        yearSeriesDao.insert(yearSeries("plain", fetchedDate = "2026-10-13"))
+        yearSeriesDao.insert(
+            yearSeries("full", fetchedDate = "2026-10-13").copy(sunshineData = sun, precipitationData = rain),
+        )
+
+        assertNull(yearSeriesDao.get("plain")!!.sunshineData)
+        assertNull(yearSeriesDao.get("plain")!!.precipitationData)
+        assertArrayEquals(sun, yearSeriesDao.get("full")!!.sunshineData)
+        assertArrayEquals(rain, yearSeriesDao.get("full")!!.precipitationData)
+    }
+
+    @Test
+    fun forecast_extrasRoundTripReplaceAndDefaultToNull() = runBlocking {
+        forecastDao.insert(ForecastSeriesEntity("plain", "2026-10-14", "2026-10-27", byteArrayOf(1), "2026-10-14"))
+        forecastDao.insert(
+            ForecastSeriesEntity("full", "2026-10-14", "2026-10-27", byteArrayOf(1), "2026-10-14", sun, rain),
+        )
+
+        assertNull(forecastDao.get("plain")!!.sunshineData)
+        assertNull(forecastDao.get("plain")!!.precipitationData)
+        assertArrayEquals(sun, forecastDao.get("full")!!.sunshineData)
+        assertArrayEquals(rain, forecastDao.get("full")!!.precipitationData)
+
+        forecastDao.insert(ForecastSeriesEntity("full", "2026-10-15", "2026-10-28", byteArrayOf(1), "2026-10-15"))
+        assertNull(forecastDao.get("full")!!.sunshineData)
+    }
+
+    @Test
+    fun entities_compareTheExtraBlobsByContent() {
+        val a = reference("loc-1", lastUsed = 1).copy(sunshineData = byteArrayOf(1), precipitationData = null)
+        val b = reference("loc-1", lastUsed = 1).copy(sunshineData = byteArrayOf(1), precipitationData = null)
+        val c = reference("loc-1", lastUsed = 1).copy(sunshineData = byteArrayOf(2), precipitationData = null)
+
+        assertEquals(a, b)
+        assertEquals(a.hashCode(), b.hashCode())
+        assertNotEquals(a, c)
+        assertNotEquals(a, a.copy(precipitationData = byteArrayOf(1)))
+        assertNotEquals(
+            yearSeries("x", "d"),
+            yearSeries("x", "d").copy(sunshineData = byteArrayOf(1)),
+        )
+        assertNotEquals(
+            ForecastSeriesEntity("x", "a", "b", byteArrayOf(1), "d"),
+            ForecastSeriesEntity("x", "a", "b", byteArrayOf(1), "d", precipitationData = byteArrayOf(1)),
+        )
     }
 
     private fun reference(

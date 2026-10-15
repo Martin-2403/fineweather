@@ -23,3 +23,20 @@ fun syntheticReference(
         firstYear = firstYear,
         lastYear = lastYear,
     )
+
+/** A [MetricSeries] of [temperature] plus sunshine (5 h) and rain (1 mm) on every day. */
+fun metricSeriesOf(temperature: DailySeries): MetricSeries =
+    MetricSeries(
+        mapOf(
+            Metric.TEMPERATURE to temperature,
+            Metric.SUNSHINE to seriesOf(temperature.start, temperature.end) { 5.0 },
+            Metric.PRECIPITATION to seriesOf(temperature.start, temperature.end) { 1.0 },
+        ),
+    )
+
+/** Like [seriesOf], as a [MetricSeries]. */
+fun metricSeriesOf(
+    start: LocalDate,
+    end: LocalDate,
+    valueOf: (LocalDate) -> Double?,
+): MetricSeries = metricSeriesOf(seriesOf(start, end, valueOf))

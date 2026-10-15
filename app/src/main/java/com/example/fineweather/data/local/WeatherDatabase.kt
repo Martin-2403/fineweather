@@ -28,8 +28,8 @@ import com.example.fineweather.data.local.entities.YearSeriesEntity
         YearSeriesEntity::class,
         ForecastSeriesEntity::class,
     ],
-    version = 12,
-    exportSchema = false
+    version = 13,
+    exportSchema = true
 )
 abstract class WeatherDatabase : RoomDatabase() {
     abstract fun weatherDao(): WeatherDao
@@ -57,6 +57,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                         .addMigrations(MIGRATION_9_10)
                         .addMigrations(MIGRATION_10_11)
                         .addMigrations(MIGRATION_11_12)
+                        .addMigrations(MIGRATION_12_13)
                         .fallbackToDestructiveMigration(false)
                         .build()
                 INSTANCE = instance
@@ -167,5 +168,16 @@ private val MIGRATION_11_12 =
                 )
                 """.trimIndent(),
             )
+        }
+    }
+
+/** Sunshine and precipitation blobs next to the temperature ones; null on rows from before. */
+internal val MIGRATION_12_13 =
+    object : Migration(12, 13) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            listOf("year_series", "forecast_series", "reference_climate").forEach { table ->
+                db.execSQL("ALTER TABLE `$table` ADD COLUMN `sunshineData` BLOB")
+                db.execSQL("ALTER TABLE `$table` ADD COLUMN `precipitationData` BLOB")
+            }
         }
     }

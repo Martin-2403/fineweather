@@ -203,7 +203,7 @@ class WeatherViewModel(
         val current = _state.value
         val place = current.selectedPlace ?: return
         if (current.search !is SearchStatus.Resolved) return
-        _state.update { it.copy(reference = Loadable.Loading) }
+        _state.update { it.copy(reference = Loadable.Loading, extras = Loadable.Idle) }
         loadReference(place, current.today, searchGeneration)
     }
 
@@ -357,7 +357,7 @@ private enum class Slice(val label: String) {
 
 /** All slices back to loading, so nothing of the previous place is left on screen. */
 private fun WeatherUiState.withAllLoading() =
-    copy(forecast = Loadable.Loading, year = Loadable.Loading, reference = Loadable.Loading)
+    copy(forecast = Loadable.Loading, year = Loadable.Loading, reference = Loadable.Loading, extras = Loadable.Idle)
 
 private fun GeoPlace.toPlaceLabel(): PlaceLabel =
     PlaceLabel(

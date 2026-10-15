@@ -15,9 +15,9 @@ import com.example.fineweather.data.repositories.RateLimitException
 import com.example.fineweather.data.repositories.SettingsDefaults
 import com.example.fineweather.data.repositories.SettingsRepository
 import com.example.fineweather.data.repositories.WeatherRepository
-import com.example.fineweather.domain.DailySeries
+import com.example.fineweather.domain.MetricSeries
 import com.example.fineweather.domain.ReferenceClimate
-import com.example.fineweather.domain.seriesOf
+import com.example.fineweather.domain.metricSeriesOf
 import com.example.fineweather.domain.syntheticReference
 import com.example.fineweather.utils.MainDispatcherRule
 import io.mockk.coEvery
@@ -71,11 +71,11 @@ class WeatherViewModelTest {
     private val fixedNow = LocalDate.of(2026, 4, 2)
 
     /** Complete days Jan 1..Apr 1 2026, all 10.0. */
-    private val yearSeries = seriesOf(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 4, 1)) { 10.0 }
+    private val yearSeries = metricSeriesOf(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 4, 1)) { 10.0 }
 
     /** 14 forecast days from today: 12.0 for the first week, 15.0 for the second. */
     private val forecastSeries =
-        seriesOf(fixedNow, fixedNow.plusDays(13)) { date -> if (date.isBefore(fixedNow.plusDays(7))) 12.0 else 15.0 }
+        metricSeriesOf(fixedNow, fixedNow.plusDays(13)) { date -> if (date.isBefore(fixedNow.plusDays(7))) 12.0 else 15.0 }
 
     /** Every day of month m is worth m in all reference years (April: 4.0, std 0). */
     private val monthlyClimate = syntheticReference { it.monthValue.toDouble() }
@@ -219,7 +219,7 @@ class WeatherViewModelTest {
         val firstOfApril = LocalDate.of(2026, 4, 1)
         viewModel = newViewModel(now = firstOfApril)
         stubSearch(
-            series = seriesOf(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 3, 31)) { 10.0 },
+            series = metricSeriesOf(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 3, 31)) { 10.0 },
         )
 
         viewModel.fetchWeather("Berlin")
@@ -235,7 +235,7 @@ class WeatherViewModelTest {
     @Test
     fun fetchWeather_showsNoDataYetWhenTheCurrentMonthHasNoValues() = runTest {
         stubSearch(
-            series = seriesOf(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 4, 1)) { date ->
+            series = metricSeriesOf(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 4, 1)) { date ->
                 if (date.monthValue == 4) null else 10.0
             },
         )
@@ -456,7 +456,7 @@ class WeatherViewModelTest {
         stubSearch()
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
-        val gate = CompletableDeferred<CacheResult<DailySeries>>()
+        val gate = CompletableDeferred<CacheResult<MetricSeries>>()
         coEvery { weatherRepository.getYearToDate(any(), any(), any(), any()) } coAnswers { gate.await() }
 
         viewModel.selectPlace(GeoPlace("loc-2", "Hamburg", "Germany", null, 3.0, 4.0))
@@ -470,8 +470,8 @@ class WeatherViewModelTest {
     @Test
     fun fetchWeather_loadsForecastYearAndReferenceInParallel() = runTest {
         stubSearch()
-        val forecast = CompletableDeferred<CacheResult<DailySeries>>()
-        val year = CompletableDeferred<CacheResult<DailySeries>>()
+        val forecast = CompletableDeferred<CacheResult<MetricSeries>>()
+        val year = CompletableDeferred<CacheResult<MetricSeries>>()
         val reference = CompletableDeferred<CacheResult<ReferenceClimate>>()
         var started = 0
         coEvery { weatherRepository.getForecast(any(), any(), any(), any()) } coAnswers {
@@ -512,7 +512,7 @@ class WeatherViewModelTest {
     @Test
     fun fetchWeather_oneFailingSliceDoesNotAffectTheOthers() = runTest {
         stubSearch()
-        val forecast = CompletableDeferred<CacheResult<DailySeries>>()
+        val forecast = CompletableDeferred<CacheResult<MetricSeries>>()
         coEvery { weatherRepository.getForecast(any(), any(), any(), any()) } coAnswers { forecast.await() }
         coEvery { weatherRepository.getReferenceClimate(any(), any(), any(), any(), any()) } throws
             RuntimeException("boom")
@@ -542,7 +542,7 @@ class WeatherViewModelTest {
         coEvery { weatherRepository.getYearToDate(any(), any(), any(), any()) } coAnswers {
             if (firstArg<String>() == berlin.id) {
                 berlinGate.await()
-                CacheResult(seriesOf(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 4, 1)) { 99.0 }, false)
+                CacheResult(metricSeriesOf(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 4, 1)) { 99.0 }, false)
             } else {
                 CacheResult(yearSeries, false)
             }
@@ -588,7 +588,7 @@ class WeatherViewModelTest {
     @Test
     fun fetchWeather_blankLocationCancelsTheRunningSearch() = runTest {
         stubSearch()
-        val gate = CompletableDeferred<CacheResult<DailySeries>>()
+        val gate = CompletableDeferred<CacheResult<MetricSeries>>()
         coEvery { weatherRepository.getYearToDate(any(), any(), any(), any()) } coAnswers { gate.await() }
         viewModel.fetchWeather("Berlin")
 
@@ -667,7 +667,7 @@ class WeatherViewModelTest {
         val settings = FakeSettingsRepository()
         viewModel = newViewModel(settings = settings)
         stubSearch()
-        val forecast = CompletableDeferred<CacheResult<DailySeries>>()
+        val forecast = CompletableDeferred<CacheResult<MetricSeries>>()
         coEvery { weatherRepository.getForecast(any(), any(), any(), any()) } coAnswers { forecast.await() }
         coEvery {
             weatherRepository.getReferenceClimate(any(), any(), any(), HistoricReference.CURRENT, any())
@@ -918,7 +918,7 @@ class WeatherViewModelTest {
         runTest {
             stubSearch()
             stubHamburg()
-            val berlinYear = CompletableDeferred<CacheResult<DailySeries>>()
+            val berlinYear = CompletableDeferred<CacheResult<MetricSeries>>()
             coEvery { weatherRepository.getYearToDate("loc-1", any(), any(), any()) } coAnswers {
                 try {
                     berlinYear.await()
@@ -949,7 +949,7 @@ class WeatherViewModelTest {
             // a load that cannot be cancelled and still returns after the next search began
             coEvery { weatherRepository.getYearToDate("loc-1", any(), any(), any()) } coAnswers {
                 withContext(NonCancellable) { gate.await() }
-                CacheResult(seriesOf(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 4, 1)) { 99.0 }, false)
+                CacheResult(metricSeriesOf(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 4, 1)) { 99.0 }, false)
             }
             viewModel.fetchWeather("Berlin")
             runCurrent()
@@ -1106,9 +1106,9 @@ class WeatherViewModelTest {
      */
     private fun stubSearch(
         data: FineWeatherData = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1", "Germany"),
-        series: DailySeries = yearSeries,
+        series: MetricSeries = yearSeries,
         climate: ReferenceClimate = monthlyClimate,
-        forecast: DailySeries = forecastSeries,
+        forecast: MetricSeries = forecastSeries,
         seriesFromCache: Boolean = false,
         climateFromCache: Boolean = false,
         forecastFromCache: Boolean = false,

@@ -14,6 +14,10 @@ data class ReferenceClimateEntity(
     val lastYear: Int,
     val data: ByteArray,
     val lastUsed: Long,
+    /** Hours of sunshine per day; null until the lazily fetched extras were stored. */
+    val sunshineData: ByteArray? = null,
+    /** Millimetres of precipitation per day; null until the lazily fetched extras were stored. */
+    val precipitationData: ByteArray? = null,
 ) {
     override fun equals(other: Any?): Boolean =
         other is ReferenceClimateEntity &&
@@ -22,7 +26,15 @@ data class ReferenceClimateEntity(
             firstYear == other.firstYear &&
             lastYear == other.lastYear &&
             lastUsed == other.lastUsed &&
-            data.contentEquals(other.data)
+            data.contentEquals(other.data) &&
+            sunshineData.contentEquals(other.sunshineData) &&
+            precipitationData.contentEquals(other.precipitationData)
 
-    override fun hashCode(): Int = 31 * (31 * locationId.hashCode() + referenceId.hashCode()) + data.contentHashCode()
+    override fun hashCode(): Int {
+        var result = 31 * locationId.hashCode() + referenceId.hashCode()
+        result = 31 * result + data.contentHashCode()
+        result = 31 * result + sunshineData.contentHashCode()
+        result = 31 * result + precipitationData.contentHashCode()
+        return result
+    }
 }

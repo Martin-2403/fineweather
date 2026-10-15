@@ -4,13 +4,16 @@ import java.nio.ByteBuffer
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
-/** Consecutive daily mean temperatures starting at [start]; missing days are NaN. */
+/** Consecutive daily values (a mean temperature, hours of sun, mm of rain) from [start]; missing days are NaN. */
 class DailySeries(
     val start: LocalDate,
     private val values: DoubleArray,
 ) {
     val size: Int get() = values.size
     val end: LocalDate get() = start.plusDays(values.size - 1L)
+
+    /** Whether any day has a value. */
+    fun hasValues(): Boolean = values.any { !it.isNaN() }
 
     fun valueOrNull(date: LocalDate): Double? {
         val index = ChronoUnit.DAYS.between(start, date)
@@ -76,24 +79,34 @@ class DailySeries(
         /**
          * Builds a series covering [start]..[end] from API-style parallel lists. Values are rounded to
          * float precision so a series restored from [toBytes] is identical to a freshly built one.
+         * Each value is divided by [divisor] to convert the API unit to the stored one. Entries outside
+         * [start]..[end] are ignored, and when [times] and [values] differ in length the extra entries of
+         * the longer one are ignored, so the days they would have covered stay missing.
          */
         fun fromApi(
             start: LocalDate,
             end: LocalDate,
             times: List<String>,
-            temperatures: List<Double?>,
+            values: List<Double?>,
+            divisor: Double = 1.0,
         ): DailySeries {
             val length = (ChronoUnit.DAYS.between(start, end) + 1).toInt().coerceAtLeast(0)
-            val values = DoubleArray(length) { Double.NaN }
-            times.zip(temperatures).forEach { (time, temperature) ->
+            val result = DoubleArray(length) { Double.NaN }
+            times.zip(values).forEach { (time, value) ->
                 val date = runCatching { LocalDate.parse(time) }.getOrNull() ?: return@forEach
                 val index = ChronoUnit.DAYS.between(start, date)
-                if (temperature != null && index >= 0 && index < length) {
-                    values[index.toInt()] = temperature.toFloat().toDouble()
+                if (value != null && index >= 0 && index < length) {
+                    result[index.toInt()] = (value / divisor).toFloat().toDouble()
                 }
             }
-            return DailySeries(start, values)
+            return DailySeries(start, result)
         }
+
+        /** A series of [days] days without a value. */
+        fun missing(
+            start: LocalDate,
+            days: Int,
+        ): DailySeries = DailySeries(start, DoubleArray(days) { Double.NaN })
 
         fun fromBytes(
             start: LocalDate,

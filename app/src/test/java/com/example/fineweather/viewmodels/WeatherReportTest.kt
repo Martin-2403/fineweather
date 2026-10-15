@@ -3,9 +3,11 @@ package com.example.fineweather.viewmodels
 import com.example.fineweather.data.models.HistoricReference
 import com.example.fineweather.data.models.TemperatureComparisonMode
 import com.example.fineweather.domain.Band
-import com.example.fineweather.domain.DailySeries
+import com.example.fineweather.domain.Metric
+import com.example.fineweather.domain.MetricSeries
 import com.example.fineweather.domain.ReferenceClimate
 import com.example.fineweather.domain.SummaryBlock
+import com.example.fineweather.domain.metricSeriesOf
 import com.example.fineweather.domain.seriesOf
 import com.example.fineweather.domain.syntheticReference
 import org.junit.Assert.assertEquals
@@ -22,17 +24,17 @@ class WeatherReportTest {
     private fun year(
         to: LocalDate = today.minusDays(1),
         valueOf: (LocalDate) -> Double? = { 10.0 },
-    ): DailySeries = seriesOf(LocalDate.of(2026, 1, 1), to, valueOf)
+    ): MetricSeries = metricSeriesOf(LocalDate.of(2026, 1, 1), to, valueOf)
 
     /** 12.0 for the first week, 15.0 for the second. */
-    private val forecast = seriesOf(today, today.plusDays(13)) { if (it.isBefore(today.plusDays(7))) 12.0 else 15.0 }
+    private val forecast = metricSeriesOf(today, today.plusDays(13)) { if (it.isBefore(today.plusDays(7))) 12.0 else 15.0 }
 
     /** Every day of month m is worth m in every reference year. */
     private val climate = syntheticReference { it.monthValue.toDouble() }
 
     private fun loaded(
-        forecast: Loadable<DailySeries> = Loadable.Ready(this.forecast),
-        year: Loadable<DailySeries> = Loadable.Ready(year()),
+        forecast: Loadable<MetricSeries> = Loadable.Ready(this.forecast),
+        year: Loadable<MetricSeries> = Loadable.Ready(year()),
         reference: Loadable<ReferenceClimate> = Loadable.Ready(climate),
         today: LocalDate = this.today,
     ) = WeatherUiState(today = today, forecast = forecast, year = year, reference = reference)
@@ -270,5 +272,43 @@ class WeatherReportTest {
         val report = report(loaded(year = Loadable.Ready(year { null })))
 
         assertEquals(Loadable.Unavailable(Reason.NOT_AVAILABLE), report.rows[0].value)
+    }
+
+    // ---- metrics ----
+
+    @Test
+    fun theReportIsBuiltFromTheTemperatureOfTheMetricSeries() {
+        // wild sunshine and rain values do not leak into the temperature report
+        val noisy =
+            MetricSeries(
+                year().toMap() + mapOf(
+                    Metric.SUNSHINE to seriesOf(LocalDate.of(2026, 1, 1), today.minusDays(1)) { 99.0 },
+                    Metric.PRECIPITATION to seriesOf(LocalDate.of(2026, 1, 1), today.minusDays(1)) { 77.0 },
+                ),
+            )
+
+        val plain = report(loaded())
+        val withExtras = report(loaded(year = Loadable.Ready(noisy)))
+
+        assertEquals(plain.values(), withExtras.values())
+        assertEquals(plain.headline, withExtras.headline)
+    }
+
+    @Test
+    fun aSeriesWithoutTemperatureIsNotAvailable() {
+        val noTemperature =
+            MetricSeries(mapOf(Metric.SUNSHINE to seriesOf(today, today.plusDays(13)) { 5.0 }))
+
+        val report = report(loaded(forecast = Loadable.Ready(noTemperature)))
+
+        assertEquals(Loadable.Unavailable(Reason.NOT_AVAILABLE), report.rows[2].value)
+        // like any forecast without a value: a series of missing days
+        assertFalse((report.snapshot as Loadable.Ready).value.forecast!!.hasValues())
+    }
+
+    @Test
+    fun extrasAreIdleUntilSomeoneLoadsThem() {
+        assertEquals(Loadable.Idle, WeatherUiState(today = today).extras)
+        assertEquals(Loadable.Idle, loaded().extras)
     }
 }

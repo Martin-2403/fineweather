@@ -97,7 +97,7 @@ class ReferenceClimateTest {
                 start = LocalDate.of(2026, 1, 1),
                 end = LocalDate.of(2026, 1, 3),
                 times = listOf("2025-12-31", "2026-01-01", "2026-01-02", "2026-01-03", "bad"),
-                temperatures = listOf(1.0, 2.0, null, 4.0, 5.0),
+                values = listOf(1.0, 2.0, null, 4.0, 5.0),
             )
 
         assertNull(series.valueOrNull(LocalDate.of(2026, 1, 2)))

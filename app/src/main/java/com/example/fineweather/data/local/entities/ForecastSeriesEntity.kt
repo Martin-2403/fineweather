@@ -13,6 +13,10 @@ data class ForecastSeriesEntity(
     val endDate: String,
     val data: ByteArray,
     val fetchedDate: String,
+    /** Hours of sunshine per day, null for rows written before the variable was fetched. */
+    val sunshineData: ByteArray? = null,
+    /** Millimetres of precipitation per day, null for rows written before the variable was fetched. */
+    val precipitationData: ByteArray? = null,
 ) {
     override fun equals(other: Any?): Boolean =
         other is ForecastSeriesEntity &&
@@ -20,7 +24,15 @@ data class ForecastSeriesEntity(
             startDate == other.startDate &&
             endDate == other.endDate &&
             fetchedDate == other.fetchedDate &&
-            data.contentEquals(other.data)
+            data.contentEquals(other.data) &&
+            sunshineData.contentEquals(other.sunshineData) &&
+            precipitationData.contentEquals(other.precipitationData)
 
-    override fun hashCode(): Int = 31 * locationId.hashCode() + data.contentHashCode()
+    override fun hashCode(): Int {
+        var result = locationId.hashCode()
+        result = 31 * result + data.contentHashCode()
+        result = 31 * result + sunshineData.contentHashCode()
+        result = 31 * result + precipitationData.contentHashCode()
+        return result
+    }
 }

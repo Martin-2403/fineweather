@@ -25,6 +25,26 @@ interface ReferenceClimateDao {
         now: Long,
     )
 
+    /**
+     * Stores the sunshine and precipitation blobs on the row of exactly this reference period.
+     * Returns the number of rows updated, 0 if the row is missing or covers other years.
+     */
+    @Query(
+        """
+        UPDATE reference_climate SET sunshineData = :sunshineData, precipitationData = :precipitationData
+        WHERE locationId = :locationId AND referenceId = :referenceId
+        AND firstYear = :firstYear AND lastYear = :lastYear
+        """,
+    )
+    suspend fun updateExtras(
+        locationId: String,
+        referenceId: String,
+        firstYear: Int,
+        lastYear: Int,
+        sunshineData: ByteArray,
+        precipitationData: ByteArray,
+    ): Int
+
     /** Keeps the [keep] most recently used locations that are not favorites; favorites are never evicted. */
     @Query(
         """

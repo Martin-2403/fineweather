@@ -8,6 +8,8 @@ import com.example.fineweather.domain.Band
 import com.example.fineweather.domain.ClimateSnapshot
 import com.example.fineweather.domain.DailySeries
 import com.example.fineweather.domain.ForecastOutlook
+import com.example.fineweather.domain.Metric
+import com.example.fineweather.domain.MetricSeries
 import com.example.fineweather.domain.ReferenceClimate
 import com.example.fineweather.domain.SummaryBlock
 import com.example.fineweather.domain.SummaryInput
@@ -27,10 +29,17 @@ data class WeatherUiState(
     val selectedPlace: GeoPlace? = null,
     val places: List<GeoPlace> = emptyList(),
     /** The 14-day forecast, whatever the 7/14-day setting says. */
-    val forecast: Loadable<DailySeries> = Loadable.Idle,
+    val forecast: Loadable<MetricSeries> = Loadable.Idle,
     /** Daily values of the current year (at least the last 30 days) up to yesterday. */
-    val year: Loadable<DailySeries> = Loadable.Idle,
+    val year: Loadable<MetricSeries> = Loadable.Idle,
+    /** Daily temperature of the 30-year reference. */
     val reference: Loadable<ReferenceClimate> = Loadable.Idle,
+    /**
+     * Sunshine and precipitation of the reference, fetched on demand; a metric without data is absent.
+     * Phase 4: load only after the same place's [reference] slice is Ready, guard it with the search
+     * generation, and cancel it in `withAllLoading()` and `reloadReference()`.
+     */
+    val extras: Loadable<Map<Metric, ReferenceClimate>> = Loadable.Idle,
 )
 
 data class ReportRow(
@@ -66,8 +75,11 @@ fun buildReport(
     historic: HistoricReference,
 ): WeatherReport {
     val today = state.today
-    val forecastSeries = state.forecast.valueOrNull()
-    val yearSeries = state.year.valueOrNull()
+    // The report is about temperature for now.
+    val forecast = state.forecast.temperature()
+    val year = state.year.temperature()
+    val forecastSeries = forecast.valueOrNull()
+    val yearSeries = year.valueOrNull()
     val climate = state.reference.valueOrNull()
 
     val monthToDate = yearSeries?.let { monthToDate(it, climate, today) }
@@ -79,16 +91,16 @@ fun buildReport(
         if (monthToDate != null) monthToDate.referenceStdDev else climate?.monthStdDev(today.monthValue)
 
     val lastDays: Loadable<Double> =
-        state.year.map { lastDaysMean(it, today) }.availableOr(Reason.NOT_AVAILABLE)
+        year.map { lastDaysMean(it, today) }.availableOr(Reason.NOT_AVAILABLE)
     val monthValue: Loadable<Double> =
-        state.year.map { monthToDate?.observedMean }.availableOr(
+        year.map { monthToDate?.observedMean }.availableOr(
             if (today.dayOfMonth == 1) Reason.NOT_AVAILABLE else Reason.NO_DATA_YET,
         )
     val forecastValue: Loadable<Double> =
-        state.forecast.map { outlook?.mean }.availableOr(Reason.NOT_AVAILABLE)
+        forecast.map { outlook?.mean }.availableOr(Reason.NOT_AVAILABLE)
     // The same days of the reference need the year's last complete day, so wait for it too.
     val historicValue: Loadable<Double> =
-        if (state.reference is Loadable.Ready && state.year is Loadable.Loading) {
+        if (state.reference is Loadable.Ready && year is Loadable.Loading) {
             Loadable.Loading
         } else {
             state.reference.map { referenceMean }.availableOr(Reason.NOT_AVAILABLE)
@@ -99,11 +111,11 @@ fun buildReport(
     }
     val trend: Loadable<ForecastOutlook> =
         when {
-            state.forecast is Loadable.Ready && state.reference is Loadable.Loading -> Loadable.Loading
-            else -> state.forecast.map { outlook }.availableOr(Reason.NOT_AVAILABLE)
+            forecast is Loadable.Ready && state.reference is Loadable.Loading -> Loadable.Loading
+            else -> forecast.map { outlook }.availableOr(Reason.NOT_AVAILABLE)
         }
     val anyLoading =
-        state.forecast is Loadable.Loading || state.year is Loadable.Loading || state.reference is Loadable.Loading
+        forecast is Loadable.Loading || year is Loadable.Loading || state.reference is Loadable.Loading
 
     val monthWarning =
         (monthValue is Loadable.Ready && dayCount in 1..6) ||
@@ -147,11 +159,18 @@ fun buildReport(
             when {
                 anyLoading -> Loadable.Loading
                 yearSeries != null -> Loadable.Ready(ClimateSnapshot(yearSeries, climate, today, forecastSeries))
-                else -> state.year.carryOver()
+                else -> year.carryOver()
             },
         dayCount = dayCount,
     )
 }
+
+/**
+ * The temperature of a loaded series. Without a single value it is a series of missing days, so the
+ * report keeps telling "no data" for the days apart from "not loaded".
+ */
+private fun Loadable<MetricSeries>.temperature(): Loadable<DailySeries> =
+    map { it[Metric.TEMPERATURE] ?: DailySeries.missing(it.start, it.size) }
 
 /** A loaded null becomes [Loadable.Unavailable]; every other state stays as it is. */
 private fun <T : Any> Loadable<T?>.availableOr(reason: Reason): Loadable<T> =
