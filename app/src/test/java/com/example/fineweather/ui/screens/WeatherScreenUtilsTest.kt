@@ -72,8 +72,10 @@ class WeatherScreenUtilsTest {
             assertEquals(null, value.icons)
             assertTrue(value.placeholder)
         }
-        assertEquals("…", buildStatusCardValue(Loadable.Loading).text)
-        assertTrue(buildStatusCardValue(Loadable.Loading).placeholder)
+        val loading = buildStatusCardValue(Loadable.Loading)
+        assertEquals("", loading.text)
+        assertTrue(loading.loading)
+        assertFalse(buildStatusCardValue(Loadable.Idle).loading)
     }
 
     private fun outlook(delta: Double?) =
@@ -110,7 +112,10 @@ class WeatherScreenUtilsTest {
         assertEquals("-", buildTrendCardValue(Loadable.Failed(FailKind.OTHER)).text)
         assertEquals("-", buildTrendCardValue(outlook(null)).text)
         assertEquals(null, buildTrendCardValue(Loadable.Idle).icons)
-        assertEquals("…", buildTrendCardValue(Loadable.Loading).text)
+        val loading = buildTrendCardValue(Loadable.Loading)
+        assertEquals("", loading.text)
+        assertTrue(loading.loading)
+        assertFalse(buildTrendCardValue(Loadable.Idle).loading)
     }
 
     @Test
@@ -126,7 +131,6 @@ class WeatherScreenUtilsTest {
     fun displayText_describesEveryState() {
         assertEquals("12.30°C", Loadable.Ready(12.3).displayText())
         assertEquals("-", Loadable.Idle.displayText())
-        assertEquals("Loading…", Loadable.Loading.displayText())
         assertEquals("N/A", Loadable.Unavailable(Reason.NOT_AVAILABLE).displayText())
         assertEquals("No data yet", Loadable.Unavailable(Reason.NO_DATA_YET).displayText())
         FailKind.entries.forEach { assertEquals("Error", Loadable.Failed(it).displayText()) }
@@ -155,8 +159,8 @@ class WeatherScreenUtilsTest {
     }
 
     @Test
-    fun summary_showsPlaceholderTextWhileLoadingAndTheBlocksWhenReady() {
-        assertEquals(listOf(SummaryBlock.Detail("Loading…")), Loadable.Loading.toBlocks())
+    fun summary_hasNoBlocksWhileLoadingAndTheBlocksWhenReady() {
+        assertEquals(emptyList<SummaryBlock>(), Loadable.Loading.toBlocks())
         val blocks = listOf<SummaryBlock>(SummaryBlock.Detail("text"))
         assertEquals(blocks, Loadable.Ready(blocks).toBlocks())
     }

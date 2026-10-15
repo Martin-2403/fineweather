@@ -22,6 +22,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -51,6 +52,8 @@ import com.example.fineweather.data.repositories.RoomFavoriteRepository
 import com.example.fineweather.data.repositories.SettingsDefaults
 import com.example.fineweather.data.repositories.SettingsRepository
 import com.example.fineweather.data.repositories.WeatherRepository
+import com.example.fineweather.ui.screens.LoadingConfig
+import com.example.fineweather.ui.screens.LocalLoadingConfig
 import com.example.fineweather.ui.screens.SettingsScreen
 import com.example.fineweather.ui.screens.WeatherScreen
 import com.example.fineweather.ui.theme.FineWeatherTheme
@@ -68,11 +71,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            FineWeatherTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    WeatherApp()
+            CompositionLocalProvider(LocalLoadingConfig provides LoadingConfig(delayMs = 150, animated = true)) {
+                FineWeatherTheme {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        WeatherApp()
+                    }
                 }
             }
         }

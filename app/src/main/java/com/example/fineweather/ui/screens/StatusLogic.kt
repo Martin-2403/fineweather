@@ -22,12 +22,15 @@ internal val WarmIconTint = Color(0xFFE53935)
 internal val CoolIconTint = Color(0xFF1E88E5)
 internal val NeutralIconTint = Color(0xFF43A047)
 
+/** A cell that is still waiting for its value; it draws a spinner. */
+private val LoadingValue = ValueWithIcons(text = "", icons = null, loading = true)
+
 /** The divergence of this month so far: a signed value in °C with warm/cold icons by severity. */
 internal fun buildStatusCardValue(headline: Loadable<Assessment>): ValueWithIcons {
     val assessment =
         when (headline) {
             is Loadable.Ready -> headline.value
-            is Loadable.Loading -> return ValueWithIcons("…", null, placeholder = true, description = "Loading")
+            is Loadable.Loading -> return LoadingValue
             else -> return ValueWithIcons("-", null, placeholder = true)
         }
     val delta = assessment.delta
@@ -57,7 +60,7 @@ internal fun buildStatusCardValue(headline: Loadable<Assessment>): ValueWithIcon
 
 /** Whether the next forecast days are warmer or cooler than normal for those same days. */
 internal fun buildTrendCardValue(trend: Loadable<ForecastOutlook>): ValueWithIcons {
-    if (trend is Loadable.Loading) return ValueWithIcons("…", null, placeholder = true, description = "Loading")
+    if (trend is Loadable.Loading) return LoadingValue
     val delta = trend.valueOrNull()?.delta ?: return ValueWithIcons("-", null, placeholder = true)
     val assessment = Assessment(delta, null, TemperatureComparisonMode.ABSOLUTE_DELTA)
     val (resId, tint, description) =
@@ -91,7 +94,7 @@ internal fun buildTrendCardValue(trend: Loadable<ForecastOutlook>): ValueWithIco
 
 internal fun resolveStatusImageRes(picture: StatusPicture): Int =
     when (picture) {
-        // Phase 2 gives the loading state its own picture.
+        // While loading, the header shows a spinner instead of this picture.
         StatusPicture.LOADING, StatusPicture.INITIAL -> R.drawable.initial
         StatusPicture.WARM -> R.drawable.warm
         StatusPicture.COLD -> R.drawable.cold
@@ -103,7 +106,8 @@ internal fun Loadable<Double>.displayText(): String =
     when (this) {
         is Loadable.Ready -> "${formatDouble(value)}°C"
         Loadable.Idle -> "-"
-        Loadable.Loading -> "Loading…"
+        // Drawn as a skeleton bar, so this text is never shown.
+        Loadable.Loading -> ""
         is Loadable.Unavailable -> reason.displayText()
         is Loadable.Failed -> "Error"
     }
@@ -127,6 +131,5 @@ internal fun SearchStatus.displayText(): String =
 internal fun Loadable<List<SummaryBlock>>.toBlocks(): List<SummaryBlock> =
     when (this) {
         is Loadable.Ready -> value
-        Loadable.Loading -> listOf(SummaryBlock.Detail("Loading…"))
         else -> emptyList()
     }

@@ -102,17 +102,11 @@ private fun Caption(
     )
 }
 
-/** What a view says while it has no snapshot to draw. */
+/** What a view says while it has no snapshot to draw and is not loading one. */
 private fun emptyText(
-    loading: Boolean,
     failed: Boolean,
     prompt: String,
-): String =
-    when {
-        loading -> "Loading…"
-        failed -> "Error"
-        else -> prompt
-    }
+): String = if (failed) "Error" else prompt
 
 private fun monthName(
     month: Int,
@@ -155,7 +149,7 @@ internal fun MonthView(
                     )
                 }
             }
-            if (snapshot != null) {
+            if (snapshot != null || loading) {
                 CompactToggle(
                     labels = listOf("Month", "30 days"),
                     selectedIndex = window.ordinal,
@@ -165,7 +159,11 @@ internal fun MonthView(
             }
         }
         if (snapshot == null) {
-            Caption(emptyText(loading, failed, "Search for a place to see its daily temperatures."))
+            if (loading) {
+                LoadingArea(height = DailyChartHeight)
+            } else {
+                Caption(emptyText(failed, "Search for a place to see its daily temperatures."))
+            }
             return@ViewCard
         }
         val points = remember(snapshot, window, forecastDays) { dayPoints(snapshot, window, forecastDays) }
@@ -278,7 +276,11 @@ internal fun YearView(
     ViewCard(shape, colors, Modifier.testTag("yearView")) {
         if (snapshot == null) {
             CardTitle("Months of the year")
-            Caption(emptyText(loading, failed, "Search for a place to compare its months with the climate average."))
+            if (loading) {
+                LoadingArea(height = AnomalyChartHeight)
+            } else {
+                Caption(emptyText(failed, "Search for a place to compare its months with the climate average."))
+            }
             return@ViewCard
         }
         val year = snapshot.today.minusDays(1).year

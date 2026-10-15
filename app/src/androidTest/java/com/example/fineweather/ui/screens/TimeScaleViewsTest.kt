@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -157,7 +158,10 @@ class TimeScaleViewsTest {
     fun monthView_whileLoading_showsPlaceholderInsteadOfThePrompt() {
         show { shape, colors -> MonthView(null, 7, "1961–1990", shape, colors, loading = true) }
 
-        composeTestRule.onNodeWithText("Loading…").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Daily temperatures").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("monthInfoButton").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("Loading").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Loading…").assertDoesNotExist()
         composeTestRule.onNodeWithText("Search for a place to see its daily temperatures.").assertDoesNotExist()
     }
 
@@ -172,7 +176,9 @@ class TimeScaleViewsTest {
     fun yearView_whileLoading_showsPlaceholderInsteadOfThePrompt() {
         show { shape, colors -> YearView(null, "1961–1990", shape, colors, loading = true) }
 
-        composeTestRule.onNodeWithText("Loading…").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Months of the year").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("Loading").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Loading…").assertDoesNotExist()
         composeTestRule.onNodeWithText("Search for a place to compare its months with the climate average.")
             .assertDoesNotExist()
     }

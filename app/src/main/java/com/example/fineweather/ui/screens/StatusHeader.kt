@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -49,6 +50,8 @@ internal fun StatusHeaderCard(
     statusCardValue: ValueWithIcons,
     trendCardValue: ValueWithIcons,
     shape: RoundedCornerShape,
+    pictureLoading: Boolean = false,
+    summaryLoading: Boolean = false,
 ) {
     BoxWithConstraints(
         modifier = Modifier.fillMaxWidth(),
@@ -81,6 +84,8 @@ internal fun StatusHeaderCard(
                         imageRes = imageRes,
                         imageWidth = imageWidth,
                         blocks = summary,
+                        pictureLoading = pictureLoading,
+                        summaryLoading = summaryLoading,
                     )
                     DividerLine()
                     // The split lines up with the edge of the picture above.
@@ -113,6 +118,8 @@ private fun ImageWithText(
     imageRes: Int,
     imageWidth: Dp,
     blocks: List<SummaryBlock>,
+    pictureLoading: Boolean,
+    summaryLoading: Boolean,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -123,23 +130,34 @@ private fun ImageWithText(
             modifier =
                 Modifier
                     .width(imageWidth)
-                    .aspectRatio(IMAGE_ASPECT_RATIO),
+                    .aspectRatio(IMAGE_ASPECT_RATIO)
+                    .testTag("statusPicture"),
+            loading = pictureLoading,
         )
-        SummaryBlocks(
-            blocks = blocks,
-            modifier =
-                Modifier
-                    .weight(1f)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-        )
+        val textModifier =
+            Modifier
+                .weight(1f)
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .testTag("statusSummary")
+        if (summaryLoading) {
+            SkeletonBlock(description = "Loading report", modifier = textModifier)
+        } else {
+            SummaryBlocks(blocks = blocks, modifier = textModifier)
+        }
     }
 }
 
+/** The status picture, or a spinner on a neutral tile of the same size while it is [loading]. */
 @Composable
 internal fun EarthStatus(
     imageRes: Int,
     modifier: Modifier = Modifier,
+    loading: Boolean = false,
 ) {
+    if (loading) {
+        LoadingPanel(description = "Loading picture", modifier = modifier)
+        return
+    }
     Image(
         painter = painterResource(imageRes),
         contentDescription = "Status illustration",

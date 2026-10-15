@@ -22,6 +22,9 @@ import com.example.fineweather.domain.DayPoint
 import com.example.fineweather.domain.MonthlyAnomaly
 import kotlin.math.abs
 
+internal val DailyChartHeight = 200.dp
+internal val AnomalyChartHeight = 190.dp
+
 /**
  * Daily means as a line over the reference's typical range (mean ± 1 standard deviation).
  * Dots are tinted by whether the day was warmer or colder than the reference mean.
@@ -32,7 +35,7 @@ internal fun DailyChart(
     xLabels: List<Pair<Int, String>>,
     description: String,
     modifier: Modifier = Modifier,
-    height: Dp = 200.dp,
+    height: Dp = DailyChartHeight,
 ) {
     val measurer = rememberTextMeasurer()
     val labelStyle = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp)
@@ -209,7 +212,7 @@ internal fun AnomalyChart(
     monthInitials: List<String>,
     description: String,
     modifier: Modifier = Modifier,
-    height: Dp = 190.dp,
+    height: Dp = AnomalyChartHeight,
 ) {
     val measurer = rememberTextMeasurer()
     val labelStyle = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp)

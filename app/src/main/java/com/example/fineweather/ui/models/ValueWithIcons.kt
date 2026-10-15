@@ -14,6 +14,6 @@ internal data class ValueWithIcons(
     val icons: IconStack?,
     /** A dash or a loading mark instead of a value, drawn dimmed. */
     val placeholder: Boolean = false,
-    /** Read out instead of [text] when the text alone says nothing, like a loading mark. */
-    val description: String? = null,
+    /** Still on its way: the cell shows a spinner instead of [text] and [icons]. */
+    val loading: Boolean = false,
 )

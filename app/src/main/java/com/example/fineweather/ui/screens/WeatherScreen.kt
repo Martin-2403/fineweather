@@ -56,10 +56,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextOverflow
 import com.example.fineweather.viewmodels.PlaceLabel
 import androidx.compose.ui.unit.dp
@@ -81,6 +81,7 @@ import com.example.fineweather.ui.theme.TealInk
 import com.example.fineweather.viewmodels.Loadable
 import com.example.fineweather.viewmodels.ReportRow
 import com.example.fineweather.viewmodels.SearchStatus
+import com.example.fineweather.viewmodels.StatusPicture
 import com.example.fineweather.viewmodels.WeatherViewModel
 import com.example.fineweather.viewmodels.valueOrNull
 
@@ -181,6 +182,8 @@ fun WeatherScreen(
                 statusCardValue = statusCardValue,
                 trendCardValue = trendCardValue,
                 shape = cardShape,
+                pictureLoading = report.picture == StatusPicture.LOADING,
+                summaryLoading = report.summary is Loadable.Loading,
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -417,7 +420,7 @@ private fun SearchActions(
 }
 
 @Composable
-private fun CurrentView(
+internal fun CurrentView(
     rows: List<ReportRow>,
     shape: RoundedCornerShape,
     colors: CardColors,
@@ -457,7 +460,6 @@ private fun TemperatureRow(
     showWarning: Boolean = false,
     onWarningClick: (() -> Unit)? = null,
 ) {
-    val isPlaceholder = value.isPlaceholder()
     Row(
         modifier =
             Modifier
@@ -487,14 +489,29 @@ private fun TemperatureRow(
                 )
             }
         }
-        Text(
-            text = value.displayText(),
-            fontFamily = nunitoSansFamily,
-            textAlign = TextAlign.End,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = if (isPlaceholder) FontWeight.Normal else FontWeight.SemiBold,
-            color = valueColor(isPlaceholder),
-        )
+        if (value is Loadable.Loading) {
+            Box(contentAlignment = Alignment.CenterEnd) {
+                // Invisible text, so the row is as tall as it will be with the value.
+                Text(
+                    text = "0",
+                    modifier = Modifier.alpha(0f).clearAndSetSemantics {},
+                    fontFamily = nunitoSansFamily,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                SkeletonLine(width = scaledDp(64f), description = "Loading value")
+            }
+        } else {
+            val isPlaceholder = value.isPlaceholder()
+            Text(
+                text = value.displayText(),
+                fontFamily = nunitoSansFamily,
+                textAlign = TextAlign.End,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = if (isPlaceholder) FontWeight.Normal else FontWeight.SemiBold,
+                color = valueColor(isPlaceholder),
+            )
+        }
     }
 }
 
@@ -860,13 +877,12 @@ internal fun StatusTrendCell(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
+            if (value.loading) {
+                LoadingSpinner(size = 20.dp)
+            }
             if (value.text.isNotBlank()) {
                 Text(
                     text = value.text,
-                    modifier =
-                        Modifier.semantics {
-                            value.description?.let { contentDescription = it }
-                        },
                     fontFamily = nunitoSansFamily,
                     style = MaterialTheme.typography.bodyLarge,
                     color = valueColor(value.placeholder),
