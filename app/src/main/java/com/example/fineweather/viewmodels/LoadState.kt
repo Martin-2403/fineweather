@@ -47,10 +47,11 @@ fun <A, B, R> combineLoadables(
         else -> b.carryOver()
     }
 
-/** A resolved place for the one-line status: [name] may be shortened by the UI, [coordinates] never. */
+/** A resolved place for the status row beneath search. */
 data class PlaceLabel(
     val name: String,
     val coordinates: String,
+    val locationDetails: String = name,
 )
 
 /** The one-line status under the search field. */

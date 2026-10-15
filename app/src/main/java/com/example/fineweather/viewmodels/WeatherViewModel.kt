@@ -456,6 +456,9 @@ private fun GeoPlace.toPlaceLabel(): PlaceLabel =
                 .filter { it.isNotBlank() }
                 .joinToString(", "),
         coordinates = formatCoordinates(latitude, longitude),
+        locationDetails =
+            listOfNotNull(admin1?.takeIf { it.isNotBlank() }, country?.takeIf { it.isNotBlank() })
+                .joinToString(", "),
     )
 
 class WeatherViewModelFactory(

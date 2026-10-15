@@ -10,24 +10,117 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.fineweather.domain.DayPoint
+import com.example.fineweather.domain.Metric
 import com.example.fineweather.domain.MonthlyAnomaly
 import kotlin.math.abs
 
 internal val DailyChartHeight = 200.dp
 internal val AnomalyChartHeight = 190.dp
 
+/** The plotting area of a chart and the axis that maps values onto it. */
+private class ChartArea(
+    val left: Float,
+    val top: Float,
+    val width: Float,
+    val height: Float,
+    val axis: Axis,
+) {
+    val bottom: Float get() = top + height
+
+    fun y(value: Double): Float = top + height * (1f - ((value - axis.min) / (axis.max - axis.min)).toFloat())
+}
+
+/** How a chart writes its labels. */
+private class ChartText(
+    val measurer: TextMeasurer,
+    val style: TextStyle,
+    val color: Color,
+) {
+    val gridColor: Color = color.copy(alpha = 0.15f)
+}
+
+/** Grid lines with the tick labels left of them; with [emphasizeZero] the zero line is stronger. */
+private fun DrawScope.drawYAxis(
+    area: ChartArea,
+    text: ChartText,
+    label: (Double) -> String,
+    emphasizeZero: Boolean = false,
+) {
+    area.axis.ticks.forEach { tick ->
+        val isZero = emphasizeZero && abs(tick) < 1e-9
+        drawLine(
+            if (isZero) text.color.copy(alpha = 0.6f) else text.gridColor,
+            Offset(area.left, area.y(tick)),
+            Offset(area.left + area.width, area.y(tick)),
+            if (isZero) 1.5.dp.toPx() else 1.dp.toPx(),
+        )
+        val layout = text.measurer.measure(label(tick), text.style)
+        drawText(
+            layout,
+            color = text.color,
+            topLeft = Offset(area.left - 6.dp.toPx() - layout.size.width, area.y(tick) - layout.size.height / 2f),
+        )
+    }
+}
+
+/** The labels below the chart, each centred under the x of its index. */
+private fun DrawScope.drawXLabels(
+    area: ChartArea,
+    text: ChartText,
+    labels: List<Pair<Int, String>>,
+    x: (Int) -> Float,
+) {
+    labels.forEach { (index, label) ->
+        val layout = text.measurer.measure(label, text.style)
+        val centered = x(index) - layout.size.width / 2f
+        drawText(
+            layout,
+            color = text.color,
+            topLeft = Offset(centered.coerceIn(0f, size.width - layout.size.width), area.bottom + 4.dp.toPx()),
+        )
+    }
+}
+
+/** The faint vertical line between the last observed day and the first forecast day. */
+private fun DrawScope.drawTodayDivider(
+    area: ChartArea,
+    color: Color,
+    x: Float,
+) {
+    drawLine(
+        color.copy(alpha = 0.3f),
+        Offset(x, area.top),
+        Offset(x, area.bottom),
+        1.dp.toPx(),
+        pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 8f)),
+    )
+}
+
+/** The index of the last observed point and of the first forecast point, if the forecast follows the observations. */
+private fun dividerIndices(points: List<DayPoint>): Pair<Int, Int>? {
+    val firstForecast = points.indices.firstOrNull { points[it].forecast != null } ?: return null
+    val lastObserved = points.indices.lastOrNull { points[it].observed != null } ?: return null
+    return if (lastObserved < firstForecast) lastObserved to firstForecast else null
+}
+
 /**
- * Daily means as a line over the reference's typical range (mean ± 1 standard deviation).
- * Dots are tinted by whether the day was warmer or colder than the reference mean.
+ * Daily values over the days of a period. Temperature is a line over the reference's typical range (mean
+ * ± 1 standard deviation), its dots tinted by whether the day was warmer or colder than the reference mean.
+ * Sunshine and rain are one bar per day over a dashed line of the typical day; forecast bars are lighter
+ * and outlined.
  */
 @Composable
 internal fun DailyChart(
@@ -36,14 +129,15 @@ internal fun DailyChart(
     description: String,
     modifier: Modifier = Modifier,
     height: Dp = DailyChartHeight,
+    metric: Metric = Metric.TEMPERATURE,
 ) {
     val measurer = rememberTextMeasurer()
     val labelStyle = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp)
     val textColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val gridColor = textColor.copy(alpha = 0.15f)
-    val bandColor = textColor.copy(alpha = 0.16f)
+    val text = ChartText(measurer, labelStyle, textColor)
     val lineColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
     val forecastColor = MaterialTheme.colorScheme.primary
+    val dark = isDarkCard()
 
     Canvas(
         modifier =
@@ -52,160 +146,220 @@ internal fun DailyChart(
                 .height(height)
                 .semantics { contentDescription = description },
     ) {
-        val left = 34.dp.toPx()
-        val right = 8.dp.toPx()
-        val top = 8.dp.toPx()
-        val bottom = 20.dp.toPx()
-        val width = size.width - left - right
-        val chartHeight = size.height - top - bottom
-
-        val values =
-            points.flatMap { point ->
-                listOfNotNull(
-                    point.observed,
-                    point.forecast,
-                    point.band?.let { it.mean + it.stdDev },
-                    point.band?.let { it.mean - it.stdDev },
-                )
-            }
-        if (values.isEmpty() || points.isEmpty()) return@Canvas
-        val axis = niceAxis(values.min(), values.max())
-
-        fun x(index: Int): Float =
-            if (points.size == 1) left + width / 2 else left + width * index / (points.size - 1f)
-
-        fun y(value: Double): Float =
-            top + chartHeight * (1f - ((value - axis.min) / (axis.max - axis.min)).toFloat())
-
-        axis.ticks.forEach { tick ->
-            drawLine(gridColor, Offset(left, y(tick)), Offset(left + width, y(tick)), 1.dp.toPx())
-            val layout = measurer.measure(formatTick(tick), labelStyle)
-            drawText(
-                layout,
-                color = textColor,
-                topLeft = Offset(left - 6.dp.toPx() - layout.size.width, y(tick) - layout.size.height / 2f),
-            )
-        }
-
-        val withBand = points.withIndex().filter { it.value.band != null }
-        if (withBand.size >= 2) {
-            val band =
-                Path().apply {
-                    withBand.forEachIndexed { k, (i, point) ->
-                        val upper = y(point.band!!.mean + point.band.stdDev)
-                        if (k == 0) moveTo(x(i), upper) else lineTo(x(i), upper)
-                    }
-                    withBand.asReversed().forEach { (i, point) ->
-                        lineTo(x(i), y(point.band!!.mean - point.band.stdDev))
-                    }
-                    close()
-                }
-            drawPath(band, bandColor)
-            val mean =
-                Path().apply {
-                    withBand.forEachIndexed { k, (i, point) ->
-                        if (k == 0) moveTo(x(i), y(point.band!!.mean)) else lineTo(x(i), y(point.band!!.mean))
-                    }
-                }
-            drawPath(
-                mean,
-                textColor.copy(alpha = 0.55f),
-                style = Stroke(1.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 10f))),
-            )
-        }
-
-        val observed = Path()
-        var drawing = false
-        points.forEachIndexed { index, point ->
-            val value = point.observed
-            if (value == null) {
-                drawing = false
-            } else {
-                if (drawing) observed.lineTo(x(index), y(value)) else observed.moveTo(x(index), y(value))
-                drawing = true
-            }
-        }
-        drawPath(observed, lineColor, style = Stroke(2.dp.toPx()))
-        points.forEachIndexed { index, point ->
-            val value = point.observed ?: return@forEachIndexed
-            val reference = point.band?.mean
-            val tint =
-                when {
-                    reference == null -> lineColor
-                    value > reference -> WarmIconTint
-                    value < reference -> CoolIconTint
-                    else -> NeutralIconTint
-                }
-            drawCircle(tint, radius = 3.dp.toPx(), center = Offset(x(index), y(value)))
-        }
-
-        val forecastIndices = points.indices.filter { points[it].forecast != null }
-        if (forecastIndices.isNotEmpty()) {
-            val lastObserved = points.indices.lastOrNull { points[it].observed != null }
-            val firstForecast = forecastIndices.first()
-            if (lastObserved != null && lastObserved < firstForecast) {
-                val divider = (x(lastObserved) + x(firstForecast)) / 2f
-                drawLine(
-                    textColor.copy(alpha = 0.3f),
-                    Offset(divider, top),
-                    Offset(divider, top + chartHeight),
-                    1.dp.toPx(),
-                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 8f)),
-                )
-            }
-            val forecast = Path()
-            if (lastObserved != null && lastObserved < firstForecast) {
-                forecast.moveTo(x(lastObserved), y(points[lastObserved].observed!!))
-            }
-            forecastIndices.forEachIndexed { k, index ->
-                val point = Offset(x(index), y(points[index].forecast!!))
-                if (k == 0 && (lastObserved == null || lastObserved >= firstForecast)) {
-                    forecast.moveTo(point.x, point.y)
-                } else {
-                    forecast.lineTo(point.x, point.y)
-                }
-            }
-            drawPath(
-                forecast,
-                forecastColor,
-                style = Stroke(2.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 10f))),
-            )
-            forecastIndices.forEach { index ->
-                val value = points[index].forecast!!
-                val reference = points[index].band?.mean
-                val tint =
-                    when {
-                        reference == null -> forecastColor
-                        value > reference -> WarmIconTint
-                        value < reference -> CoolIconTint
-                        else -> NeutralIconTint
-                    }
-                drawCircle(
-                    tint,
-                    radius = 3.dp.toPx(),
-                    center = Offset(x(index), y(value)),
-                    style = Stroke(1.5.dp.toPx()),
-                )
-            }
-        }
-
-        xLabels.forEach { (index, label) ->
-            val layout = measurer.measure(label, labelStyle)
-            val centered = x(index) - layout.size.width / 2f
-            drawText(
-                layout,
-                color = textColor,
-                topLeft =
-                    Offset(
-                        centered.coerceIn(0f, size.width - layout.size.width),
-                        top + chartHeight + 4.dp.toPx(),
-                    ),
-            )
+        if (metric == Metric.TEMPERATURE) {
+            drawTemperatureChart(points, xLabels, text, lineColor, forecastColor)
+        } else {
+            drawBarChart(points, xLabels, text, metric, dark)
         }
     }
 }
 
-/** One bar per month for the deviation from the reference; unfinished months are drawn lighter. */
+private fun DrawScope.drawTemperatureChart(
+    points: List<DayPoint>,
+    xLabels: List<Pair<Int, String>>,
+    text: ChartText,
+    lineColor: Color,
+    forecastColor: Color,
+) {
+    val textColor = text.color
+    val bandColor = textColor.copy(alpha = 0.16f)
+    val left = 34.dp.toPx()
+    val right = 8.dp.toPx()
+    val top = 8.dp.toPx()
+    val bottom = 20.dp.toPx()
+    val width = size.width - left - right
+    val chartHeight = size.height - top - bottom
+
+    val values =
+        points.flatMap { point ->
+            listOfNotNull(
+                point.observed,
+                point.forecast,
+                point.band?.let { it.mean + it.stdDev },
+                point.band?.let { it.mean - it.stdDev },
+            )
+        }
+    if (values.isEmpty() || points.isEmpty()) return
+    val area = ChartArea(left, top, width, chartHeight, niceAxis(values.min(), values.max()))
+
+    fun x(index: Int): Float =
+        if (points.size == 1) left + width / 2 else left + width * index / (points.size - 1f)
+
+    fun y(value: Double): Float = area.y(value)
+
+    drawYAxis(area, text, ::formatTick)
+
+    val withBand = points.withIndex().filter { it.value.band != null }
+    if (withBand.size >= 2) {
+        val band =
+            Path().apply {
+                withBand.forEachIndexed { k, (i, point) ->
+                    val upper = y(point.band!!.mean + point.band.stdDev)
+                    if (k == 0) moveTo(x(i), upper) else lineTo(x(i), upper)
+                }
+                withBand.asReversed().forEach { (i, point) ->
+                    lineTo(x(i), y(point.band!!.mean - point.band.stdDev))
+                }
+                close()
+            }
+        drawPath(band, bandColor)
+        val mean =
+            Path().apply {
+                withBand.forEachIndexed { k, (i, point) ->
+                    if (k == 0) moveTo(x(i), y(point.band!!.mean)) else lineTo(x(i), y(point.band!!.mean))
+                }
+            }
+        drawPath(
+            mean,
+            textColor.copy(alpha = 0.55f),
+            style = Stroke(1.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 10f))),
+        )
+    }
+
+    val observed = Path()
+    var drawing = false
+    points.forEachIndexed { index, point ->
+        val value = point.observed
+        if (value == null) {
+            drawing = false
+        } else {
+            if (drawing) observed.lineTo(x(index), y(value)) else observed.moveTo(x(index), y(value))
+            drawing = true
+        }
+    }
+    drawPath(observed, lineColor, style = Stroke(2.dp.toPx()))
+    points.forEachIndexed { index, point ->
+        val value = point.observed ?: return@forEachIndexed
+        val reference = point.band?.mean
+        val tint =
+            when {
+                reference == null -> lineColor
+                value > reference -> WarmIconTint
+                value < reference -> CoolIconTint
+                else -> NeutralIconTint
+            }
+        drawCircle(tint, radius = 3.dp.toPx(), center = Offset(x(index), y(value)))
+    }
+
+    val forecastIndices = points.indices.filter { points[it].forecast != null }
+    if (forecastIndices.isNotEmpty()) {
+        val lastObserved = points.indices.lastOrNull { points[it].observed != null }
+        val firstForecast = forecastIndices.first()
+        dividerIndices(points)?.let { (last, first) -> drawTodayDivider(area, textColor, (x(last) + x(first)) / 2f) }
+        val forecast = Path()
+        if (lastObserved != null && lastObserved < firstForecast) {
+            forecast.moveTo(x(lastObserved), y(points[lastObserved].observed!!))
+        }
+        forecastIndices.forEachIndexed { k, index ->
+            val point = Offset(x(index), y(points[index].forecast!!))
+            if (k == 0 && (lastObserved == null || lastObserved >= firstForecast)) {
+                forecast.moveTo(point.x, point.y)
+            } else {
+                forecast.lineTo(point.x, point.y)
+            }
+        }
+        drawPath(
+            forecast,
+            forecastColor,
+            style = Stroke(2.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 10f))),
+        )
+        forecastIndices.forEach { index ->
+            val value = points[index].forecast!!
+            val reference = points[index].band?.mean
+            val tint =
+                when {
+                    reference == null -> forecastColor
+                    value > reference -> WarmIconTint
+                    value < reference -> CoolIconTint
+                    else -> NeutralIconTint
+                }
+            drawCircle(
+                tint,
+                radius = 3.dp.toPx(),
+                center = Offset(x(index), y(value)),
+                style = Stroke(1.5.dp.toPx()),
+            )
+        }
+    }
+
+    drawXLabels(area, text, xLabels, ::x)
+}
+
+private fun DrawScope.drawBarChart(
+    points: List<DayPoint>,
+    xLabels: List<Pair<Int, String>>,
+    text: ChartText,
+    metric: Metric,
+    dark: Boolean,
+) {
+    val left = 44.dp.toPx()
+    val right = 8.dp.toPx()
+    val top = 8.dp.toPx()
+    val bottom = 20.dp.toPx()
+    val width = size.width - left - right
+    val chartHeight = size.height - top - bottom
+
+    val values = points.flatMap { listOfNotNull(it.observed, it.forecast, it.band?.mean) }
+    if (values.isEmpty()) return
+    val area = ChartArea(left, top, width, chartHeight, dailyBarAxis(metric, values.max()))
+    val slots = barSlots(points.size, width, fill = 0.7f, maxBarWidth = 24.dp.toPx())
+    fun x(index: Int): Float = slots.center(left, index)
+
+    drawYAxis(area, text, { dailyTickLabel(metric, it) }, emphasizeZero = true)
+    drawDailyBars(points, area, slots, metric, dark)
+    dividerIndices(points)?.let { (last, first) -> drawTodayDivider(area, text.color, (x(last) + x(first)) / 2f) }
+    drawTypicalLine(points, area, text.color, ::x)
+    drawXLabels(area, text, xLabels, ::x)
+}
+
+/** One bar per day with a value: observed ones solid, forecast ones lighter with an outline. */
+private fun DrawScope.drawDailyBars(
+    points: List<DayPoint>,
+    area: ChartArea,
+    slots: BarSlots,
+    metric: Metric,
+    dark: Boolean,
+) {
+    val stub = 1.5.dp.toPx()
+    points.forEachIndexed { index, point ->
+        val forecast = point.observed == null
+        val value = point.observed ?: point.forecast ?: return@forEachIndexed
+        val color = dailyBarColor(metric, value, point.band?.mean, dark)
+        val barHeight = barHeight(value, area.axis.max, area.height, stub)
+        val topLeft = Offset(slots.center(area.left, index) - slots.barWidth / 2f, area.bottom - barHeight)
+        val barSize = Size(slots.barWidth, barHeight)
+        drawRect(color.copy(alpha = if (forecast) 0.4f else 0.9f), topLeft, barSize)
+        if (forecast) drawRect(color, topLeft, barSize, style = Stroke(1.dp.toPx()))
+    }
+}
+
+/** A dashed line through the typical value of every day that has one, observed or forecast. */
+private fun DrawScope.drawTypicalLine(
+    points: List<DayPoint>,
+    area: ChartArea,
+    color: Color,
+    x: (Int) -> Float,
+) {
+    val typical = points.withIndex().filter { it.value.band != null }
+    if (typical.size < 2) return
+    val path =
+        Path().apply {
+            typical.forEachIndexed { k, (i, point) ->
+                val y = area.y(point.band!!.mean)
+                if (k == 0) moveTo(x(i), y) else lineTo(x(i), y)
+            }
+        }
+    drawPath(
+        path,
+        color.copy(alpha = 0.8f),
+        style = Stroke(1.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 10f))),
+    )
+}
+
+/**
+ * One bar per month for the deviation from the reference; unfinished months are drawn lighter. For
+ * sunshine the bars are in h/day, for rain in percent of the normal (a month without a percent has no bar).
+ */
 @Composable
 internal fun AnomalyChart(
     months: List<MonthlyAnomaly>,
@@ -213,12 +367,13 @@ internal fun AnomalyChart(
     description: String,
     modifier: Modifier = Modifier,
     height: Dp = AnomalyChartHeight,
+    metric: Metric = Metric.TEMPERATURE,
 ) {
     val measurer = rememberTextMeasurer()
     val labelStyle = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp)
     val valueStyle = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp)
-    val textColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val gridColor = textColor.copy(alpha = 0.15f)
+    val text = ChartText(measurer, labelStyle, MaterialTheme.colorScheme.onSurfaceVariant)
+    val dark = isDarkCard()
 
     Canvas(
         modifier =
@@ -227,38 +382,16 @@ internal fun AnomalyChart(
                 .height(height)
                 .semantics { contentDescription = description },
     ) {
-        val left = 34.dp.toPx()
+        val left = (if (metric == Metric.TEMPERATURE) 34.dp else 44.dp).toPx()
         val right = 8.dp.toPx()
         val top = 12.dp.toPx()
         val bottom = 20.dp.toPx()
         val width = size.width - left - right
         val chartHeight = size.height - top - bottom
+        val bars = months.associate { it.month to anomalyValue(metric, it) }
+        val area = ChartArea(left, top, width, chartHeight, anomalyAxis(metric, bars.values.filterNotNull()))
 
-        val deltas = months.mapNotNull { it.delta }
-        val axis =
-            niceAxis(
-                minOf(0.0, deltas.minOrNull() ?: 0.0),
-                maxOf(1.0, deltas.maxOrNull() ?: 0.0),
-            )
-
-        fun y(value: Double): Float =
-            top + chartHeight * (1f - ((value - axis.min) / (axis.max - axis.min)).toFloat())
-
-        axis.ticks.forEach { tick ->
-            val isZero = abs(tick) < 1e-9
-            drawLine(
-                if (isZero) textColor.copy(alpha = 0.6f) else gridColor,
-                Offset(left, y(tick)),
-                Offset(left + width, y(tick)),
-                if (isZero) 1.5.dp.toPx() else 1.dp.toPx(),
-            )
-            val layout = measurer.measure(formatTick(tick), labelStyle)
-            drawText(
-                layout,
-                color = textColor,
-                topLeft = Offset(left - 6.dp.toPx() - layout.size.width, y(tick) - layout.size.height / 2f),
-            )
-        }
+        drawYAxis(area, text, { anomalyTickLabel(metric, it) }, emphasizeZero = true)
 
         val slot = width / 12f
         for (month in 1..12) {
@@ -266,29 +399,42 @@ internal fun AnomalyChart(
             val initial = measurer.measure(monthInitials[month - 1], labelStyle)
             drawText(
                 initial,
-                color = textColor,
-                topLeft = Offset(center - initial.size.width / 2f, top + chartHeight + 4.dp.toPx()),
+                color = text.color,
+                topLeft = Offset(center - initial.size.width / 2f, area.bottom + 4.dp.toPx()),
             )
             val anomaly = months.firstOrNull { it.month == month } ?: continue
-            val delta = anomaly.delta ?: continue
-            val color: Color = if (delta >= 0) WarmIconTint else CoolIconTint
-            val barWidth = slot * 0.6f
-            val zero = y(0.0)
-            val end = y(delta)
-            val topLeft = Offset(center - barWidth / 2f, minOf(zero, end))
-            val barSize = androidx.compose.ui.geometry.Size(barWidth, abs(end - zero).coerceAtLeast(1.dp.toPx()))
-            drawRect(color.copy(alpha = if (anomaly.partial) 0.4f else 0.9f), topLeft, barSize)
-            if (anomaly.partial) {
-                drawRect(color, topLeft, barSize, style = Stroke(1.5.dp.toPx()))
-            }
-            val label = measurer.measure(formatSigned(delta), valueStyle)
-            val labelY =
-                if (delta >= 0) topLeft.y - label.size.height - 1.dp.toPx() else topLeft.y + barSize.height + 1.dp.toPx()
-            drawText(
-                label,
-                color = textColor,
-                topLeft = Offset(center - label.size.width / 2f, labelY.coerceIn(0f, size.height - label.size.height)),
-            )
+            val value = bars[month] ?: continue
+            drawMonthBar(area, text, valueStyle, center, slot * 0.6f, metric, value, anomaly.partial, dark)
         }
     }
+}
+
+/** One month's bar from zero to [value], with its value above it (below it for a negative one). */
+private fun DrawScope.drawMonthBar(
+    area: ChartArea,
+    text: ChartText,
+    valueStyle: TextStyle,
+    center: Float,
+    barWidth: Float,
+    metric: Metric,
+    value: Double,
+    partial: Boolean,
+    dark: Boolean,
+) {
+    val color = anomalyBarColor(metric, value, dark)
+    val zero = area.y(0.0)
+    val end = area.y(value)
+    val topLeft = Offset(center - barWidth / 2f, minOf(zero, end))
+    val barSize = Size(barWidth, abs(end - zero).coerceAtLeast(1.dp.toPx()))
+    drawRect(color.copy(alpha = if (partial) 0.4f else 0.9f), topLeft, barSize)
+    if (partial) {
+        drawRect(color, topLeft, barSize, style = Stroke(1.5.dp.toPx()))
+    }
+    val label = text.measurer.measure(anomalyBarLabel(metric, value), valueStyle)
+    val labelY = if (value >= 0) topLeft.y - label.size.height - 1.dp.toPx() else topLeft.y + barSize.height + 1.dp.toPx()
+    drawText(
+        label,
+        color = text.color,
+        topLeft = Offset(center - label.size.width / 2f, labelY.coerceIn(0f, size.height - label.size.height)),
+    )
 }

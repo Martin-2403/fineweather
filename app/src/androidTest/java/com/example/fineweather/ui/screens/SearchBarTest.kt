@@ -151,6 +151,7 @@ class LocationStatusTest {
                             PlaceLabel(
                                 name = "Llanfairpwllgwyngyllgogerychwyrndrobwllllantysiliogogogoch, Gwynedd, United Kingdom",
                                 coordinates = "53.22, -4.20",
+                                locationDetails = "Gwynedd, United Kingdom",
                             ),
                     )
                 }
@@ -159,19 +160,26 @@ class LocationStatusTest {
 
         composeTestRule.onNodeWithText("(53.22, -4.20)").assertIsDisplayed()
         val height = composeTestRule.onNodeWithTag("locationStatus").getBoundsInRoot().height
-        // Two lines: the (shortened) name, then the coordinates.
-        assertTrue("status should stay at two lines but was $height", height <= 44.dp)
+        assertTrue("status should stay on one line but was $height", height <= 40.dp)
     }
 
     @Test
-    fun place_showsNameAndCoordinates() {
+    fun place_showsAdministrativeAreaAndCoordinatesWithoutCity() {
         composeTestRule.setContent {
             FineWeatherTheme {
-                LocationStatus("ignored", PlaceLabel("Augsburg, Bavaria, Germany", "48.37, 10.90"))
+                LocationStatus(
+                    "ignored",
+                    PlaceLabel(
+                        name = "Augsburg, Bavaria, Germany",
+                        coordinates = "48.37, 10.90",
+                        locationDetails = "Bavaria, Germany",
+                    ),
+                )
             }
         }
 
-        composeTestRule.onNodeWithText("Augsburg, Bavaria, Germany").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Bavaria, Germany").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Augsburg, Bavaria, Germany").assertDoesNotExist()
         composeTestRule.onNodeWithText("(48.37, 10.90)").assertIsDisplayed()
     }
 

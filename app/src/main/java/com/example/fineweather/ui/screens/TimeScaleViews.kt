@@ -35,9 +35,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.fineweather.R
 import com.example.fineweather.domain.ClimateSnapshot
-import com.example.fineweather.domain.ForecastOutlook
 import com.example.fineweather.domain.Metric
 import com.example.fineweather.domain.MonthWindow
+import com.example.fineweather.domain.MonthlyAnomaly
 import com.example.fineweather.domain.dayPoints
 import com.example.fineweather.domain.months
 import com.example.fineweather.domain.outlook
@@ -45,9 +45,7 @@ import com.example.fineweather.domain.summarize
 import com.example.fineweather.domain.summarizeYear
 import com.example.fineweather.nunitoSansFamily
 import java.time.LocalDate
-import java.time.Month
 import java.time.format.TextStyle
-import java.util.Locale
 
 internal enum class TimeScale(val label: String) {
     CURRENT("Current"),
@@ -109,13 +107,6 @@ private fun emptyText(
     prompt: String,
 ): String = if (failed) "Error" else prompt
 
-private fun monthName(
-    month: Int,
-    style: TextStyle = TextStyle.FULL,
-): String = Month.of(month).getDisplayName(style, Locale.ENGLISH)
-
-private fun degrees(value: Double?): String = value?.let { String.format(Locale.US, "%.1f°C", it) } ?: "–"
-
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun MonthView(
@@ -130,14 +121,6 @@ internal fun MonthView(
 ) {
     var window by rememberSaveable { mutableStateOf(MonthWindow.THIS_MONTH) }
     var showLegend by rememberSaveable { mutableStateOf(false) }
-    if (metric != Metric.TEMPERATURE) {
-        // TODO(sun/rain charts): draw the daily chart of sunshine and rain here (phase 6).
-        ViewCard(shape, colors, Modifier.testTag("monthView")) {
-            CardTitle(if (metric == Metric.SUNSHINE) "Daily sunshine" else "Daily rain")
-            Caption("The daily chart for sunshine and rain is not available yet.")
-        }
-        return
-    }
     ViewCard(shape, colors, Modifier.testTag("monthView")) {
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
@@ -146,7 +129,7 @@ internal fun MonthView(
             itemVerticalAlignment = Alignment.CenterVertically,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                CardTitle("Daily temperatures")
+                CardTitle(metric.dailyTitle)
                 IconButton(
                     onClick = { showLegend = true },
                     modifier = Modifier.size(32.dp).testTag("monthInfoButton"),
@@ -172,7 +155,7 @@ internal fun MonthView(
             if (loading) {
                 LoadingArea(height = DailyChartHeight)
             } else {
-                Caption(emptyText(failed, "Search for a place to see its daily temperatures."))
+                Caption(emptyText(failed, "Search for a place to see its daily ${metric.dailyNoun}."))
             }
             return@ViewCard
         }
@@ -186,21 +169,17 @@ internal fun MonthView(
         DailyChart(
             points = points,
             xLabels = remember(points, window) { dayAxisLabels(points.map { it.date }, window) },
-            description =
-                "Daily mean temperatures, ${summary.observedDays} days, averaging ${degrees(summary.observedMean)}" +
-                    if (points.any { it.forecast != null }) ", with the forecast for the coming days." else ".",
+            description = dailyChartDescription(summary, withForecast = points.any { it.forecast != null }),
+            metric = metric,
         )
         Spacer(Modifier.height(2.dp))
         Text(
-            text = monthSummaryText(summary.observedDays, summary.observedMean, summary.delta, referenceLabel),
+            text = monthSummaryText(summary, referenceLabel),
             fontFamily = nunitoSansFamily,
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.testTag("monthSummary"),
         )
-        Caption(
-            "${summary.warmerDays} ${if (summary.warmerDays == 1) "day" else "days"} warmer and " +
-                "${summary.colderDays} ${if (summary.colderDays == 1) "day" else "days"} colder than the typical day.",
-        )
+        monthCaptionText(summary, points)?.let { Caption(it, Modifier.testTag("monthCaption")) }
         outlook?.let {
             Text(
                 text = forecastSummaryText(it),
@@ -216,7 +195,7 @@ internal fun MonthView(
             title = { Text("Reading the chart", fontFamily = nunitoSansFamily, fontWeight = FontWeight.SemiBold) },
             text = {
                 Text(
-                    text = chartLegendText(referenceLabel),
+                    text = chartLegendText(referenceLabel, metric),
                     fontFamily = nunitoSansFamily,
                     modifier = Modifier.testTag("chartLegend"),
                 )
@@ -225,35 +204,6 @@ internal fun MonthView(
                 TextButton(onClick = { showLegend = false }) { Text("OK", fontFamily = nunitoSansFamily) }
             },
         )
-    }
-}
-
-internal fun chartLegendText(referenceLabel: String): String =
-    "Line: daily mean.\n" +
-        "Band: typical range of $referenceLabel (±1 standard deviation); the dashed line in it is the average.\n" +
-        "Dots are red on days warmer than typical and blue on days colder than typical.\n" +
-        "Dashed line with hollow dots: the forecast. Forecasts become less certain the further " +
-        "ahead they look, so treat days beyond about a week as a rough guide."
-
-internal fun forecastSummaryText(outlook: ForecastOutlook): String {
-    val period = "next ${outlook.days} days"
-    val delta = outlook.delta ?: return "Forecast: the $period average ${degrees(outlook.mean)}."
-    return "Forecast: the $period average ${degrees(outlook.mean)}, ${formatSigned(delta)}°C compared with " +
-        "normal for those days."
-}
-
-internal fun monthSummaryText(
-    days: Int,
-    mean: Double?,
-    delta: Double?,
-    referenceLabel: String,
-): String {
-    val dayText = if (days == 1) "1 day" else "$days days"
-    val base = "$dayText averaged ${degrees(mean)}"
-    return if (delta == null) {
-        "$base."
-    } else {
-        "$base, ${formatSigned(delta)}°C compared with the same days of $referenceLabel."
     }
 }
 
@@ -283,14 +233,6 @@ internal fun YearView(
     failed: Boolean = false,
     metric: Metric = Metric.TEMPERATURE,
 ) {
-    if (metric != Metric.TEMPERATURE) {
-        // TODO(sun/rain charts): draw the monthly chart and table of sunshine and rain here (phase 6).
-        ViewCard(shape, colors, Modifier.testTag("yearView")) {
-            CardTitle("Months of the year")
-            Caption("The monthly chart for sunshine and rain is not available yet.")
-        }
-        return
-    }
     ViewCard(shape, colors, Modifier.testTag("yearView")) {
         if (snapshot == null) {
             CardTitle("Months of the year")
@@ -312,43 +254,34 @@ internal fun YearView(
         AnomalyChart(
             months = months,
             monthInitials = (1..12).map { monthName(it, TextStyle.NARROW) },
-            description =
-                "Monthly deviation from the $referenceLabel average. " +
-                    "${summary.warmerMonths} of ${summary.comparedMonths} months were warmer.",
+            description = yearChartDescription(summary, referenceLabel, metric),
+            metric = metric,
         )
         Text(
-            text = yearSummaryText(year, summary.delta, summary.warmerMonths, summary.comparedMonths, referenceLabel),
+            text = yearSummaryText(year, summary, referenceLabel, metric),
             fontFamily = nunitoSansFamily,
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.testTag("yearSummary"),
         )
-        YearTable(months.map { it })
-        Caption("Bars show the deviation in °C. A lighter bar is a month that is still running, compared with the same days only.")
+        YearTable(months, metric)
+        Caption(yearChartCaption(metric, hasMonthWithoutBar(metric, months)))
     }
 }
 
-internal fun yearSummaryText(
-    year: Int,
-    delta: Double?,
-    warmerMonths: Int,
-    comparedMonths: Int,
-    referenceLabel: String,
-): String {
-    if (delta == null) return "No monthly comparison is available yet."
-    return "So far $year is ${formatSigned(delta)}°C compared with $referenceLabel, " +
-        "with $warmerMonths of $comparedMonths months warmer than average."
-}
-
 @Composable
-private fun YearTable(months: List<com.example.fineweather.domain.MonthlyAnomaly>) {
+private fun YearTable(
+    months: List<MonthlyAnomaly>,
+    metric: Metric,
+) {
+    // sunshine and rain carry their units, so their delta column is wider
+    val weights = if (metric == Metric.TEMPERATURE) listOf(1.1f, 1.2f, 1.2f, 0.8f) else listOf(0.9f, 1.2f, 1.2f, 1.1f)
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        TableRow("Month", "Observed", "Reference", "Δ", header = true)
+        TableRow(yearTableHeader(metric), weights, header = true)
         months.forEach { month ->
+            val (observed, reference, delta) = yearTableCells(metric, month)
             TableRow(
-                label = monthName(month.month, TextStyle.SHORT) + if (month.partial) "*" else "",
-                observed = degrees(month.observedMean),
-                reference = degrees(month.referenceMean),
-                delta = month.delta?.let { formatSigned(it) } ?: "–",
+                cells = listOf(monthName(month.month, TextStyle.SHORT) + if (month.partial) "*" else "", observed, reference, delta),
+                weights = weights,
                 header = false,
             )
         }
@@ -357,10 +290,8 @@ private fun YearTable(months: List<com.example.fineweather.domain.MonthlyAnomaly
 
 @Composable
 private fun TableRow(
-    label: String,
-    observed: String,
-    reference: String,
-    delta: String,
+    cells: List<String>,
+    weights: List<Float>,
     header: Boolean,
 ) {
     val style = if (header) MaterialTheme.typography.labelMedium else MaterialTheme.typography.bodySmall
@@ -369,7 +300,7 @@ private fun TableRow(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        listOf(label to 1.1f, observed to 1.2f, reference to 1.2f, delta to 0.8f).forEachIndexed { index, (text, w) ->
+        cells.zip(weights).forEachIndexed { index, (text, w) ->
             Text(
                 text = text,
                 modifier = Modifier.weight(w),

@@ -279,34 +279,10 @@ class MetricViewsTest {
     // ---- Month and Year ----
 
     @Test
-    fun monthView_forSunshineAndRainShowsTheCaptionInsteadOfATemperatureChart() {
-        var metric by mutableStateOf(Metric.SUNSHINE)
-        show { MonthView(null, 7, "1961–1990", shape, cardColors, metric = metric) }
-
-        composeTestRule.onNodeWithText("Daily sunshine").assertIsDisplayed()
-        composeTestRule.onNodeWithText("The daily chart for sunshine and rain is not available yet.").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("monthInfoButton").assertDoesNotExist()
-        composeTestRule.onNodeWithText("30 days").assertDoesNotExist()
-
-        metric = Metric.PRECIPITATION
-        composeTestRule.onNodeWithText("Daily rain").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Daily temperatures").assertDoesNotExist()
-    }
-
-    @Test
     fun monthView_forTemperatureIsUnchanged() {
         show { MonthView(null, 7, "1961–1990", shape, cardColors) }
 
         composeTestRule.onNodeWithText("Daily temperatures").assertIsDisplayed()
-        composeTestRule.onNodeWithText("The daily chart for sunshine and rain is not available yet.").assertDoesNotExist()
-    }
-
-    @Test
-    fun yearView_forSunshineAndRainShowsACaption() {
-        show { YearView(null, "1961–1990", shape, cardColors, metric = Metric.PRECIPITATION) }
-
-        composeTestRule.onNodeWithTag("yearView").assertIsDisplayed()
-        composeTestRule.onNodeWithText("The monthly chart for sunshine and rain is not available yet.").assertIsDisplayed()
     }
 
     @Test

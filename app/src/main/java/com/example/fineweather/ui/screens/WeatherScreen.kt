@@ -32,6 +32,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -150,33 +151,55 @@ fun WeatherScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Top,
         ) {
-            SearchBar(
-                location = location,
-                onLocationChange = { location = it },
-                onSearch = {
-                    focusManager.clearFocus()
-                    keyboardController?.hide()
-                    viewModel.fetchWeather(location)
-                },
-                onClear = {
-                    keyboardController?.hide()
-                    location = ""
-                    viewModel.fetchWeather("")
-                },
-                isFavorite = isFavoriteSelected,
-                canFavorite = selectedPlace != null,
-                onToggleFavorite = { viewModel.toggleFavorite() },
-            )
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            LocationStatus(
-                status = state.search.displayText(report.metric),
-                label = placeLabel,
-                onShowAlternatives = if (alternatives.isNotEmpty()) ({
-                    showAlternatives = true
-                }) else null,
-            )
+            Card(
+                shape = cardShape,
+                colors = cardColors,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .border(
+                            1.dp,
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f),
+                            cardShape,
+                        ),
+            ) {
+                Column {
+                    SearchBar(
+                        location = location,
+                        onLocationChange = { location = it },
+                        onSearch = {
+                            focusManager.clearFocus()
+                            keyboardController?.hide()
+                            viewModel.fetchWeather(location)
+                        },
+                        onClear = {
+                            keyboardController?.hide()
+                            location = ""
+                            viewModel.fetchWeather("")
+                        },
+                        isFavorite = isFavoriteSelected,
+                        canFavorite = selectedPlace != null,
+                        onToggleFavorite = { viewModel.toggleFavorite() },
+                        showOutline = false,
+                    )
+                    Box(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .height(1.dp)
+                                .background(
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f),
+                                ),
+                    )
+                    LocationStatus(
+                        status = state.search.displayText(report.metric),
+                        label = placeLabel,
+                        onShowAlternatives = if (alternatives.isNotEmpty()) ({
+                            showAlternatives = true
+                        }) else null,
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -320,6 +343,7 @@ internal fun SearchBar(
     isFavorite: Boolean,
     canFavorite: Boolean,
     onToggleFavorite: () -> Unit,
+    showOutline: Boolean = true,
 ) {
     OutlinedTextField(
         value = location,
@@ -333,7 +357,18 @@ internal fun SearchBar(
         singleLine = true,
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
         keyboardActions = KeyboardActions(onSearch = { onSearch() }),
-        shape = RoundedCornerShape(12.dp),
+        shape = if (showOutline) RoundedCornerShape(12.dp) else RoundedCornerShape(0.dp),
+        colors =
+            if (showOutline) {
+                OutlinedTextFieldDefaults.colors()
+            } else {
+                OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent,
+                    disabledBorderColor = Color.Transparent,
+                    errorBorderColor = Color.Transparent,
+                )
+            },
         leadingIcon = {
             IconButton(
                 onClick = onToggleFavorite,
@@ -436,7 +471,10 @@ internal fun MetricPills(
 ) {
     Row(
         // The end padding lines the pill up with the Month toggle inside the view card below.
-        modifier = modifier.fillMaxWidth().height(38.dp).padding(end = 12.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .height(38.dp)
+            .padding(end = 12.dp),
         horizontalArrangement = Arrangement.End,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -528,7 +566,9 @@ private fun MetricRow(
                 // Invisible text, so the row is as tall as it will be with the value.
                 Text(
                     text = "0",
-                    modifier = Modifier.alpha(0f).clearAndSetSemantics {},
+                    modifier = Modifier
+                        .alpha(0f)
+                        .clearAndSetSemantics {},
                     fontFamily = nunitoSansFamily,
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.SemiBold,
@@ -574,10 +614,11 @@ internal fun LocationStatus(
     if (label == null) {
         Text(
             text = status,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 4.dp)
-                .testTag("locationStatus"),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .testTag("locationStatus"),
             fontFamily = nunitoSansFamily,
             style = style,
             color = color,
@@ -586,58 +627,51 @@ internal fun LocationStatus(
         )
     } else {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 4.dp)
-                .testTag("locationStatus"),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .testTag("locationStatus"),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = label.name,
-                        modifier = Modifier.weight(1f, fill = false),
-                        fontFamily = nunitoSansFamily,
-                        style = style,
-                        color = color,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = "(${label.coordinates})",
-                        fontFamily = nunitoSansFamily,
-                        style = style,
-                        color = color.copy(alpha = 0.8f),
-                        maxLines = 1,
-                        softWrap = false,
-                    )
-                    if (onShowAlternatives != null) {
-                        Spacer(Modifier.width(10.dp))
-                        Text(
-                            text = "Not your city?",
-                            modifier =
-                                Modifier
-                                    .clickable(role = Role.Button, onClick = onShowAlternatives)
-                                    .padding(vertical = 6.dp)
-                                    .testTag("alternativesLink"),
-                            fontFamily = nunitoSansFamily,
-                            style = style,
-                            color = MaterialTheme.colorScheme.primary,
-                            textDecoration = TextDecoration.Underline,
-                            maxLines = 1,
-                            softWrap = false,
-                        )
-                    }
-                }
-
+            if (label.locationDetails.isNotBlank()) {
+                Text(
+                    text = label.locationDetails,
+                    modifier = Modifier.weight(1f),
+                    fontFamily = nunitoSansFamily,
+                    style = style,
+                    color = color,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.width(8.dp))
+            } else {
+                Spacer(Modifier.weight(1f))
+            }
+            Text(
+                text = "(${label.coordinates})",
+                fontFamily = nunitoSansFamily,
+                style = style,
+                color = color.copy(alpha = 0.8f),
+                maxLines = 1,
+                softWrap = false,
+            )
+            if (onShowAlternatives != null) {
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = "Not your city?",
+                    modifier =
+                        Modifier
+                            .clickable(role = Role.Button, onClick = onShowAlternatives)
+                            .padding(vertical = 6.dp)
+                            .testTag("alternativesLink"),
+                    fontFamily = nunitoSansFamily,
+                    style = style,
+                    color = MaterialTheme.colorScheme.primary,
+                    textDecoration = TextDecoration.Underline,
+                    maxLines = 1,
+                    softWrap = false,
+                )
             }
         }
     }
@@ -917,7 +951,9 @@ internal fun StatusTrendCell(
             Box(contentAlignment = Alignment.CenterStart) {
                 Text(
                     text = "0",
-                    modifier = Modifier.alpha(0f).clearAndSetSemantics {},
+                    modifier = Modifier
+                        .alpha(0f)
+                        .clearAndSetSemantics {},
                     fontFamily = nunitoSansFamily,
                     style = MaterialTheme.typography.bodyMedium,
                 )
