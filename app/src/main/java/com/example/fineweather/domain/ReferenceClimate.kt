@@ -4,10 +4,15 @@ import java.time.LocalDate
 import java.time.YearMonth
 import kotlin.math.sqrt
 
+/** A daily mean and its spread. [lower] never goes below [floor], for values that cannot be negative. */
 data class DailyStats(
     val mean: Double,
     val stdDev: Double,
-)
+    val floor: Double? = null,
+) {
+    val lower: Double get() = (mean - stdDev).let { if (floor != null) maxOf(it, floor) else it }
+    val upper: Double get() = mean + stdDev
+}
 
 /**
  * Climate normals for one place from [firstYear]..[lastYear] of daily means. Every comparison is

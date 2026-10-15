@@ -36,12 +36,12 @@ import androidx.compose.ui.unit.dp
 import com.example.fineweather.R
 import com.example.fineweather.domain.ClimateSnapshot
 import com.example.fineweather.domain.ForecastOutlook
-import com.example.fineweather.domain.forecastOutlook
 import com.example.fineweather.domain.MonthWindow
 import com.example.fineweather.domain.dayPoints
+import com.example.fineweather.domain.months
+import com.example.fineweather.domain.outlook
 import com.example.fineweather.domain.summarize
 import com.example.fineweather.domain.summarizeYear
-import com.example.fineweather.domain.yearToDate
 import com.example.fineweather.nunitoSansFamily
 import java.time.LocalDate
 import java.time.Month
@@ -167,9 +167,8 @@ internal fun MonthView(
             return@ViewCard
         }
         val points = remember(snapshot, window, forecastDays) { dayPoints(snapshot, window, forecastDays) }
-        val summary = remember(points) { summarize(points) }
-        val outlook =
-            remember(snapshot, forecastDays) { forecastOutlook(snapshot.forecast, snapshot.reference, forecastDays) }
+        val summary = remember(snapshot, points) { snapshot.summarize(points) }
+        val outlook = remember(snapshot, forecastDays) { snapshot.outlook(forecastDays) }
         if (summary.observedDays == 0) {
             Caption("No daily data available for this period yet.")
             return@ViewCard
@@ -285,7 +284,7 @@ internal fun YearView(
         }
         val year = snapshot.today.minusDays(1).year
         CardTitle("$year compared with $referenceLabel")
-        val months = remember(snapshot) { yearToDate(snapshot.series, snapshot.reference, snapshot.today) }
+        val months = remember(snapshot) { snapshot.months() }
         val summary = remember(months) { summarizeYear(months) }
         if (snapshot.reference == null || summary.comparedMonths == 0) {
             Caption("No monthly comparison is available yet.")
