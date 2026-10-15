@@ -1,8 +1,12 @@
 package com.example.fineweather.ui.screens
 
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import com.example.fineweather.R
 import com.example.fineweather.data.models.TemperatureComparisonMode
+import com.example.fineweather.domain.Aggregation
 import com.example.fineweather.domain.Band
 import com.example.fineweather.domain.Assessment
 import com.example.fineweather.domain.ForecastOutlook
@@ -20,8 +24,57 @@ internal val WarmIconTint = Color(0xFFE53935)
 internal val CoolIconTint = Color(0xFF1E88E5)
 internal val NeutralIconTint = Color(0xFF43A047)
 
-/** TODO(sun/rain icons): stand-in tint of the arrows shown for sunshine and rain. */
-private val MetricPlaceholderTint = Color(0xFF757575)
+/** The tints of sunshine and rain above and below normal, for one card colour. */
+internal class MetricTints(
+    val sun: Color,
+    val cloud: Color,
+    val drop: Color,
+    val dry: Color,
+)
+
+// Each is at least 3:1 against its card: light surfaceVariant 0xFFB4D7FF, dark 0xFF213448.
+internal val LightMetricTints =
+    MetricTints(sun = Color(0xFF9A5B00), cloud = Color(0xFF4F6275), drop = Color(0xFF1257B5), dry = Color(0xFF7A5A1E))
+internal val DarkMetricTints =
+    MetricTints(sun = Color(0xFFFFB300), cloud = Color(0xFFA9BCCF), drop = Color(0xFF64B5F6), dry = Color(0xFFE0B060))
+
+/** Whether the cards are dark, which picks the tints of sunshine and rain. */
+@Composable
+internal fun isDarkCard(): Boolean = MaterialTheme.colorScheme.surfaceVariant.luminance() < 0.5f
+
+/** The icon of [metric] above or below normal, and its tint. */
+private fun divergenceIcon(
+    metric: Metric,
+    above: Boolean,
+    dark: Boolean,
+): Pair<Int, Color> {
+    val tints = if (dark) DarkMetricTints else LightMetricTints
+    return when (metric) {
+        Metric.TEMPERATURE -> if (above) R.drawable.fire to WarmIconTint else R.drawable.frost to CoolIconTint
+        Metric.SUNSHINE -> if (above) R.drawable.sun to tints.sun else R.drawable.cloud to tints.cloud
+        Metric.PRECIPITATION -> if (above) R.drawable.drop to tints.drop else R.drawable.drop_dry to tints.dry
+    }
+}
+
+/** The tint of a trend arrow: the colour of its metric's icon on that side of normal. */
+internal fun arrowTint(
+    metric: Metric,
+    above: Boolean,
+    dark: Boolean = false,
+): Color = divergenceIcon(metric, above, dark).second
+
+/** The colour of the bar beside the headline: the icon colour of the band, green when near normal. */
+internal fun bandTint(
+    metric: Metric,
+    band: Band?,
+    dark: Boolean = false,
+): Color =
+    when (band) {
+        Band.WARM -> arrowTint(metric, above = true, dark = dark)
+        Band.COLD -> arrowTint(metric, above = false, dark = dark)
+        Band.NEUTRAL -> NeutralIconTint
+        null -> Color.Transparent
+    }
 
 /** The signed delta of [assessment] as a status card shows it: a percent of the normal for rain, else the delta. */
 private fun deltaText(assessment: Assessment): String {
@@ -29,15 +82,54 @@ private fun deltaText(assessment: Assessment): String {
     return assessment.percent?.let { Metric.formatPercent(it) } ?: metric.formatDelta(assessment.delta, signAtZero = false)
 }
 
+/** The title of the Current view's card. */
+internal val Metric.currentTitle: String
+    get() =
+        when (this) {
+            Metric.TEMPERATURE -> "Average temperatures"
+            Metric.SUNSHINE -> "Average sunshine"
+            Metric.PRECIPITATION -> "Rain totals"
+        }
+
+/** What the app compares, for the prompt before a search. */
+private val Metric.overview: String
+    get() =
+        when (this) {
+            Metric.TEMPERATURE -> "temperature averages"
+            Metric.SUNSHINE -> "sunshine averages"
+            Metric.PRECIPITATION -> "rain totals"
+        }
+
+/** The metric switch's label for screen readers. */
+internal val Metric.pillDescription: String
+    get() =
+        when (this) {
+            Metric.TEMPERATURE -> "Temperature"
+            Metric.SUNSHINE -> "Sunshine"
+            Metric.PRECIPITATION -> "Rain"
+        }
+
+/** What the value of a period is called: rain adds up, the others average. */
+internal val Metric.summaryNoun: String
+    get() = if (aggregation == Aggregation.TOTAL) "total" else "average"
+
+/** [this] without the unit of [metric] behind its number, for cells too narrow for it. */
+internal fun ValueWithIcons.withoutUnit(metric: Metric): ValueWithIcons {
+    val suffix = " ${metric.unit}"
+    return if (metric == Metric.TEMPERATURE || !text.endsWith(suffix)) this else copy(text = text.removeSuffix(suffix))
+}
+
 /** A cell that is still waiting for its value; it draws a spinner. */
 private val LoadingValue = ValueWithIcons(text = "", icons = null, loading = true)
 
 /**
  * The divergence of this month so far: a signed value (in °C, h/day, or % of the normal for rain) with icons by
- * severity. Temperature has its warm/cold icons; sunshine and rain get plain arrows.
- * TODO(sun/rain icons): replace the placeholder arrows and their grey tint.
+ * severity: fire/frost for temperature, sun/cloud for sunshine, drop/dry drop for rain.
  */
-internal fun buildStatusCardValue(headline: Loadable<Assessment>): ValueWithIcons {
+internal fun buildStatusCardValue(
+    headline: Loadable<Assessment>,
+    dark: Boolean = false,
+): ValueWithIcons {
     val assessment =
         when (headline) {
             is Loadable.Ready -> headline.value
@@ -57,18 +149,8 @@ internal fun buildStatusCardValue(headline: Loadable<Assessment>): ValueWithIcon
             else -> if (delta > 0) "+++" else "---"
         }
     val wording = assessment.metric.wording
-    val (resId, tint, description) =
-        when {
-            assessment.metric != Metric.TEMPERATURE ->
-                Triple(
-                    if (delta > 0) R.drawable.up else R.drawable.down,
-                    MetricPlaceholderTint,
-                    "$classLabel ${if (delta > 0) wording.above else wording.below} than average",
-                )
-
-            delta > 0 -> Triple(R.drawable.fire, WarmIconTint, "$classLabel warmer than average")
-            else -> Triple(R.drawable.frost, CoolIconTint, "$classLabel colder than average")
-        }
+    val (resId, tint) = divergenceIcon(assessment.metric, above = delta > 0, dark = dark)
+    val description = "$classLabel ${if (delta > 0) wording.above else wording.below} than average"
     return ValueWithIcons(
         valueText,
         IconStack(resId = resId, count = count, tint = tint, contentDescription = description),
@@ -77,10 +159,12 @@ internal fun buildStatusCardValue(headline: Loadable<Assessment>): ValueWithIcon
 
 /**
  * Whether the next forecast days are warmer or cooler (sunnier, wetter, ...) than normal for those same days.
- * Sunshine and rain also show the delta as text, with placeholder arrows.
- * TODO(sun/rain icons): replace the placeholder arrows and their grey tint.
+ * Sunshine and rain also show the delta as text; the arrows are tinted by what the metric is above or below.
  */
-internal fun buildTrendCardValue(trend: Loadable<ForecastOutlook>): ValueWithIcons {
+internal fun buildTrendCardValue(
+    trend: Loadable<ForecastOutlook>,
+    dark: Boolean = false,
+): ValueWithIcons {
     if (trend is Loadable.Loading) return LoadingValue
     val outlook = trend.valueOrNull()
     val delta = outlook?.delta ?: return ValueWithIcons("-", null, placeholder = true)
@@ -105,14 +189,14 @@ internal fun buildTrendCardValue(trend: Loadable<ForecastOutlook>): ValueWithIco
             Band.WARM ->
                 Triple(
                     R.drawable.up,
-                    if (metric == Metric.TEMPERATURE) WarmIconTint else MetricPlaceholderTint,
+                    arrowTint(metric, above = true, dark = dark),
                     "Forecast ${wording.above} than normal",
                 )
 
             Band.COLD ->
                 Triple(
                     R.drawable.down,
-                    if (metric == Metric.TEMPERATURE) CoolIconTint else MetricPlaceholderTint,
+                    arrowTint(metric, above = false, dark = dark),
                     "Forecast ${wording.belowOutlook} than normal",
                 )
         }
@@ -137,9 +221,6 @@ internal fun resolveStatusImageRes(picture: StatusPicture): Int =
         StatusPicture.EQUAL -> R.drawable.equal
     }
 
-/** A temperature value for a row of the Current view. */
-internal fun Loadable<Double>.displayText(): String = displayText(Metric.TEMPERATURE)
-
 /** A value of [metric] for a row of the Current view. */
 internal fun Loadable<Double>.displayText(metric: Metric): String =
     when (this) {
@@ -159,9 +240,9 @@ internal fun Reason.displayText(): String =
 
 internal fun Loadable<*>.isPlaceholder(): Boolean = this !is Loadable.Ready
 
-internal fun SearchStatus.displayText(): String =
+internal fun SearchStatus.displayText(metric: Metric = Metric.TEMPERATURE): String =
     when (this) {
-        SearchStatus.Idle -> "Enter a location to see temperature averages"
+        SearchStatus.Idle -> "Enter a location to see ${metric.overview}"
         is SearchStatus.Searching -> "Searching for $query..."
         is SearchStatus.Resolved -> "${label.name} (${label.coordinates})"
         is SearchStatus.NotFound -> "City not found"

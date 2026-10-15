@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -73,6 +75,7 @@ import androidx.compose.ui.text.input.ImeAction
 import com.example.fineweather.R
 import com.example.fineweather.nunitoSansFamily
 import com.example.fineweather.data.models.GeoPlace
+import com.example.fineweather.domain.Metric
 import com.example.fineweather.ui.models.ValueWithIcons
 import com.example.fineweather.ui.theme.HazyBlue
 import com.example.fineweather.ui.theme.LightTeal
@@ -117,8 +120,9 @@ fun WeatherScreen(
         } else {
             emptyList()
         }
-    val statusCardValue = buildStatusCardValue(report.headline)
-    val trendCardValue = buildTrendCardValue(report.trend)
+    val darkCard = isDarkCard()
+    val statusCardValue = buildStatusCardValue(report.headline, darkCard)
+    val trendCardValue = buildTrendCardValue(report.trend, darkCard)
     val cardShape = RoundedCornerShape(12.dp)
     val cardColors = CardDefaults.elevatedCardColors(
         containerColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -167,7 +171,7 @@ fun WeatherScreen(
             Spacer(modifier = Modifier.height(4.dp))
 
             LocationStatus(
-                status = state.search.displayText(),
+                status = state.search.displayText(report.metric),
                 label = placeLabel,
                 onShowAlternatives = if (alternatives.isNotEmpty()) ({
                     showAlternatives = true
@@ -184,9 +188,10 @@ fun WeatherScreen(
                 shape = cardShape,
                 pictureLoading = report.picture == StatusPicture.LOADING,
                 summaryLoading = report.summary is Loadable.Loading,
+                metric = report.metric,
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            MetricPills(selected = report.metric, onSelect = viewModel::selectMetric)
 
             UnderlineTabs(
                 labels = TimeScale.entries.map { it.label },
@@ -206,6 +211,7 @@ fun WeatherScreen(
                         shape = attachedShape,
                         colors = cardColors,
                         onWarningClick = { showCurrentMonthWarning = true },
+                        metric = report.metric,
                     )
 
                 TimeScale.MONTH ->
@@ -217,6 +223,7 @@ fun WeatherScreen(
                         colors = cardColors,
                         loading = report.snapshot is Loadable.Loading,
                         failed = report.snapshot is Loadable.Failed,
+                        metric = report.metric,
                     )
 
                 TimeScale.YEAR ->
@@ -227,6 +234,7 @@ fun WeatherScreen(
                         colors = cardColors,
                         loading = report.snapshot is Loadable.Loading,
                         failed = report.snapshot is Loadable.Failed,
+                        metric = report.metric,
                     )
             }
 
@@ -280,9 +288,9 @@ fun WeatherScreen(
                 Text(
                     text =
                         if (report.dayCount == 0) {
-                            "This month has no data yet. Check back soon for a more stable average."
+                            "This month has no data yet. Check back soon for a more stable ${report.metric.summaryNoun}."
                         } else {
-                            "This month's average is based on ${report.dayCount} days of data. " +
+                            "This month's ${report.metric.summaryNoun} is based on ${report.dayCount} days of data. " +
                                     "Values can shift as more data arrives."
                         },
                     fontFamily = nunitoSansFamily,
@@ -419,24 +427,49 @@ private fun SearchActions(
     }
 }
 
+/** The metric switch: a slim row above the view tabs. */
+@Composable
+internal fun MetricPills(
+    selected: Metric,
+    onSelect: (Metric) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        // The end padding lines the pill up with the Month toggle inside the view card below.
+        modifier = modifier.fillMaxWidth().height(38.dp).padding(end = 12.dp),
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CompactToggle(
+            labels = Metric.entries.map { it.label },
+            selectedIndex = selected.ordinal,
+            onSelect = { onSelect(Metric.entries[it]) },
+            tagPrefix = "metric",
+            contentDescriptions = Metric.entries.map { it.pillDescription },
+        )
+    }
+}
+
 @Composable
 internal fun CurrentView(
     rows: List<ReportRow>,
     shape: RoundedCornerShape,
     colors: CardColors,
     onWarningClick: () -> Unit,
+    metric: Metric = Metric.TEMPERATURE,
 ) {
     ViewCard(shape, colors, Modifier.testTag("currentView")) {
         Text(
-            "Average temperatures",
+            metric.currentTitle,
             fontFamily = nunitoSansFamily,
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
         )
         rows.forEachIndexed { index, row ->
-            TemperatureRow(
+            MetricRow(
                 label = row.label,
                 value = row.value,
+                metric = metric,
                 showWarning = row.showWarning,
                 onWarningClick = if (row.showWarning) onWarningClick else null,
             )
@@ -454,9 +487,10 @@ internal fun CurrentView(
 }
 
 @Composable
-private fun TemperatureRow(
+private fun MetricRow(
     label: String,
     value: Loadable<Double>,
+    metric: Metric,
     showWarning: Boolean = false,
     onWarningClick: (() -> Unit)? = null,
 ) {
@@ -504,7 +538,7 @@ private fun TemperatureRow(
         } else {
             val isPlaceholder = value.isPlaceholder()
             Text(
-                text = value.displayText(),
+                text = value.displayText(metric),
                 fontFamily = nunitoSansFamily,
                 textAlign = TextAlign.End,
                 style = MaterialTheme.typography.bodyLarge,
@@ -856,54 +890,95 @@ private fun EarthStatusPhotoCard(
     }
 }
 
+/**
+ * A label with its value. [stacked] puts the value under the label in a tighter cell, for compact
+ * widths that have no room for the label, a value text and up to three icons side by side.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun StatusTrendCell(
     label: String,
     value: ValueWithIcons,
     modifier: Modifier = Modifier,
+    stacked: Boolean = false,
 ) {
-    Row(
-        modifier = modifier.padding(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+    val labelText: @Composable () -> Unit = {
         Text(
             text = label,
             fontFamily = nunitoSansFamily,
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.SemiBold,
         )
-        Spacer(Modifier.weight(1f))
+    }
+    if (stacked) {
+        Column(modifier = modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
+            labelText()
+            // A row as tall as a line of text, whatever the value is: nothing, a spinner, a text, or icons.
+            Box(contentAlignment = Alignment.CenterStart) {
+                Text(
+                    text = "0",
+                    modifier = Modifier.alpha(0f).clearAndSetSemantics {},
+                    fontFamily = nunitoSansFamily,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                // Wraps below its text only when even this tight row is too narrow (large fonts).
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                    itemVerticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CellValue(value, compact = true)
+                }
+            }
+        }
+    } else {
+        Row(
+            modifier = modifier.padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            labelText()
+            Spacer(Modifier.weight(1f))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                CellValue(value, compact = false)
+            }
+        }
+    }
+}
+
+/** The spinner, text and icons of a cell as separate items of the surrounding row. */
+@Composable
+private fun CellValue(
+    value: ValueWithIcons,
+    compact: Boolean,
+) {
+    if (value.loading) {
+        LoadingSpinner(size = if (compact) 18.dp else 20.dp)
+    }
+    if (value.text.isNotBlank()) {
+        Text(
+            text = value.text,
+            fontFamily = nunitoSansFamily,
+            style = if (compact) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge,
+            color = valueColor(value.placeholder),
+            textAlign = TextAlign.End,
+        )
+    }
+    val icons = value.icons
+    if (icons != null) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(if (compact) 1.dp else 2.dp),
         ) {
-            if (value.loading) {
-                LoadingSpinner(size = 20.dp)
-            }
-            if (value.text.isNotBlank()) {
-                Text(
-                    text = value.text,
-                    fontFamily = nunitoSansFamily,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = valueColor(value.placeholder),
-                    textAlign = TextAlign.End,
+            repeat(icons.count) { index ->
+                Icon(
+                    painter = painterResource(icons.resId),
+                    contentDescription = if (index == 0) icons.contentDescription else null,
+                    tint = icons.tint,
+                    modifier = Modifier.size(if (compact) 18.dp else 20.dp),
                 )
-            }
-            val icons = value.icons
-            if (icons != null) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                ) {
-                    repeat(icons.count) { index ->
-                        Icon(
-                            painter = painterResource(icons.resId),
-                            contentDescription = if (index == 0) icons.contentDescription else null,
-                            tint = icons.tint,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
-                }
             }
         }
     }

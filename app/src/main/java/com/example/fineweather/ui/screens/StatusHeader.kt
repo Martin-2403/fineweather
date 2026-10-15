@@ -24,7 +24,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -32,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.fineweather.domain.Band
+import com.example.fineweather.domain.Metric
 import com.example.fineweather.domain.SummaryBlock
 import com.example.fineweather.nunitoSansFamily
 import com.example.fineweather.ui.models.ValueWithIcons
@@ -52,6 +52,7 @@ internal fun StatusHeaderCard(
     shape: RoundedCornerShape,
     pictureLoading: Boolean = false,
     summaryLoading: Boolean = false,
+    metric: Metric = Metric.TEMPERATURE,
 ) {
     BoxWithConstraints(
         modifier = Modifier.fillMaxWidth(),
@@ -79,6 +80,9 @@ internal fun StatusHeaderCard(
                 val cardWidth = maxWidth
                 val imageWidth =
                     if (wide) minOf(cardWidth * 0.5f, WideImageMaxWidth) else cardWidth * COMPACT_IMAGE_FRACTION
+                // A phone has no room for the label, a value with its unit and three icons side by side.
+                // Every metric stacks, so the header keeps its height when the metric changes.
+                val stacked = !wide
                 Column(modifier = Modifier.fillMaxWidth()) {
                     ImageWithText(
                         imageRes = imageRes,
@@ -86,6 +90,7 @@ internal fun StatusHeaderCard(
                         blocks = summary,
                         pictureLoading = pictureLoading,
                         summaryLoading = summaryLoading,
+                        metric = metric,
                     )
                     DividerLine()
                     // The split lines up with the edge of the picture above.
@@ -97,14 +102,16 @@ internal fun StatusHeaderCard(
                     ) {
                         StatusTrendCell(
                             label = "Trend",
-                            value = trendCardValue,
+                            value = if (stacked) trendCardValue.withoutUnit(metric) else trendCardValue,
                             modifier = Modifier.width(imageWidth),
+                            stacked = stacked,
                         )
                         VerticalDividerLine()
                         StatusTrendCell(
                             label = "Divergence",
                             value = statusCardValue,
                             modifier = Modifier.weight(1f),
+                            stacked = stacked,
                         )
                     }
                 }
@@ -120,6 +127,7 @@ private fun ImageWithText(
     blocks: List<SummaryBlock>,
     pictureLoading: Boolean,
     summaryLoading: Boolean,
+    metric: Metric,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -142,7 +150,7 @@ private fun ImageWithText(
         if (summaryLoading) {
             SkeletonBlock(description = "Loading report", modifier = textModifier)
         } else {
-            SummaryBlocks(blocks = blocks, modifier = textModifier)
+            SummaryBlocks(blocks = blocks, modifier = textModifier, metric = metric)
         }
     }
 }
@@ -170,6 +178,7 @@ internal fun EarthStatus(
 internal fun SummaryBlocks(
     blocks: List<SummaryBlock>,
     modifier: Modifier = Modifier,
+    metric: Metric = Metric.TEMPERATURE,
 ) {
     Column(
         modifier = modifier,
@@ -177,7 +186,7 @@ internal fun SummaryBlocks(
     ) {
         blocks.forEach { block ->
             when (block) {
-                is SummaryBlock.Headline -> HeadlineText(block)
+                is SummaryBlock.Headline -> HeadlineText(block, metric)
                 is SummaryBlock.Detail ->
                     Text(
                         text = block.text,
@@ -198,7 +207,11 @@ internal fun SummaryBlocks(
 }
 
 @Composable
-private fun HeadlineText(block: SummaryBlock.Headline) {
+private fun HeadlineText(
+    block: SummaryBlock.Headline,
+    metric: Metric,
+) {
+    val dark = isDarkCard()
     Row(
         modifier = Modifier.height(IntrinsicSize.Min),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -208,7 +221,7 @@ private fun HeadlineText(block: SummaryBlock.Headline) {
                 Modifier
                     .width(4.dp)
                     .fillMaxHeight()
-                    .background(bandColor(block.band), RoundedCornerShape(2.dp)),
+                    .background(bandTint(metric, block.band, dark), RoundedCornerShape(2.dp)),
         )
         Text(
             text = block.text,
@@ -218,11 +231,3 @@ private fun HeadlineText(block: SummaryBlock.Headline) {
         )
     }
 }
-
-private fun bandColor(band: Band?): Color =
-    when (band) {
-        Band.WARM -> WarmIconTint
-        Band.COLD -> CoolIconTint
-        Band.NEUTRAL -> NeutralIconTint
-        null -> Color.Transparent
-    }

@@ -10,15 +10,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.semantics.Role
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.fineweather.nunitoSansFamily
@@ -27,7 +30,10 @@ import com.example.fineweather.ui.theme.LightTeal
 import com.example.fineweather.ui.theme.SoftMist
 import com.example.fineweather.ui.theme.TealInk
 
-/** A small two-or-more option pill for toggles that share a line with a title. */
+/**
+ * A small two-or-more option pill for toggles that share a line with a title. [contentDescriptions]
+ * spell out short labels for screen readers, one per label.
+ */
 @Composable
 internal fun CompactToggle(
     labels: List<String>,
@@ -35,6 +41,7 @@ internal fun CompactToggle(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
     tagPrefix: String = "toggle",
+    contentDescriptions: List<String>? = null,
 ) {
     val shape = RoundedCornerShape(50)
     val outline = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
@@ -43,6 +50,7 @@ internal fun CompactToggle(
             modifier
                 .height(30.dp)
                 .clip(shape)
+                .selectableGroup()
                 .border(1.dp, outline, shape),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -55,7 +63,8 @@ internal fun CompactToggle(
                         .background(if (selected) LightTeal else SoftMist)
                         .selectable(selected = selected, role = Role.RadioButton, onClick = { onSelect(index) })
                         .padding(horizontal = 12.dp)
-                        .testTag("${tagPrefix}_$label"),
+                        .testTag("${tagPrefix}_$label")
+                        .semantics { contentDescriptions?.getOrNull(index)?.let { contentDescription = it } },
                 contentAlignment = Alignment.Center,
             ) {
                 Text(

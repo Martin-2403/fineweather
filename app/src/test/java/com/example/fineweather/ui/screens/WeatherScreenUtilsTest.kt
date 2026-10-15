@@ -5,6 +5,7 @@ import com.example.fineweather.R
 import com.example.fineweather.data.models.TemperatureComparisonMode
 import com.example.fineweather.domain.Assessment
 import com.example.fineweather.domain.ForecastOutlook
+import com.example.fineweather.domain.Metric
 import com.example.fineweather.domain.SummaryBlock
 import com.example.fineweather.viewmodels.FailKind
 import com.example.fineweather.viewmodels.Loadable
@@ -129,11 +130,11 @@ class WeatherScreenUtilsTest {
 
     @Test
     fun displayText_describesEveryState() {
-        assertEquals("12.30°C", Loadable.Ready(12.3).displayText())
-        assertEquals("-", Loadable.Idle.displayText())
-        assertEquals("N/A", Loadable.Unavailable(Reason.NOT_AVAILABLE).displayText())
-        assertEquals("No data yet", Loadable.Unavailable(Reason.NO_DATA_YET).displayText())
-        FailKind.entries.forEach { assertEquals("Error", Loadable.Failed(it).displayText()) }
+        assertEquals("12.30°C", Loadable.Ready(12.3).displayText(Metric.TEMPERATURE))
+        assertEquals("-", Loadable.Idle.displayText(Metric.TEMPERATURE))
+        assertEquals("N/A", Loadable.Unavailable(Reason.NOT_AVAILABLE).displayText(Metric.TEMPERATURE))
+        assertEquals("No data yet", Loadable.Unavailable(Reason.NO_DATA_YET).displayText(Metric.TEMPERATURE))
+        FailKind.entries.forEach { assertEquals("Error", Loadable.Failed(it).displayText(Metric.TEMPERATURE)) }
     }
 
     @Test

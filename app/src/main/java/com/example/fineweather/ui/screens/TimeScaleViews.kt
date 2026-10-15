@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import com.example.fineweather.R
 import com.example.fineweather.domain.ClimateSnapshot
 import com.example.fineweather.domain.ForecastOutlook
+import com.example.fineweather.domain.Metric
 import com.example.fineweather.domain.MonthWindow
 import com.example.fineweather.domain.dayPoints
 import com.example.fineweather.domain.months
@@ -125,9 +126,18 @@ internal fun MonthView(
     colors: CardColors,
     loading: Boolean = false,
     failed: Boolean = false,
+    metric: Metric = Metric.TEMPERATURE,
 ) {
     var window by rememberSaveable { mutableStateOf(MonthWindow.THIS_MONTH) }
     var showLegend by rememberSaveable { mutableStateOf(false) }
+    if (metric != Metric.TEMPERATURE) {
+        // TODO(sun/rain charts): draw the daily chart of sunshine and rain here (phase 6).
+        ViewCard(shape, colors, Modifier.testTag("monthView")) {
+            CardTitle(if (metric == Metric.SUNSHINE) "Daily sunshine" else "Daily rain")
+            Caption("The daily chart for sunshine and rain is not available yet.")
+        }
+        return
+    }
     ViewCard(shape, colors, Modifier.testTag("monthView")) {
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
@@ -271,7 +281,16 @@ internal fun YearView(
     colors: CardColors,
     loading: Boolean = false,
     failed: Boolean = false,
+    metric: Metric = Metric.TEMPERATURE,
 ) {
+    if (metric != Metric.TEMPERATURE) {
+        // TODO(sun/rain charts): draw the monthly chart and table of sunshine and rain here (phase 6).
+        ViewCard(shape, colors, Modifier.testTag("yearView")) {
+            CardTitle("Months of the year")
+            Caption("The monthly chart for sunshine and rain is not available yet.")
+        }
+        return
+    }
     ViewCard(shape, colors, Modifier.testTag("yearView")) {
         if (snapshot == null) {
             CardTitle("Months of the year")
