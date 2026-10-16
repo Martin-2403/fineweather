@@ -3,7 +3,6 @@ package com.example.fineweather.ui.screens
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -107,7 +106,6 @@ private fun emptyText(
     prompt: String,
 ): String = if (failed) "Error" else prompt
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun MonthView(
     snapshot: ClimateSnapshot?,
@@ -162,6 +160,20 @@ internal fun MonthView(
         val points = remember(snapshot, window, forecastDays) { dayPoints(snapshot, window, forecastDays) }
         val summary = remember(snapshot, points) { snapshot.summarize(points) }
         val outlook = remember(snapshot, forecastDays) { snapshot.outlook(forecastDays) }
+        val sunshineAverageExtension =
+            remember(snapshot, points, window, metric) {
+                val lastPoint = points.lastOrNull()
+                if (metric != Metric.SUNSHINE || window != MonthWindow.THIS_MONTH ||
+                    snapshot.reference == null || lastPoint == null
+                ) {
+                    emptyList()
+                } else {
+                    val lastDate = lastPoint.date
+                    ((lastDate.dayOfMonth + 1)..lastDate.lengthOfMonth()).map { day ->
+                        snapshot.reference.dailyStats(lastDate.monthValue, day, halfWindow = 0)?.mean
+                    }
+                }
+            }
         if (summary.observedDays == 0) {
             Caption("No daily data available for this period yet.")
             return@ViewCard
@@ -171,6 +183,7 @@ internal fun MonthView(
             xLabels = remember(points, window) { dayAxisLabels(points.map { it.date }, window) },
             description = dailyChartDescription(summary, withForecast = points.any { it.forecast != null }),
             metric = metric,
+            sunshineAverageExtension = sunshineAverageExtension,
         )
         Spacer(Modifier.height(2.dp))
         Text(

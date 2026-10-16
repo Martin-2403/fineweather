@@ -11,6 +11,7 @@ import java.time.LocalDate
 import java.time.Month
 import java.time.format.TextStyle
 import java.util.Locale
+import kotlin.math.abs
 
 /** The words of the Month and Year views, as plain functions so they can be tested without a screen. */
 
@@ -66,6 +67,19 @@ internal fun monthSummaryText(
     val days = dayCount(summary.observedDays)
     val observed = summary.observedMean
     val reference = summary.referenceMean
+    if (metric == Metric.SUNSHINE) {
+        val total = summary.observedTotal ?: return "No daily data available for this period yet."
+        val referenceTotal = summary.referenceTotal ?: return "${dayCount(summary.observedDays)}: ${formatHours(total)} total."
+        val delta = total - referenceTotal
+        val comparison =
+            if (abs(delta) < 0.05) {
+                "in line with"
+            } else {
+                formatSigned(delta) + " h compared with"
+            }
+        return "${dayCount(summary.observedDays)}: ${formatHours(total)} total, $comparison the " +
+            "${formatHours(referenceTotal)} average for the same days of $referenceLabel."
+    }
     if (metric == Metric.TEMPERATURE) {
         val base = "$days averaged ${degrees(observed)}"
         val delta = summary.delta ?: return "$base."
@@ -82,6 +96,8 @@ internal fun monthSummaryText(
         "$base, $comparison compared with the same days of $referenceLabel."
     }
 }
+
+private fun formatHours(value: Double): String = String.format(Locale.US, "%.1f h", value)
 
 /** Rainy days and the wettest day of a period. */
 internal data class RainDays(
@@ -105,11 +121,10 @@ internal fun monthCaptionText(
 ): String? {
     val metric = summary.metric
     val wording = metric.wording
-    return when {
-        metric == Metric.TEMPERATURE || (metric == Metric.SUNSHINE && summary.referenceMean != null) ->
+    return when (metric) {
+        Metric.TEMPERATURE ->
             "${dayCount(summary.warmerDays)} ${wording.above} and ${dayCount(summary.colderDays)} ${wording.below} than the typical day."
-
-        metric == Metric.PRECIPITATION -> rainCaption(rainDays(points))
+        Metric.PRECIPITATION -> rainCaption(rainDays(points))
         else -> null
     }
 }
@@ -171,18 +186,17 @@ internal fun chartLegendText(
             "rain especially: treat days beyond about a week as a rough guide."
     return when (metric) {
         Metric.SUNSHINE ->
-            "Bars: hours of sunshine per day.\n" +
-                "$typical\n" +
-                "Bars are amber on days at or above the typical day and slate on duller days.\n" +
+            "Bars: hours of sunshine each day.\n" +
+                "Solid line (right axis): accumulated sunshine hours.\n" +
+                "Dashed line (right axis): the historical average accumulated over the same dates.\n" +
                 "$forecast\n\n" +
                 "Sunshine hours are modelled from reanalysis data (ERA5), not measured at a station, so absolute " +
-                "values can differ from local weather-station figures; the comparison with the normal is the " +
-                "informative part."
+                "values can differ from local weather-station figures."
 
         else ->
             "Bars: rain per day in mm. A thin stub is a dry day; a missing day has no bar.\n" +
                 "$typical\n" +
-                "$forecast"
+                    forecast
     }
 }
 
@@ -199,7 +213,10 @@ internal fun dailyChartDescription(
     val head =
         when (metric) {
             Metric.TEMPERATURE -> "Daily mean temperatures, ${summary.observedDays} days, averaging ${degrees(observed)}"
-            Metric.SUNSHINE -> "Daily sunshine, ${summary.observedDays} days, averaging ${observed?.let(metric::format) ?: "–"}"
+            Metric.SUNSHINE -> {
+                val average = summary.referenceTotal?.let { ", historical average ${formatHours(it)}" }.orEmpty()
+                "Daily sunshine, ${summary.observedDays} days, ${summary.observedTotal?.let(::formatHours) ?: "–"} total$average"
+            }
             Metric.PRECIPITATION -> "Daily rain, ${summary.observedDays} days, ${observed?.let(metric::format) ?: "–"} in total"
         }
     return head + if (withForecast) ", with the forecast for the coming days." else "."

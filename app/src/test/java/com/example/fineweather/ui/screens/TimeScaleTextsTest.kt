@@ -26,7 +26,16 @@ class TimeScaleTextsTest {
         reference: Double?,
         warmer: Int = 0,
         colder: Int = 0,
-    ) = WindowSummary(days, observed, reference, warmer, colder, metric)
+    ) = WindowSummary(
+        days,
+        observed,
+        reference,
+        warmer,
+        colder,
+        metric,
+        observedTotal = if (metric == Metric.SUNSHINE) observed?.times(days) else null,
+        referenceTotal = if (metric == Metric.SUNSHINE) reference?.times(days) else null,
+    )
 
     private fun outlook(
         metric: Metric,
@@ -52,11 +61,11 @@ class TimeScaleTextsTest {
     @Test
     fun monthSummary_sunshine() {
         assertEquals(
-            "13 days averaged 5.3 h/day, +0.8 h/day compared with the same days of $ref.",
+            "13 days: 68.9 h total, +10.4 h compared with the 58.5 h average for the same days of $ref.",
             monthSummaryText(summary(Metric.SUNSHINE, 13, 5.3, 4.5), ref),
         )
         assertEquals(
-            "13 days averaged 4.0 h/day, -1.0 h/day compared with the same days of $ref.",
+            "13 days: 52.0 h total, -13.0 h compared with the 65.0 h average for the same days of $ref.",
             monthSummaryText(summary(Metric.SUNSHINE, 13, 4.0, 5.0), ref),
         )
     }
@@ -64,10 +73,10 @@ class TimeScaleTextsTest {
     @Test
     fun monthSummary_sunshineNeutralAndWithoutReference() {
         assertEquals(
-            "13 days averaged 7.3 h/day, in line with the same days of $ref.",
-            monthSummaryText(summary(Metric.SUNSHINE, 13, 7.31, 7.29), ref),
+            "13 days: 94.9 h total, in line with the 94.9 h average for the same days of $ref.",
+            monthSummaryText(summary(Metric.SUNSHINE, 13, 7.3, 7.3), ref),
         )
-        assertEquals("1 day averaged 7.3 h/day.", monthSummaryText(summary(Metric.SUNSHINE, 1, 7.3, null), ref))
+        assertEquals("1 day: 7.3 h total.", monthSummaryText(summary(Metric.SUNSHINE, 1, 7.3, null), ref))
     }
 
     @Test
@@ -107,19 +116,12 @@ class TimeScaleTextsTest {
     // ---- captions ----
 
     @Test
-    fun monthCaption_temperatureAndSunshineCountTheDays() {
+    fun monthCaption_countsTemperatureDaysButNotSunshineDays() {
         assertEquals(
             "9 days warmer and 1 day colder than the typical day.",
             monthCaptionText(summary(Metric.TEMPERATURE, 10, 1.0, 1.0, warmer = 9, colder = 1), emptyList()),
         )
-        assertEquals(
-            "8 days sunnier and 5 days duller than the typical day.",
-            monthCaptionText(summary(Metric.SUNSHINE, 13, 7.0, 7.0, warmer = 8, colder = 5), emptyList()),
-        )
-        assertEquals(
-            "1 day sunnier and 0 days duller than the typical day.",
-            monthCaptionText(summary(Metric.SUNSHINE, 1, 7.0, 7.0, warmer = 1, colder = 0), emptyList()),
-        )
+        assertNull(monthCaptionText(summary(Metric.SUNSHINE, 13, 7.0, 7.0, warmer = 8, colder = 5), emptyList()))
     }
 
     @Test
@@ -206,12 +208,12 @@ class TimeScaleTextsTest {
     }
 
     @Test
-    fun legend_sunshineExplainsBarsColoursForecastAndTheDataSource() {
+    fun legend_sunshineExplainsDailyBarsAccumulatedLineForecastAndTheDataSource() {
         val text = chartLegendText(ref, Metric.SUNSHINE)
 
-        assertTrue(text.contains("Bars: hours of sunshine per day."))
-        assertTrue(text.contains("typical day, the average daily sunshine of $ref for the same calendar days"))
-        assertTrue(text.contains("amber") && text.contains("slate"))
+        assertTrue(text.contains("Bars: hours of sunshine each day."))
+        assertTrue(text.contains("Solid line (right axis): accumulated sunshine hours."))
+        assertTrue(text.contains("Dashed line (right axis): the historical average accumulated over the same dates."))
         assertTrue(text.contains("Lighter bars with an outline: the forecast."))
         assertTrue(text.contains("rain especially: treat days beyond about a week as a rough guide"))
         assertTrue(text.contains("modelled from reanalysis data (ERA5), not measured at a station"))
@@ -239,7 +241,7 @@ class TimeScaleTextsTest {
             dailyChartDescription(summary(Metric.TEMPERATURE, 13, 12.0, 8.0), withForecast = false),
         )
         assertEquals(
-            "Daily sunshine, 13 days, averaging 5.3 h/day, with the forecast for the coming days.",
+            "Daily sunshine, 13 days, 68.9 h total, historical average 52.0 h, with the forecast for the coming days.",
             dailyChartDescription(summary(Metric.SUNSHINE, 13, 5.3, 4.0), withForecast = true),
         )
         assertEquals(

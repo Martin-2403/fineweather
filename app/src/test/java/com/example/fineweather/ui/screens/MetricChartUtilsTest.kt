@@ -1,5 +1,6 @@
 package com.example.fineweather.ui.screens
 
+import com.example.fineweather.domain.DayPoint
 import com.example.fineweather.domain.Metric
 import com.example.fineweather.domain.MonthlyAnomaly
 import org.junit.Assert.assertEquals
@@ -7,6 +8,7 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.LocalDate
 
 /** The pure helpers behind the sunshine and rain charts, and the pins that keep the temperature chart as it was. */
 class MetricChartUtilsTest {
@@ -44,6 +46,56 @@ class MetricChartUtilsTest {
         val axis = dailyBarAxis(Metric.PRECIPITATION, 47.0)
         assertTrue(axis.max >= 47.0)
         assertEquals(0.0, axis.ticks.first(), 1e-9)
+    }
+
+    @Test
+    fun cumulativeSunshineHours_accumulatesObservedAndForecastValuesAcrossMissingDays() {
+        val points =
+            listOf(
+                DayPoint(LocalDate.of(2026, 10, 1), 2.0, null, null, null),
+                DayPoint(LocalDate.of(2026, 10, 2), 3.0, null, null, null),
+                DayPoint(LocalDate.of(2026, 10, 3), null, null, null, null),
+                DayPoint(LocalDate.of(2026, 10, 4), null, 4.0, null, null),
+            )
+
+        val accumulated = cumulativeSunshineHours(points)
+
+        assertEquals(2.0, accumulated[0]!!, 1e-9)
+        assertEquals(5.0, accumulated[1]!!, 1e-9)
+        assertNull(accumulated[2])
+        assertEquals(9.0, accumulated[3]!!, 1e-9)
+    }
+
+    @Test
+    fun cumulativeAverageSunshineHours_accumulatesTheHistoricalDailyAverage() {
+        val points =
+            listOf(
+                DayPoint(LocalDate.of(2026, 10, 1), 2.0, null, null, 3.0),
+                DayPoint(LocalDate.of(2026, 10, 2), 3.0, null, null, 4.0),
+                DayPoint(LocalDate.of(2026, 10, 3), null, null, null, null),
+                DayPoint(LocalDate.of(2026, 10, 4), null, 4.0, null, 5.0),
+            )
+
+        val accumulated = cumulativeAverageSunshineHours(points)
+
+        assertEquals(3.0, accumulated[0]!!, 1e-9)
+        assertEquals(7.0, accumulated[1]!!, 1e-9)
+        assertNull(accumulated[2])
+        assertEquals(12.0, accumulated[3]!!, 1e-9)
+    }
+
+    @Test
+    fun cumulativeAverageSunshineHours_extendsTheLineWithFutureDailyNormals() {
+        val points =
+            listOf(
+                DayPoint(LocalDate.of(2026, 10, 30), 2.0, null, null, 3.0),
+            )
+
+        val accumulated = cumulativeAverageSunshineHours(points, listOf(4.0, 5.0))
+
+        assertEquals(3.0, accumulated[0]!!, 1e-9)
+        assertEquals(7.0, accumulated[1]!!, 1e-9)
+        assertEquals(12.0, accumulated[2]!!, 1e-9)
     }
 
     // ---- anomaly axis ----
@@ -131,21 +183,17 @@ class MetricChartUtilsTest {
     // ---- colours ----
 
     @Test
-    fun dailyBarColor_sunshineIsAmberAtOrAboveTypicalAndSlateBelow() {
+    fun dailyBarColor_sunshineIsAmber() {
         listOf(false, true).forEach { dark ->
             val tints = if (dark) DarkMetricTints else LightMetricTints
-            assertEquals(tints.sun, dailyBarColor(Metric.SUNSHINE, 6.0, 5.0, dark))
-            assertEquals(tints.sun, dailyBarColor(Metric.SUNSHINE, 5.0, 5.0, dark))
-            assertEquals(tints.cloud, dailyBarColor(Metric.SUNSHINE, 4.9, 5.0, dark))
-            assertEquals(tints.sun, dailyBarColor(Metric.SUNSHINE, 4.9, null, dark))
+            assertEquals(tints.sun, dailyBarColor(Metric.SUNSHINE, dark))
         }
     }
 
     @Test
     fun dailyBarColor_rainIsOneBlueWhateverTheTypicalDay() {
-        assertEquals(LightMetricTints.drop, dailyBarColor(Metric.PRECIPITATION, 0.0, 5.0, dark = false))
-        assertEquals(LightMetricTints.drop, dailyBarColor(Metric.PRECIPITATION, 12.0, 5.0, dark = false))
-        assertEquals(DarkMetricTints.drop, dailyBarColor(Metric.PRECIPITATION, 12.0, null, dark = true))
+        assertEquals(LightMetricTints.drop, dailyBarColor(Metric.PRECIPITATION, dark = false))
+        assertEquals(DarkMetricTints.drop, dailyBarColor(Metric.PRECIPITATION, dark = true))
     }
 
     @Test

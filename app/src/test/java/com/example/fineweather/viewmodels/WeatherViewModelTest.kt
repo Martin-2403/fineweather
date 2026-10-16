@@ -8,7 +8,6 @@ import com.example.fineweather.data.models.GeocodeSelection
 import com.example.fineweather.data.models.HistoricReference
 import com.example.fineweather.data.models.TemperatureComparisonMode
 import com.example.fineweather.data.repositories.CacheResult
-import com.example.fineweather.data.repositories.FavoriteAddResult
 import com.example.fineweather.data.repositories.FavoriteRepository
 import com.example.fineweather.data.repositories.GeoCodeRepository
 import com.example.fineweather.data.repositories.RateLimitException
@@ -70,7 +69,7 @@ class WeatherViewModelTest {
     private lateinit var viewModel: WeatherViewModel
     private val fixedNow = LocalDate.of(2026, 4, 2)
 
-    /** Complete days Jan 1..Apr 1 2026, all 10.0. */
+    /** Complete days Jan 1 to Apr 1 2026, all 10.0. */
     private val yearSeries = metricSeriesOf(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 4, 1)) { 10.0 }
 
     /** 14 forecast days from today: 12.0 for the first week, 15.0 for the second. */
@@ -135,7 +134,7 @@ class WeatherViewModelTest {
         assertEquals(fixedNow, snapshot.today)
         assertEquals(fixedNow, report.today)
         assertEquals(
-            SearchStatus.Resolved(PlaceLabel("Berlin, Germany", "1.00, 2.00")),
+            SearchStatus.Resolved(PlaceLabel("Berlin, Germany", "1.00, 2.00", "Germany")),
             state.search,
         )
         coVerify(exactly = 1) {
@@ -561,7 +560,7 @@ class WeatherViewModelTest {
         assertEquals("Hamburg", state.selectedPlace?.name)
         assertEquals(Loadable.Ready(10.0), row(1))
         assertEquals(Loadable.Ready(yearSeries), state.year)
-        // Berlin's cancelled year request is neither a failure nor a result and is not counted:
+        // Berlin's canceled year request is neither a failure nor a result and is not counted:
         // Berlin's other two finished before the second search, plus Hamburg's three
         assertEquals(5, viewModel.apiCallCount.value)
         assertEquals(0, viewModel.cacheHitCount.value)
@@ -598,7 +597,7 @@ class WeatherViewModelTest {
 
         assertEquals(SearchStatus.Idle, state.search)
         assertEquals(Loadable.Idle, state.year)
-        // the cancelled year request is not counted, the two that had finished are
+        // the canceled year request is not counted, the two that had finished are
         assertEquals(2, viewModel.apiCallCount.value)
     }
 
@@ -785,7 +784,7 @@ class WeatherViewModelTest {
 
         assertEquals(selected, state.selectedPlace)
         assertEquals(
-            SearchStatus.Resolved(PlaceLabel("Hamburg, Germany", "3.00, 4.00")),
+            SearchStatus.Resolved(PlaceLabel("Hamburg, Germany", "3.00, 4.00", "Germany")),
             state.search,
         )
         assertEquals(Loadable.Ready(10.0), row(1))
@@ -838,9 +837,10 @@ class WeatherViewModelTest {
         assertEquals(fullFavorites, viewModel.favorites.value)
     }
 
-    // ---- superseded searches (the main dispatcher is a standard one here, so a cancelled job
+    // ---- superseded searches (the main dispatcher is a standard one here, so a canceled job
     // runs its handlers only after the new search has changed the state) ----
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     private fun useStandardMainDispatcher() {
         Dispatchers.setMain(StandardTestDispatcher())
         viewModel = newViewModel()
@@ -865,7 +865,7 @@ class WeatherViewModelTest {
     private fun assertHamburgIsShown() {
         assertEquals(hamburgPlace, state.selectedPlace)
         assertEquals(
-            SearchStatus.Resolved(PlaceLabel("Hamburg, Germany", "3.00, 4.00")),
+            SearchStatus.Resolved(PlaceLabel("Hamburg, Germany", "3.00, 4.00", "Germany")),
             state.search,
         )
         assertEquals(Loadable.Ready(yearSeries), state.year)
@@ -933,7 +933,7 @@ class WeatherViewModelTest {
             advanceUntilIdle()
 
             assertHamburgIsShown()
-            // Berlin's forecast and reference had finished; its cancelled year is not counted
+            // Berlin's forecast and reference had finished; its canceled year is not counted
             assertEquals(5, viewModel.apiCallCount.value)
         }
     }
@@ -946,7 +946,7 @@ class WeatherViewModelTest {
             stubSearch()
             stubHamburg()
             val gate = CompletableDeferred<Unit>()
-            // a load that cannot be cancelled and still returns after the next search began
+            // a load that cannot be canceled and still returns after the next search began
             coEvery { weatherRepository.getYearToDate("loc-1", any(), any(), any()) } coAnswers {
                 withContext(NonCancellable) { gate.await() }
                 CacheResult(metricSeriesOf(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 4, 1)) { 99.0 }, false)
@@ -1084,6 +1084,7 @@ class WeatherViewModelTest {
 
     // ---- helpers ----
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     private fun TestScope.collectSnackbars(): List<String> {
         val messages = mutableListOf<String>()
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {

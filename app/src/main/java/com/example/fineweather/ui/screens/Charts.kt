@@ -119,8 +119,8 @@ private fun dividerIndices(points: List<DayPoint>): Pair<Int, Int>? {
 /**
  * Daily values over the days of a period. Temperature is a line over the reference's typical range (mean
  * ± 1 standard deviation), its dots tinted by whether the day was warmer or colder than the reference mean.
- * Sunshine and rain are one bar per day over a dashed line of the typical day; forecast bars are lighter
- * and outlined.
+ * Sunshine uses daily bars with a cumulative-hours line; rain bars use a dashed line for the typical day.
+ * Forecast bars are lighter and outlined.
  */
 @Composable
 internal fun DailyChart(
@@ -130,6 +130,7 @@ internal fun DailyChart(
     modifier: Modifier = Modifier,
     height: Dp = DailyChartHeight,
     metric: Metric = Metric.TEMPERATURE,
+    sunshineAverageExtension: List<Double?> = emptyList(),
 ) {
     val measurer = rememberTextMeasurer()
     val labelStyle = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp)
@@ -146,10 +147,24 @@ internal fun DailyChart(
                 .height(height)
                 .semantics { contentDescription = description },
     ) {
-        if (metric == Metric.TEMPERATURE) {
-            drawTemperatureChart(points, xLabels, text, lineColor, forecastColor)
-        } else {
-            drawBarChart(points, xLabels, text, metric, dark)
+        when (metric) {
+            Metric.TEMPERATURE -> {
+                drawTemperatureChart(points, xLabels, text, lineColor, forecastColor)
+            }
+            Metric.SUNSHINE -> {
+                drawSunshineChart(
+                    points,
+                    xLabels,
+                    text,
+                    dark,
+                    lineColor,
+                    forecastColor,
+                    sunshineAverageExtension
+                )
+            }
+            else -> {
+                drawBarChart(points, xLabels, text, metric, dark)
+            }
         }
     }
 }
@@ -312,6 +327,135 @@ private fun DrawScope.drawBarChart(
     drawXLabels(area, text, xLabels, ::x)
 }
 
+/** Daily sunshine bars with a secondary axis for the running total. */
+private fun DrawScope.drawSunshineChart(
+    points: List<DayPoint>,
+    xLabels: List<Pair<Int, String>>,
+    text: ChartText,
+    dark: Boolean,
+    lineColor: Color,
+    forecastColor: Color,
+    averageExtension: List<Double?>,
+) {
+    val left = 44.dp.toPx()
+    val right = 44.dp.toPx()
+    val top = 8.dp.toPx()
+    val bottom = 20.dp.toPx()
+    val width = size.width - left - right
+    val chartHeight = size.height - top - bottom
+    val dailyValues = points.mapNotNull { it.observed ?: it.forecast }
+    val cumulative = cumulativeSunshineHours(points)
+    val averageCumulative = cumulativeAverageSunshineHours(points, averageExtension)
+    val cumulativeValues = cumulative.filterNotNull() + averageCumulative.filterNotNull()
+    if (dailyValues.isEmpty() || cumulativeValues.isEmpty()) return
+
+    val area = ChartArea(left, top, width, chartHeight, dailyBarAxis(Metric.SUNSHINE, dailyValues.max()))
+    val cumulativeAxis = niceAxis(0.0, cumulativeValues.max())
+    val slots = barSlots(maxOf(points.size, averageCumulative.size), width, fill = 0.7f, maxBarWidth = 24.dp.toPx())
+    fun x(index: Int): Float = slots.center(left, index)
+    fun cumulativeY(value: Double): Float =
+        top + chartHeight * (1f - ((value - cumulativeAxis.min) / (cumulativeAxis.max - cumulativeAxis.min)).toFloat())
+
+    drawYAxis(area, text, { dailyTickLabel(Metric.SUNSHINE, it) }, emphasizeZero = true)
+    drawRightYAxis(area, cumulativeAxis, text) { "${formatTick(it)} h" }
+
+    drawCumulativeAverageSunshine(averageCumulative, text.color, ::x, ::cumulativeY)
+    drawDailyBars(points, area, slots, Metric.SUNSHINE, dark)
+    drawCumulativeSunshine(
+        points = points,
+        cumulative = cumulative,
+        color = lineColor,
+        forecastColor = forecastColor,
+        x = ::x,
+        y = ::cumulativeY,
+    )
+    dividerIndices(points)?.let { (last, first) -> drawTodayDivider(area, text.color, (x(last) + x(first)) / 2f) }
+    drawXLabels(area, text, xLabels, ::x)
+}
+
+private fun DrawScope.drawCumulativeAverageSunshine(
+    cumulative: List<Double?>,
+    color: Color,
+    x: (Int) -> Float,
+    y: (Double) -> Float,
+) {
+    val average = Path()
+    var drawing = false
+    cumulative.forEachIndexed { index, value ->
+        if (value == null) {
+            drawing = false
+        } else {
+            if (drawing) average.lineTo(x(index), y(value)) else average.moveTo(x(index), y(value))
+            drawing = true
+        }
+    }
+    drawPath(
+        average,
+        color.copy(alpha = 0.7f),
+        style = Stroke(1.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 6f))),
+    )
+}
+
+private fun DrawScope.drawRightYAxis(
+    area: ChartArea,
+    axis: Axis,
+    text: ChartText,
+    label: (Double) -> String,
+) {
+    axis.ticks.forEach { tick ->
+        val y = area.top + area.height * (1f - ((tick - axis.min) / (axis.max - axis.min)).toFloat())
+        val layout = text.measurer.measure(label(tick), text.style)
+        drawText(
+            layout,
+            color = text.color,
+            topLeft = Offset(area.left + area.width + 5.dp.toPx(), y - layout.size.height / 2f),
+        )
+    }
+}
+
+private fun DrawScope.drawCumulativeSunshine(
+    points: List<DayPoint>,
+    cumulative: List<Double?>,
+    color: Color,
+    forecastColor: Color,
+    x: (Int) -> Float,
+    y: (Double) -> Float,
+) {
+    val actual = Path()
+    var drawingActual = false
+    points.forEachIndexed { index, point ->
+        val value = cumulative[index]
+        if (point.observed == null || value == null) {
+            drawingActual = false
+        } else {
+            if (drawingActual) actual.lineTo(x(index), y(value)) else actual.moveTo(x(index), y(value))
+            drawingActual = true
+        }
+    }
+    drawPath(actual, color.copy(alpha = 0.8f), style = Stroke(2.dp.toPx()))
+
+    val forecastIndices = points.indices.filter { points[it].forecast != null && cumulative[it] != null }
+    if (forecastIndices.isEmpty()) return
+    val forecast = Path()
+    val lastObserved = points.indices.lastOrNull { points[it].observed != null && cumulative[it] != null }
+    if (lastObserved != null && lastObserved < forecastIndices.first()) {
+        forecast.moveTo(x(lastObserved), y(cumulative[lastObserved]!!))
+    }
+    forecastIndices.forEachIndexed { index, pointIndex ->
+        val point = Offset(x(pointIndex), y(cumulative[pointIndex]!!))
+        if (index == 0 && (lastObserved == null || lastObserved >= forecastIndices.first())) {
+            forecast.moveTo(point.x, point.y)
+        } else {
+            forecast.lineTo(point.x, point.y)
+        }
+    }
+    drawPath(
+        forecast,
+        forecastColor,
+        style = Stroke(2.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 10f))),
+    )
+}
+
 /** One bar per day with a value: observed ones solid, forecast ones lighter with an outline. */
 private fun DrawScope.drawDailyBars(
     points: List<DayPoint>,
@@ -324,7 +468,7 @@ private fun DrawScope.drawDailyBars(
     points.forEachIndexed { index, point ->
         val forecast = point.observed == null
         val value = point.observed ?: point.forecast ?: return@forEachIndexed
-        val color = dailyBarColor(metric, value, point.band?.mean, dark)
+        val color = dailyBarColor(metric, dark)
         val barHeight = barHeight(value, area.axis.max, area.height, stub)
         val topLeft = Offset(slots.center(area.left, index) - slots.barWidth / 2f, area.bottom - barHeight)
         val barSize = Size(slots.barWidth, barHeight)

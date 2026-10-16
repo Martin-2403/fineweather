@@ -1,6 +1,7 @@
 package com.example.fineweather.ui.screens
 
 import androidx.compose.ui.graphics.Color
+import com.example.fineweather.domain.DayPoint
 import com.example.fineweather.domain.Metric
 import com.example.fineweather.domain.MonthlyAnomaly
 import java.util.Locale
@@ -8,6 +9,7 @@ import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.log10
 import kotlin.math.pow
+import kotlin.math.round
 
 internal data class Axis(
     val min: Double,
@@ -15,7 +17,7 @@ internal data class Axis(
     val ticks: List<Double>,
 )
 
-/** A y axis with round tick values that covers [dataMin]..[dataMax] in about [targetTicks] steps. */
+/** A y-axis with round tick values that covers [dataMin]..[dataMax] in about [targetTicks] steps. */
 internal fun niceAxis(
     dataMin: Double,
     dataMax: Double,
@@ -34,7 +36,7 @@ internal fun niceAxis(
 }
 
 internal fun formatTick(value: Double): String =
-    if (value == Math.rint(value)) {
+    if (value == round(value)) {
         String.format(Locale.US, "%.0f", value)
     } else {
         String.format(Locale.US, "%.1f", value)
@@ -45,7 +47,7 @@ internal fun formatSigned(value: Double): String = String.format(Locale.US, "%+.
 
 // ---- sunshine and rain ----
 
-/** The y axis of the daily bars of [metric]: from the metric's lowest value (0) up to [maxValue], at least a small span. */
+/** The y-axis of the daily bars of [metric]: from the metric's lowest value (0) up to [maxValue], at least a small span. */
 internal fun dailyBarAxis(
     metric: Metric,
     maxValue: Double,
@@ -56,7 +58,7 @@ internal fun dailyBarAxis(
 }
 
 /**
- * The y axis of the monthly deviations of [metric] (see [anomalyValue]). Temperature keeps its axis, which
+ * The y-axis of the monthly deviations of [metric] (see [anomalyValue]). Temperature keeps its axis, which
  * reaches at least +1 and 0; sunshine and rain always span at least ±1 h/day and ±50 %.
  */
 internal fun anomalyAxis(
@@ -111,16 +113,14 @@ internal fun anomalyBarLabel(
         Metric.PRECIPITATION -> Metric.formatPercent(value)
     }
 
-/** The colour of a day's bar: rain is always blue; sunshine is amber at or above the typical day, slate below it. */
+/** The colour of a day's bar: rain is blue and sunshine is amber. */
 internal fun dailyBarColor(
     metric: Metric,
-    value: Double,
-    typical: Double?,
     dark: Boolean,
 ): Color =
     when (metric) {
         Metric.PRECIPITATION -> arrowTint(metric, above = true, dark = dark)
-        else -> arrowTint(metric, above = typical == null || value >= typical, dark = dark)
+        else -> arrowTint(metric, above = true, dark = dark)
     }
 
 /** The colour of a month's bar: the colour of its side of the normal (a deviation of 0 counts as above). */
@@ -153,13 +153,43 @@ internal fun barSlots(
     return BarSlots(slot, minOf(slot * fill, maxBarWidth))
 }
 
-/** The height of a bar of [value] on an axis up to [axisMax]; a bar is never lower than [minStub], so a zero day shows. */
+/** The height of a bar of [value] on an axis up to [axisMax]; a bar is never lower than [minStub], so a zero-day shows. */
 internal fun barHeight(
     value: Double,
     axisMax: Double,
     chartHeight: Float,
     minStub: Float,
 ): Float = maxOf((value / axisMax).toFloat() * chartHeight, minStub)
+
+/** Running sunshine total across observed and forecast days; missing days have no point. */
+internal fun cumulativeSunshineHours(points: List<DayPoint>): List<Double?> {
+    var total = 0.0
+    return points.map { point ->
+        val value = point.observed ?: point.forecast
+        if (value == null) {
+            null
+        } else {
+            total += value
+            total
+        }
+    }
+}
+
+/** Running historical-average sunshine for the plotted dates and optional dates after them. */
+internal fun cumulativeAverageSunshineHours(
+    points: List<DayPoint>,
+    extension: List<Double?> = emptyList(),
+): List<Double?> {
+    var total = 0.0
+    return (points.map { it.referenceMean } + extension).map { average ->
+        if (average == null) {
+            null
+        } else {
+            total += average
+            total
+        }
+    }
+}
 
 private const val MIN_SUNSHINE_AXIS_HOURS = 4.0
 private const val MIN_RAIN_AXIS_MM = 4.0

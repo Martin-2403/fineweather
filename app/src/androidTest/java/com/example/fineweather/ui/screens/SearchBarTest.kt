@@ -141,7 +141,7 @@ class LocationStatusTest {
     }
 
     @Test
-    fun place_keepsTheNameOnOneLineAndTheCoordinatesVisibleEvenWhenTheNameIsTooLong() {
+    fun place_keepsTheLocationDetailsOnOneLineAndCoordinatesVisibleWhenDetailsAreLong() {
         composeTestRule.setContent {
             FineWeatherTheme {
                 Surface(modifier = Modifier.width(260.dp)) {

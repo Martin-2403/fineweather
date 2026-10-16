@@ -17,7 +17,7 @@ data class PeriodComparison(
     val metric: Metric = Metric.TEMPERATURE,
 )
 
-/** The percent of [reference] that [delta] is, if [metric] adds up and there is a reference. */
+/** The percent of [reference] that [delta] is, if metric adds up and there is a reference. */
 private fun Metric.percent(
     delta: Double?,
     reference: Double?,
@@ -165,7 +165,7 @@ fun dayPoints(
         DayPoint(
             date = date,
             observed = if (date.isAfter(yesterday)) null else snapshot.series.valueOrNull(date),
-            forecast = if (inForecast) forecast!!.valueOrNull(date) else null,
+            forecast = if (inForecast) forecast.valueOrNull(date) else null,
             band = snapshot.reference?.dailyStats(date.monthValue, date.dayOfMonth)?.copy(floor = snapshot.metric.lowerBound),
             referenceMean = snapshot.reference?.dailyStats(date.monthValue, date.dayOfMonth, halfWindow = 0)?.mean,
             elapsed = !date.isAfter(yesterday),
@@ -221,6 +221,9 @@ data class WindowSummary(
     val warmerDays: Int,
     val colderDays: Int,
     val metric: Metric = Metric.TEMPERATURE,
+    /** Sunshine totals over the observed and comparable days, in hours. */
+    val observedTotal: Double? = null,
+    val referenceTotal: Double? = null,
 ) {
     val delta: Double? get() = if (observedMean != null && referenceMean != null) observedMean - referenceMean else null
 
@@ -236,6 +239,12 @@ fun summarize(
     val observed = points.filter { it.observed != null }
     val comparable = observed.filter { it.referenceMean != null }
     val days = points.count { it.elapsed }
+    val sunshineTotals =
+        if (metric == Metric.SUNSHINE) {
+            observed.sumOf { it.observed!! } to comparable.takeIf { it.isNotEmpty() }?.sumOf { it.referenceMean!! }
+        } else {
+            null to null
+        }
     return WindowSummary(
         observedDays = observed.size,
         observedMean = observed.map { it.observed!! }.takeIf { it.isNotEmpty() }?.average()?.let { metric.periodValue(it, days) },
@@ -243,6 +252,8 @@ fun summarize(
         warmerDays = observed.count { it.band != null && it.observed!! > it.band.mean },
         colderDays = observed.count { it.band != null && it.observed!! < it.band.mean },
         metric = metric,
+        observedTotal = sunshineTotals.first,
+        referenceTotal = sunshineTotals.second,
     )
 }
 

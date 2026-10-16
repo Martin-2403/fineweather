@@ -263,6 +263,8 @@ class MetricAnalysisTest {
 
         assertEquals(6.0, summary.observedMean!!, 1e-9)
         assertEquals(5.0, summary.referenceMean!!, 1e-9)
+        assertEquals(78.0, summary.observedTotal!!, 1e-9)
+        assertEquals(65.0, summary.referenceTotal!!, 1e-9)
         assertNull(summary.deltaPercent)
     }
 

@@ -51,7 +51,7 @@ fun <A, B, R> combineLoadables(
 data class PlaceLabel(
     val name: String,
     val coordinates: String,
-    val locationDetails: String = name,
+    val locationDetails: String = "",
 )
 
 /** The one-line status under the search field. */
