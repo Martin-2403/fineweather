@@ -26,7 +26,7 @@ class MetricChartUtilsTest {
     fun dailyBarAxis_startsAtZeroWithRoundTicks() {
         val sun = dailyBarAxis(Metric.SUNSHINE, 13.2)
         assertEquals(0.0, sun.min, 1e-9)
-        assertEquals(listOf(0.0, 5.0, 10.0, 15.0), sun.ticks)
+        assertEquals(listOf(0.0, 5.0, 10.0, 15.0, 20.0), sun.ticks)
 
         val rain = dailyBarAxis(Metric.PRECIPITATION, 19.4)
         assertEquals(0.0, rain.min, 1e-9)
@@ -49,6 +49,21 @@ class MetricChartUtilsTest {
     }
 
     @Test
+    fun alignedRainAxes_useRoundTicksOnTheSameGridLines() {
+        val daily = dailyBarAxis(Metric.PRECIPITATION, 13.0)
+        val cumulative = alignedZeroAxis(343.0, daily.ticks.size - 1)
+
+        assertEquals(listOf(0.0, 5.0, 10.0, 15.0, 20.0), daily.ticks)
+        assertEquals(listOf(0.0, 100.0, 200.0, 300.0, 400.0), cumulative.ticks)
+        assertEquals(daily.ticks.size, cumulative.ticks.size)
+        daily.ticks.indices.forEach { index ->
+            val dailyY = (daily.ticks[index] - daily.min) / (daily.max - daily.min)
+            val cumulativeY = (cumulative.ticks[index] - cumulative.min) / (cumulative.max - cumulative.min)
+            assertEquals(dailyY, cumulativeY, 1e-9)
+        }
+    }
+
+    @Test
     fun cumulativeDailyValues_accumulatesObservedAndForecastAcrossMissingDays() {
         val points =
             listOf(
@@ -67,7 +82,7 @@ class MetricChartUtilsTest {
     }
 
     @Test
-    fun cumulativeAverageDailyValues_accumulatesHistoricalDailyAverages() {
+    fun cumulativeAverageDailyValues_risesLinearlyAtTheAverageDailyNormal() {
         val points =
             listOf(
                 DayPoint(LocalDate.of(2026, 10, 1), 2.0, null, null, 3.0),
@@ -78,24 +93,26 @@ class MetricChartUtilsTest {
 
         val accumulated = cumulativeAverageDailyValues(points)
 
-        assertEquals(3.0, accumulated[0]!!, 1e-9)
-        assertEquals(7.0, accumulated[1]!!, 1e-9)
-        assertNull(accumulated[2])
-        assertEquals(12.0, accumulated[3]!!, 1e-9)
+        assertEquals(listOf(4.0, 8.0, 12.0, 16.0), accumulated.map { it!! })
     }
 
     @Test
-    fun cumulativeAverageDailyValues_extendsTheLineWithFutureDailyNormals() {
+    fun cumulativeAverageDailyValues_extendsTheLineToTheEndOfThePeriod() {
         val points =
             listOf(
-                DayPoint(LocalDate.of(2026, 10, 30), 2.0, null, null, 3.0),
+                DayPoint(LocalDate.of(2026, 10, 29), 2.0, null, null, 3.0),
             )
 
         val accumulated = cumulativeAverageDailyValues(points, listOf(4.0, 5.0))
 
-        assertEquals(3.0, accumulated[0]!!, 1e-9)
-        assertEquals(7.0, accumulated[1]!!, 1e-9)
-        assertEquals(12.0, accumulated[2]!!, 1e-9)
+        assertEquals(listOf(4.0, 8.0, 12.0), accumulated.map { it!! })
+    }
+
+    @Test
+    fun cumulativeAverageDailyValues_isEmptyWithoutAnyReference() {
+        val points = listOf(DayPoint(LocalDate.of(2026, 10, 1), 2.0, null, null, null))
+
+        assertEquals(listOf<Double?>(null), cumulativeAverageDailyValues(points))
     }
 
     // ---- anomaly axis ----
@@ -152,7 +169,7 @@ class MetricChartUtilsTest {
 
     @Test
     fun dailyTickLabel_carriesTheUnit() {
-        assertEquals("10", dailyTickLabel(Metric.TEMPERATURE, 10.0))
+        assertEquals("10°C", dailyTickLabel(Metric.TEMPERATURE, 10.0))
         assertEquals("5 h", dailyTickLabel(Metric.SUNSHINE, 5.0))
         assertEquals("2.5 h", dailyTickLabel(Metric.SUNSHINE, 2.5))
         assertEquals("20 mm", dailyTickLabel(Metric.PRECIPITATION, 20.0))
@@ -161,7 +178,7 @@ class MetricChartUtilsTest {
 
     @Test
     fun anomalyTickLabel_isInHoursOrPercent() {
-        assertEquals("-5", anomalyTickLabel(Metric.TEMPERATURE, -5.0))
+        assertEquals("-5°C", anomalyTickLabel(Metric.TEMPERATURE, -5.0))
         assertEquals("-1 h", anomalyTickLabel(Metric.SUNSHINE, -1.0))
         assertEquals("0.5 h", anomalyTickLabel(Metric.SUNSHINE, 0.5))
         assertEquals("50%", anomalyTickLabel(Metric.PRECIPITATION, 50.0))

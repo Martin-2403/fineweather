@@ -1,6 +1,8 @@
 package com.example.fineweather.ui.screens
 
 import androidx.compose.foundation.border
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -10,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -27,8 +30,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -206,17 +211,41 @@ internal fun MonthView(
         AlertDialog(
             onDismissRequest = { showLegend = false },
             title = { Text("Reading the chart", fontFamily = nunitoSansFamily, fontWeight = FontWeight.SemiBold) },
-            text = {
-                Text(
-                    text = chartLegendText(referenceLabel, metric),
-                    fontFamily = nunitoSansFamily,
-                    modifier = Modifier.testTag("chartLegend"),
-                )
-            },
+            text = { ChartLegend(chartLegendEntries(referenceLabel, metric), metric) },
             confirmButton = {
                 TextButton(onClick = { showLegend = false }) { Text("OK", fontFamily = nunitoSansFamily) }
             },
         )
+    }
+}
+
+@Composable
+private fun ChartLegend(
+    entries: List<LegendEntry>,
+    metric: Metric,
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier =
+            Modifier
+                .verticalScroll(rememberScrollState())
+                .semantics(mergeDescendants = true) {}
+                .testTag("chartLegend"),
+    ) {
+        entries.forEach { entry ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (entry.symbol != null) {
+                    LegendSwatch(entry.symbol, metric)
+                    Spacer(Modifier.width(12.dp))
+                }
+                Text(
+                    text = entry.text,
+                    fontFamily = nunitoSansFamily,
+                    style = if (entry.symbol == null) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyMedium,
+                    color = if (entry.symbol == null) MaterialTheme.colorScheme.onSurfaceVariant else Color.Unspecified,
+                )
+            }
+        }
     }
 }
 

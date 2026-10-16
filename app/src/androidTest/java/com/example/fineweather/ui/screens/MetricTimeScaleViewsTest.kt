@@ -98,14 +98,14 @@ class MetricTimeScaleViewsTest {
     }
 
     @Test
-    fun monthView_sunshineLegendExplainsBarsTheTypicalLineAndTheDataSource() {
+    fun monthView_sunshineLegendExplainsBarsTheAccumulatedLinesAndTheDataSource() {
         show { MonthView(sunshine, 7, label, shape, cardColors, metric = Metric.SUNSHINE) }
 
         composeTestRule.onNodeWithTag("monthInfoButton").performClick()
 
-        composeTestRule.onNodeWithTag("chartLegend").assertTextContains("Bars: hours of sunshine per day.", substring = true)
+        composeTestRule.onNodeWithTag("chartLegend").assertTextContains("Hours of sunshine each day.", substring = true)
         composeTestRule.onNodeWithTag("chartLegend")
-            .assertTextContains("the average daily sunshine of 1961–1990 for the same calendar days", substring = true)
+            .assertTextContains("Historical average for this period", substring = true)
         composeTestRule.onNodeWithTag("chartLegend").assertTextContains("rain especially", substring = true)
         composeTestRule.onNodeWithTag("chartLegend").assertTextContains("(ERA5)", substring = true)
         composeTestRule.onNodeWithText("OK").performClick()

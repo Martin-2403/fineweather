@@ -104,9 +104,9 @@ class TimeScaleViewsTest {
         composeTestRule.onNodeWithTag("monthInfoButton").performClick()
 
         composeTestRule.onNodeWithTag("chartLegend")
-            .assertTextContains("Line: daily mean.", substring = true)
+            .assertTextContains("Daily mean.", substring = true)
         composeTestRule.onNodeWithTag("chartLegend")
-            .assertTextContains("typical range of 1961–1990 (±1 standard deviation)", substring = true)
+            .assertTextContains("Typical range of 1961–1990 (±1 standard deviation)", substring = true)
         composeTestRule.onNodeWithTag("chartLegend")
             .assertTextContains("less certain", substring = true)
 

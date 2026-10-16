@@ -51,10 +51,28 @@ internal fun formatSigned(value: Double): String = String.format(Locale.US, "%+.
 internal fun dailyBarAxis(
     metric: Metric,
     maxValue: Double,
+    intervals: Int = 4,
 ): Axis {
-    val floor = metric.lowerBound ?: 0.0
-    val minTop = if (metric == Metric.PRECIPITATION) MIN_RAIN_AXIS_MM else MIN_SUNSHINE_AXIS_HOURS
-    return niceAxis(floor, maxOf(maxValue, floor + minTop))
+    val minimumMax =
+        when (metric) {
+            Metric.SUNSHINE -> MIN_SUNSHINE_AXIS_HOURS
+            Metric.PRECIPITATION -> MIN_RAIN_AXIS_MM
+            Metric.TEMPERATURE -> 1.0
+        }
+    return alignedZeroAxis(maxOf(maxValue, minimumMax), intervals)
+}
+
+/** A rounded zero-based scale with [intervals] grid intervals for aligning two chart axes. */
+internal fun alignedZeroAxis(
+    maxValue: Double,
+    intervals: Int,
+): Axis {
+    require(intervals > 0) { "Axis must have at least one interval" }
+    val rawStep = maxValue.coerceAtLeast(1e-9) / intervals
+    val magnitude = 10.0.pow(floor(log10(rawStep)))
+    val step = listOf(1.0, 2.0, 2.5, 5.0, 10.0).map { it * magnitude }.first { it >= rawStep - 1e-12 }
+    val ticks = (0..intervals).map { it * step }
+    return Axis(0.0, intervals * step, ticks)
 }
 
 /**
@@ -80,24 +98,24 @@ internal fun anomalyValue(
     month: MonthlyAnomaly,
 ): Double? = if (metric == Metric.PRECIPITATION) month.deltaPercent else month.delta
 
-/** A tick of the daily bars' axis: the number and a short unit (`6 h`, `10 mm`); temperature has the bare number. */
+/** A tick of the daily bars' axis with the metric unit. */
 internal fun dailyTickLabel(
     metric: Metric,
     value: Double,
 ): String =
     when (metric) {
-        Metric.TEMPERATURE -> formatTick(value)
+        Metric.TEMPERATURE -> "${formatTick(value)}°C"
         Metric.SUNSHINE -> "${formatTick(value)} h"
         Metric.PRECIPITATION -> "${formatTick(value)} mm"
     }
 
-/** A tick of the monthly deviations' axis: `-5` for temperature, `-1 h` for sunshine, `50%` for rain. */
+/** A tick of the monthly deviations' axis with the metric unit. */
 internal fun anomalyTickLabel(
     metric: Metric,
     value: Double,
 ): String =
     when (metric) {
-        Metric.TEMPERATURE -> formatTick(value)
+        Metric.TEMPERATURE -> "${formatTick(value)}°C"
         Metric.SUNSHINE -> "${formatTick(value)} h"
         Metric.PRECIPITATION -> "${formatTick(value)}%"
     }
@@ -175,20 +193,18 @@ internal fun cumulativeDailyValues(points: List<DayPoint>): List<Double?> {
     }
 }
 
-/** Running historical-average daily values for the plotted dates and any extension. */
+/**
+ * Historical normal for the plotted dates and any extension, accumulated at an even daily pace.
+ * Single calendar-day normals are too noisy to be informative, so the line rises linearly to the
+ * period's normal total; days without a reference count at the average pace.
+ */
 internal fun cumulativeAverageDailyValues(
     points: List<DayPoint>,
     extension: List<Double?> = emptyList(),
 ): List<Double?> {
-    var total = 0.0
-    return (points.map { it.referenceMean } + extension).map { average ->
-        if (average == null) {
-            null
-        } else {
-            total += average
-            total
-        }
-    }
+    val normals = points.map { it.referenceMean } + extension
+    val pace = normals.filterNotNull().takeIf { it.isNotEmpty() }?.average() ?: return normals.map { null }
+    return normals.indices.map { index -> pace * (index + 1) }
 }
 
 private const val MIN_SUNSHINE_AXIS_HOURS = 4.0

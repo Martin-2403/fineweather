@@ -200,21 +200,45 @@ class TimeScaleTextsTest {
     // ---- legend ----
 
     @Test
-    fun legend_temperatureIsUnchanged() {
+    fun legend_temperatureExplainsLineDotsBandAndForecast() {
+        val entries = chartLegendEntries("1961–1990")
+        assertEquals(entries, chartLegendEntries("1961–1990", Metric.TEMPERATURE))
+        assertEquals(
+            listOf(
+                LegendSymbol.DAILY_LINE,
+                LegendSymbol.WARM_COLD_DOTS,
+                LegendSymbol.TYPICAL_BAND,
+                LegendSymbol.TEMPERATURE_FORECAST,
+                null,
+            ),
+            entries.map { it.symbol },
+        )
         val text = chartLegendText("1961–1990")
-        assertEquals(text, chartLegendText("1961–1990", Metric.TEMPERATURE))
-        assertTrue(text.startsWith("Line: daily mean."))
-        assertTrue(text.contains("typical range of 1961–1990 (±1 standard deviation)"))
+        assertTrue(text.startsWith("Daily mean."))
+        assertTrue(text.contains("Typical range of 1961–1990 (±1 standard deviation)"))
+        assertTrue(text.contains("rough guide"))
     }
 
     @Test
-    fun legend_sunshineExplainsDailyBarsAccumulatedLineForecastAndTheDataSource() {
-        val text = chartLegendText(ref, Metric.SUNSHINE)
+    fun legend_sunshineExplainsDailyBarsAccumulatedLinesForecastAndTheDataSource() {
+        val entries = chartLegendEntries(ref, Metric.SUNSHINE)
 
-        assertTrue(text.contains("Bars: hours of sunshine each day."))
-        assertTrue(text.contains("Solid line (right axis): accumulated sunshine hours."))
-        assertTrue(text.contains("Dashed line (right axis): the historical average accumulated over the same dates."))
-        assertTrue(text.contains("Lighter bars with an outline: the forecast."))
+        assertEquals(
+            listOf(
+                LegendSymbol.DAILY_BARS,
+                LegendSymbol.ACCUMULATED_LINE,
+                LegendSymbol.AVERAGE_LINE,
+                LegendSymbol.BAR_FORECAST,
+                null,
+                null,
+            ),
+            entries.map { it.symbol },
+        )
+        val text = chartLegendText(ref, Metric.SUNSHINE)
+        assertTrue(text.contains("Hours of sunshine each day."))
+        assertTrue(text.contains("Accumulated sunshine hours (right axis)."))
+        assertTrue(text.contains("Historical average for this period, accumulated at an even daily pace (right axis)."))
+        assertTrue(text.contains("The forecast: lighter outlined bars"))
         assertTrue(text.contains("rain especially: treat days beyond about a week as a rough guide"))
         assertTrue(text.contains("modelled from reanalysis data (ERA5), not measured at a station"))
         assertFalse(text.contains("standard deviation"))
@@ -222,13 +246,17 @@ class TimeScaleTextsTest {
 
     @Test
     fun legend_rainExplainsDailyBarsAndAccumulatedLines() {
-        val text = chartLegendText(ref, Metric.PRECIPITATION)
+        val entries = chartLegendEntries(ref, Metric.PRECIPITATION)
 
-        assertTrue(text.contains("Bars: rain per day in mm."))
+        assertEquals(
+            listOf(LegendSymbol.DAILY_BARS, LegendSymbol.ACCUMULATED_LINE, LegendSymbol.AVERAGE_LINE, LegendSymbol.BAR_FORECAST, null),
+            entries.map { it.symbol },
+        )
+        val text = chartLegendText(ref, Metric.PRECIPITATION)
+        assertTrue(text.contains("Rain per day in mm."))
         assertTrue(text.contains("A thin stub is a dry day"))
-        assertTrue(text.contains("Solid line (right axis): accumulated rain in this period."))
-        assertTrue(text.contains("Dashed line (right axis): the historical average accumulated over the same dates."))
-        assertTrue(text.contains("Lighter bars with an outline: the forecast."))
+        assertTrue(text.contains("Accumulated rain in this period (right axis)."))
+        assertTrue(text.contains("Historical average for this period"))
         assertTrue(text.contains("rough guide"))
         assertFalse(text.contains("ERA5"))
     }

@@ -3,6 +3,7 @@ package com.example.fineweather.ui.screens
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -321,8 +322,9 @@ private fun DrawScope.drawAccumulatedDailyChart(
     val cumulativeValues = cumulative.filterNotNull() + averageCumulative.filterNotNull()
     if (dailyValues.isEmpty() || cumulativeValues.isEmpty()) return
 
-    val area = ChartArea(left, top, width, chartHeight, dailyBarAxis(metric, dailyValues.max()))
-    val cumulativeAxis = niceAxis(0.0, cumulativeValues.max())
+    val dailyAxis = dailyBarAxis(metric, dailyValues.max())
+    val area = ChartArea(left, top, width, chartHeight, dailyAxis)
+    val cumulativeAxis = alignedZeroAxis(cumulativeValues.max(), dailyAxis.ticks.size - 1)
     val slots = barSlots(maxOf(points.size, averageCumulative.size), width, fill = 0.7f, maxBarWidth = 24.dp.toPx())
     fun x(index: Int): Float = slots.center(left, index)
     fun cumulativeY(value: Double): Float =
@@ -531,3 +533,80 @@ private fun DrawScope.drawMonthBar(
         topLeft = Offset(center - label.size.width / 2f, labelY.coerceIn(0f, size.height - label.size.height)),
     )
 }
+
+/** A small sample of a daily-chart element for the legend, drawn with the chart's colors and strokes. */
+@Composable
+internal fun LegendSwatch(
+    symbol: LegendSymbol,
+    metric: Metric,
+    modifier: Modifier = Modifier,
+) {
+    val textColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val lineColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+    val forecastColor = MaterialTheme.colorScheme.primary
+    val barColor = dailyBarColor(metric, isDarkCard())
+
+    Canvas(modifier.size(LegendSwatchWidth, LegendSwatchHeight)) {
+        val midY = size.height / 2f
+        val dash = PathEffect.dashPathEffect(floatArrayOf(14f, 10f))
+        val dot = 3.dp.toPx()
+        fun line(
+            color: Color,
+            width: Dp,
+            effect: PathEffect? = null,
+            y: Float = midY,
+        ) = drawLine(color, Offset(0f, y), Offset(size.width, y), width.toPx(), pathEffect = effect)
+
+        fun bar(
+            centerX: Float,
+            heightFraction: Float,
+            forecast: Boolean,
+        ) {
+            val barWidth = 6.dp.toPx()
+            val barHeight = size.height * heightFraction
+            val topLeft = Offset(centerX - barWidth / 2f, size.height - barHeight)
+            val barSize = Size(barWidth, barHeight)
+            drawRect(barColor.copy(alpha = if (forecast) 0.4f else 0.9f), topLeft, barSize)
+            if (forecast) drawRect(barColor, topLeft, barSize, style = Stroke(1.dp.toPx()))
+        }
+
+        when (symbol) {
+            LegendSymbol.DAILY_LINE -> {
+                line(lineColor, 2.dp)
+                drawCircle(lineColor, dot, Offset(size.width / 2f, midY))
+            }
+            LegendSymbol.WARM_COLD_DOTS -> {
+                drawCircle(WarmIconTint, dot, Offset(size.width * 0.3f, midY))
+                drawCircle(CoolIconTint, dot, Offset(size.width * 0.7f, midY))
+            }
+            LegendSymbol.TYPICAL_BAND -> {
+                drawRect(textColor.copy(alpha = 0.16f), Offset(0f, size.height * 0.15f), Size(size.width, size.height * 0.7f))
+                line(textColor.copy(alpha = 0.55f), 1.5.dp, dash)
+            }
+            LegendSymbol.TEMPERATURE_FORECAST -> {
+                line(forecastColor, 2.dp, dash)
+                drawCircle(forecastColor, dot, Offset(size.width / 2f, midY), style = Stroke(1.5.dp.toPx()))
+            }
+            LegendSymbol.DAILY_BARS -> {
+                bar(size.width * 0.3f, 0.55f, forecast = false)
+                bar(size.width * 0.7f, 0.85f, forecast = false)
+            }
+            LegendSymbol.ACCUMULATED_LINE -> line(lineColor.copy(alpha = 0.8f), 2.dp)
+            LegendSymbol.AVERAGE_LINE ->
+                line(textColor.copy(alpha = 0.7f), 1.5.dp, PathEffect.dashPathEffect(floatArrayOf(8f, 6f)))
+            LegendSymbol.BAR_FORECAST -> {
+                bar(size.width * 0.25f, 0.6f, forecast = true)
+                drawLine(
+                    forecastColor,
+                    Offset(size.width * 0.45f, size.height * 0.75f),
+                    Offset(size.width, size.height * 0.2f),
+                    2.dp.toPx(),
+                    pathEffect = dash,
+                )
+            }
+        }
+    }
+}
+
+private val LegendSwatchWidth = 28.dp
+private val LegendSwatchHeight = 16.dp

@@ -167,39 +167,83 @@ internal fun forecastSummaryText(outlook: ForecastOutlook): String {
 /** Below this much rain, in mm, a forecast total counts as dry. */
 private const val DRY_MM = 0.05
 
+/** The sample drawn next to a legend entry, mirroring how the daily chart draws that element. */
+internal enum class LegendSymbol {
+    DAILY_LINE,
+    WARM_COLD_DOTS,
+    TYPICAL_BAND,
+    TEMPERATURE_FORECAST,
+    DAILY_BARS,
+    ACCUMULATED_LINE,
+    AVERAGE_LINE,
+    BAR_FORECAST,
+}
+
+/** One line of the chart legend; entries without a [symbol] are notes. */
+internal data class LegendEntry(
+    val symbol: LegendSymbol?,
+    val text: String,
+)
+
 /** What the info button of the daily chart explains. */
+internal fun chartLegendEntries(
+    referenceLabel: String,
+    metric: Metric = Metric.TEMPERATURE,
+): List<LegendEntry> {
+    if (metric == Metric.TEMPERATURE) {
+        return listOf(
+            LegendEntry(LegendSymbol.DAILY_LINE, "Daily mean."),
+            LegendEntry(LegendSymbol.WARM_COLD_DOTS, "Red on days warmer than typical, blue on days colder than typical."),
+            LegendEntry(
+                LegendSymbol.TYPICAL_BAND,
+                "Typical range of $referenceLabel (±1 standard deviation); the dashed line in it is the average.",
+            ),
+            LegendEntry(LegendSymbol.TEMPERATURE_FORECAST, "The forecast."),
+            LegendEntry(
+                null,
+                "Forecasts become less certain the further ahead they look, so treat days beyond about a week as a rough guide.",
+            ),
+        )
+    }
+    val bars =
+        when (metric) {
+            Metric.SUNSHINE -> "Hours of sunshine each day."
+            else -> "Rain per day in mm. A thin stub is a dry day; a missing day has no bar."
+        }
+    val accumulated =
+        when (metric) {
+            Metric.SUNSHINE -> "Accumulated sunshine hours (right axis)."
+            else -> "Accumulated rain in this period (right axis)."
+        }
+    val entries =
+        listOf(
+            LegendEntry(LegendSymbol.DAILY_BARS, bars),
+            LegendEntry(LegendSymbol.ACCUMULATED_LINE, accumulated),
+            LegendEntry(
+                LegendSymbol.AVERAGE_LINE,
+                "Historical average for this period, accumulated at an even daily pace (right axis).",
+            ),
+            LegendEntry(LegendSymbol.BAR_FORECAST, "The forecast: lighter outlined bars, the accumulated line continues dashed."),
+            LegendEntry(
+                null,
+                "Forecasts get less certain the further ahead they look, rain especially: treat days beyond about a " +
+                    "week as a rough guide.",
+            ),
+        )
+    if (metric != Metric.SUNSHINE) return entries
+    return entries +
+        LegendEntry(
+            null,
+            "Sunshine hours are modelled from reanalysis data (ERA5), not measured at a station, so absolute " +
+                "values can differ from local weather-station figures.",
+        )
+}
+
+/** The legend as plain text. */
 internal fun chartLegendText(
     referenceLabel: String,
     metric: Metric = Metric.TEMPERATURE,
-): String {
-    if (metric == Metric.TEMPERATURE) {
-        return "Line: daily mean.\n" +
-            "Band: typical range of $referenceLabel (±1 standard deviation); the dashed line in it is the average.\n" +
-            "Dots are red on days warmer than typical and blue on days colder than typical.\n" +
-            "Dashed line with hollow dots: the forecast. Forecasts become less certain the further " +
-            "ahead they look, so treat days beyond about a week as a rough guide."
-    }
-    val forecast =
-        "Lighter bars with an outline: the forecast. Forecasts get less certain the further ahead they look, " +
-            "rain especially: treat days beyond about a week as a rough guide."
-    return when (metric) {
-        Metric.SUNSHINE ->
-            "Bars: hours of sunshine each day.\n" +
-                "Solid line (right axis): accumulated sunshine hours.\n" +
-                "Dashed line (right axis): the historical average accumulated over the same dates.\n" +
-                "$forecast\n\n" +
-                "Sunshine hours are modelled from reanalysis data (ERA5), not measured at a station, so absolute " +
-                "values can differ from local weather-station figures."
-
-        Metric.PRECIPITATION ->
-            "Bars: rain per day in mm. A thin stub is a dry day; a missing day has no bar.\n" +
-                "Solid line (right axis): accumulated rain in this period.\n" +
-                "Dashed line (right axis): the historical average accumulated over the same dates.\n" +
-                forecast
-
-        Metric.TEMPERATURE -> ""
-    }
-}
+): String = chartLegendEntries(referenceLabel, metric).joinToString("\n") { it.text }
 
 /** The a11y description of the daily chart. */
 internal fun dailyChartDescription(
