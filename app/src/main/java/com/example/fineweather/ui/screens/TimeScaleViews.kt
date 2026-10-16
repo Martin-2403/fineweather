@@ -160,10 +160,10 @@ internal fun MonthView(
         val points = remember(snapshot, window, forecastDays) { dayPoints(snapshot, window, forecastDays) }
         val summary = remember(snapshot, points) { snapshot.summarize(points) }
         val outlook = remember(snapshot, forecastDays) { snapshot.outlook(forecastDays) }
-        val sunshineAverageExtension =
+        val dailyAverageExtension =
             remember(snapshot, points, window, metric) {
                 val lastPoint = points.lastOrNull()
-                if (metric != Metric.SUNSHINE || window != MonthWindow.THIS_MONTH ||
+                if (metric == Metric.TEMPERATURE || window != MonthWindow.THIS_MONTH ||
                     snapshot.reference == null || lastPoint == null
                 ) {
                     emptyList()
@@ -183,7 +183,7 @@ internal fun MonthView(
             xLabels = remember(points, window) { dayAxisLabels(points.map { it.date }, window) },
             description = dailyChartDescription(summary, withForecast = points.any { it.forecast != null }),
             metric = metric,
-            sunshineAverageExtension = sunshineAverageExtension,
+            dailyAverageExtension = dailyAverageExtension,
         )
         Spacer(Modifier.height(2.dp))
         Text(

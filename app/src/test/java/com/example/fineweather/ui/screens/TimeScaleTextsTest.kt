@@ -221,12 +221,13 @@ class TimeScaleTextsTest {
     }
 
     @Test
-    fun legend_rainExplainsDryDaysAndHasNoSunshineNote() {
+    fun legend_rainExplainsDailyBarsAndAccumulatedLines() {
         val text = chartLegendText(ref, Metric.PRECIPITATION)
 
         assertTrue(text.contains("Bars: rain per day in mm."))
         assertTrue(text.contains("A thin stub is a dry day"))
-        assertTrue(text.contains("the average daily rain of $ref for the same calendar days"))
+        assertTrue(text.contains("Solid line (right axis): accumulated rain in this period."))
+        assertTrue(text.contains("Dashed line (right axis): the historical average accumulated over the same dates."))
         assertTrue(text.contains("Lighter bars with an outline: the forecast."))
         assertTrue(text.contains("rough guide"))
         assertFalse(text.contains("ERA5"))
@@ -245,7 +246,7 @@ class TimeScaleTextsTest {
             dailyChartDescription(summary(Metric.SUNSHINE, 13, 5.3, 4.0), withForecast = true),
         )
         assertEquals(
-            "Daily rain, 13 days, 41 mm in total.",
+            "Daily rain, 13 days, 41 mm in total, historical average 22 mm.",
             dailyChartDescription(summary(Metric.PRECIPITATION, 13, 41.0, 22.0), withForecast = false),
         )
     }

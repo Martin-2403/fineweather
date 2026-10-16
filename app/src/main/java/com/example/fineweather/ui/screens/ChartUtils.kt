@@ -113,7 +113,7 @@ internal fun anomalyBarLabel(
         Metric.PRECIPITATION -> Metric.formatPercent(value)
     }
 
-/** The colour of a day's bar: rain is blue and sunshine is amber. */
+/** The color of a day's bar: rain is blue and sunshine is amber. */
 internal fun dailyBarColor(
     metric: Metric,
     dark: Boolean,
@@ -123,7 +123,7 @@ internal fun dailyBarColor(
         else -> arrowTint(metric, above = true, dark = dark)
     }
 
-/** The colour of a month's bar: the colour of its side of the normal (a deviation of 0 counts as above). */
+/** The color of a month's bar: the color of its side of the normal (a deviation of 0 counts as above). */
 internal fun anomalyBarColor(
     metric: Metric,
     value: Double,
@@ -161,8 +161,8 @@ internal fun barHeight(
     minStub: Float,
 ): Float = maxOf((value / axisMax).toFloat() * chartHeight, minStub)
 
-/** Running sunshine total across observed and forecast days; missing days have no point. */
-internal fun cumulativeSunshineHours(points: List<DayPoint>): List<Double?> {
+/** Running total across observed and forecast daily values; missing days have no point. */
+internal fun cumulativeDailyValues(points: List<DayPoint>): List<Double?> {
     var total = 0.0
     return points.map { point ->
         val value = point.observed ?: point.forecast
@@ -175,8 +175,8 @@ internal fun cumulativeSunshineHours(points: List<DayPoint>): List<Double?> {
     }
 }
 
-/** Running historical-average sunshine for the plotted dates and optional dates after them. */
-internal fun cumulativeAverageSunshineHours(
+/** Running historical-average daily values for the plotted dates and any extension. */
+internal fun cumulativeAverageDailyValues(
     points: List<DayPoint>,
     extension: List<Double?> = emptyList(),
 ): List<Double?> {

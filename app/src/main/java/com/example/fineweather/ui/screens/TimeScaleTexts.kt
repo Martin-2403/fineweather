@@ -179,8 +179,6 @@ internal fun chartLegendText(
             "Dashed line with hollow dots: the forecast. Forecasts become less certain the further " +
             "ahead they look, so treat days beyond about a week as a rough guide."
     }
-    val typical =
-        "Dashed line: the typical day, the average ${metric.dailyAmount} of $referenceLabel for the same calendar days."
     val forecast =
         "Lighter bars with an outline: the forecast. Forecasts get less certain the further ahead they look, " +
             "rain especially: treat days beyond about a week as a rough guide."
@@ -193,15 +191,15 @@ internal fun chartLegendText(
                 "Sunshine hours are modelled from reanalysis data (ERA5), not measured at a station, so absolute " +
                 "values can differ from local weather-station figures."
 
-        else ->
+        Metric.PRECIPITATION ->
             "Bars: rain per day in mm. A thin stub is a dry day; a missing day has no bar.\n" +
-                "$typical\n" +
-                    forecast
+                "Solid line (right axis): accumulated rain in this period.\n" +
+                "Dashed line (right axis): the historical average accumulated over the same dates.\n" +
+                forecast
+
+        Metric.TEMPERATURE -> ""
     }
 }
-
-private val Metric.dailyAmount: String
-    get() = if (this == Metric.PRECIPITATION) "daily rain" else "daily sunshine"
 
 /** The a11y description of the daily chart. */
 internal fun dailyChartDescription(
@@ -217,7 +215,10 @@ internal fun dailyChartDescription(
                 val average = summary.referenceTotal?.let { ", historical average ${formatHours(it)}" }.orEmpty()
                 "Daily sunshine, ${summary.observedDays} days, ${summary.observedTotal?.let(::formatHours) ?: "–"} total$average"
             }
-            Metric.PRECIPITATION -> "Daily rain, ${summary.observedDays} days, ${observed?.let(metric::format) ?: "–"} in total"
+            Metric.PRECIPITATION -> {
+                val average = summary.referenceMean?.let { ", historical average ${metric.format(it)}" }.orEmpty()
+                "Daily rain, ${summary.observedDays} days, ${observed?.let(metric::format) ?: "–"} in total$average"
+            }
         }
     return head + if (withForecast) ", with the forecast for the coming days." else "."
 }

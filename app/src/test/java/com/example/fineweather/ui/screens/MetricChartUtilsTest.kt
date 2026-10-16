@@ -49,7 +49,7 @@ class MetricChartUtilsTest {
     }
 
     @Test
-    fun cumulativeSunshineHours_accumulatesObservedAndForecastValuesAcrossMissingDays() {
+    fun cumulativeDailyValues_accumulatesObservedAndForecastAcrossMissingDays() {
         val points =
             listOf(
                 DayPoint(LocalDate.of(2026, 10, 1), 2.0, null, null, null),
@@ -58,7 +58,7 @@ class MetricChartUtilsTest {
                 DayPoint(LocalDate.of(2026, 10, 4), null, 4.0, null, null),
             )
 
-        val accumulated = cumulativeSunshineHours(points)
+        val accumulated = cumulativeDailyValues(points)
 
         assertEquals(2.0, accumulated[0]!!, 1e-9)
         assertEquals(5.0, accumulated[1]!!, 1e-9)
@@ -67,7 +67,7 @@ class MetricChartUtilsTest {
     }
 
     @Test
-    fun cumulativeAverageSunshineHours_accumulatesTheHistoricalDailyAverage() {
+    fun cumulativeAverageDailyValues_accumulatesHistoricalDailyAverages() {
         val points =
             listOf(
                 DayPoint(LocalDate.of(2026, 10, 1), 2.0, null, null, 3.0),
@@ -76,7 +76,7 @@ class MetricChartUtilsTest {
                 DayPoint(LocalDate.of(2026, 10, 4), null, 4.0, null, 5.0),
             )
 
-        val accumulated = cumulativeAverageSunshineHours(points)
+        val accumulated = cumulativeAverageDailyValues(points)
 
         assertEquals(3.0, accumulated[0]!!, 1e-9)
         assertEquals(7.0, accumulated[1]!!, 1e-9)
@@ -85,13 +85,13 @@ class MetricChartUtilsTest {
     }
 
     @Test
-    fun cumulativeAverageSunshineHours_extendsTheLineWithFutureDailyNormals() {
+    fun cumulativeAverageDailyValues_extendsTheLineWithFutureDailyNormals() {
         val points =
             listOf(
                 DayPoint(LocalDate.of(2026, 10, 30), 2.0, null, null, 3.0),
             )
 
-        val accumulated = cumulativeAverageSunshineHours(points, listOf(4.0, 5.0))
+        val accumulated = cumulativeAverageDailyValues(points, listOf(4.0, 5.0))
 
         assertEquals(3.0, accumulated[0]!!, 1e-9)
         assertEquals(7.0, accumulated[1]!!, 1e-9)
