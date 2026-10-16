@@ -306,7 +306,7 @@ internal fun YearView(
             modifier = Modifier.testTag("yearSummary"),
         )
         YearTable(months, metric)
-        Caption(yearChartCaption(metric, hasMonthWithoutBar(metric, months)))
+        Caption(yearChartCaption(metric))
     }
 }
 
@@ -315,14 +315,13 @@ private fun YearTable(
     months: List<MonthlyAnomaly>,
     metric: Metric,
 ) {
-    // sunshine and rain carry their units, so their delta column is wider
-    val weights = if (metric == Metric.TEMPERATURE) listOf(1.1f, 1.2f, 1.2f, 0.8f) else listOf(0.9f, 1.2f, 1.2f, 1.1f)
+    // sunshine and rain carry their units and an extra percent column
+    val weights = if (metric == Metric.TEMPERATURE) listOf(1.1f, 1.2f, 1.2f, 0.8f) else listOf(0.8f, 1.0f, 1.1f, 1.0f, 0.8f)
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         TableRow(yearTableHeader(metric), weights, header = true)
         months.forEach { month ->
-            val (observed, reference, delta) = yearTableCells(metric, month)
             TableRow(
-                cells = listOf(monthName(month.month, TextStyle.SHORT) + if (month.partial) "*" else "", observed, reference, delta),
+                cells = listOf(monthName(month.month, TextStyle.SHORT) + if (month.partial) "*" else "") + yearTableCells(metric, month),
                 weights = weights,
                 header = false,
             )

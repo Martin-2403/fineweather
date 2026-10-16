@@ -5,6 +5,7 @@ import com.example.fineweather.domain.DayPoint
 import com.example.fineweather.domain.Metric
 import com.example.fineweather.domain.MonthlyAnomaly
 import java.util.Locale
+import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.log10
@@ -76,8 +77,8 @@ internal fun alignedZeroAxis(
 }
 
 /**
- * The y-axis of the monthly deviations of [metric] (see [anomalyValue]). Temperature keeps its axis, which
- * reaches at least +1 and 0; sunshine and rain always span at least ±1 h/day and ±50 %.
+ * The y-axis of the monthly bars of [metric] (see [anomalyValue]). Temperature keeps its axis of deviations,
+ * which reaches at least +1 and 0; sunshine and rain start at zero and reach at least 10 h or 10 mm.
  */
 internal fun anomalyAxis(
     metric: Metric,
@@ -87,16 +88,22 @@ internal fun anomalyAxis(
     val highest = values.maxOrNull()
     return when (metric) {
         Metric.TEMPERATURE -> niceAxis(minOf(0.0, lowest ?: 0.0), maxOf(1.0, highest ?: 0.0))
-        Metric.SUNSHINE -> niceAxis(minOf(-MIN_SUNSHINE_SPAN_HOURS, lowest ?: 0.0), maxOf(MIN_SUNSHINE_SPAN_HOURS, highest ?: 0.0))
-        Metric.PRECIPITATION -> niceAxis(minOf(-MIN_RAIN_SPAN_PERCENT, lowest ?: 0.0), maxOf(MIN_RAIN_SPAN_PERCENT, highest ?: 0.0))
+        Metric.SUNSHINE -> niceAxis(0.0, maxOf(MIN_SUNSHINE_TOTAL_HOURS, highest ?: 0.0))
+        Metric.PRECIPITATION -> niceAxis(0.0, maxOf(MIN_RAIN_TOTAL_MM, highest ?: 0.0))
     }
 }
 
-/** What a month's bar shows: the deviation in the unit of the metric, for rain its percent of the normal (null: no bar). */
+/** What a month's bar shows: the deviation in °C, or the month's total in hours of sunshine or mm of rain (null: no bar). */
 internal fun anomalyValue(
     metric: Metric,
     month: MonthlyAnomaly,
-): Double? = if (metric == Metric.PRECIPITATION) month.deltaPercent else month.delta
+): Double? = if (metric == Metric.TEMPERATURE) month.delta else month.observedTotal
+
+/** The total the grey bar behind a month's bar shows: the historical average of the compared days; none for temperature. */
+internal fun anomalyReferenceValue(
+    metric: Metric,
+    month: MonthlyAnomaly,
+): Double? = if (metric == Metric.TEMPERATURE) null else month.referenceTotal
 
 /** A tick of the daily bars' axis with the metric unit. */
 internal fun dailyTickLabel(
@@ -117,19 +124,36 @@ internal fun anomalyTickLabel(
     when (metric) {
         Metric.TEMPERATURE -> "${formatTick(value)}°C"
         Metric.SUNSHINE -> "${formatTick(value)} h"
-        Metric.PRECIPITATION -> "${formatTick(value)}%"
+        Metric.PRECIPITATION -> "${formatTick(value)} mm"
     }
 
-/** The label above or below a month's bar: `+1.8`, `-0.4` (hours for sunshine), `+35%` for rain. */
+/** The label above a month's bar: `+1.8` (°C deviation), `186` (hours of sunshine), `7.5` (mm of rain). */
 internal fun anomalyBarLabel(
     metric: Metric,
     value: Double,
 ): String =
     when (metric) {
         Metric.TEMPERATURE -> formatSigned(value)
-        Metric.SUNSHINE -> metric.formatDelta(value, signAtZero = false).removeSuffix(" ${metric.unit}")
-        Metric.PRECIPITATION -> Metric.formatPercent(value)
+        Metric.SUNSHINE, Metric.PRECIPITATION -> Metric.PRECIPITATION.formatNumber(value)
     }
+
+/** A monthly amount of sunshine or rain with its unit: whole numbers from 10 on, else one decimal (`251 h`, `7.5 mm`). */
+internal fun formatAmount(
+    metric: Metric,
+    value: Double,
+): String = "${Metric.PRECIPITATION.formatNumber(value)} ${amountUnit(metric)}"
+
+/** A signed monthly amount, see [formatAmount]; without [metric] just the number (`+12`, `-4.5`). */
+internal fun formatAmountDelta(
+    value: Double,
+    metric: Metric? = null,
+): String {
+    val number = Metric.PRECIPITATION.formatNumber(abs(value))
+    val sign = if (number.toDouble() == 0.0) "" else if (value < 0) "-" else "+"
+    return sign + number + (metric?.let { " ${amountUnit(it)}" } ?: "")
+}
+
+private fun amountUnit(metric: Metric): String = if (metric == Metric.SUNSHINE) "h" else metric.unit
 
 /** The color of a day's bar: rain is blue and sunshine is amber. */
 internal fun dailyBarColor(
@@ -209,5 +233,5 @@ internal fun cumulativeAverageDailyValues(
 
 private const val MIN_SUNSHINE_AXIS_HOURS = 4.0
 private const val MIN_RAIN_AXIS_MM = 4.0
-private const val MIN_SUNSHINE_SPAN_HOURS = 1.0
-private const val MIN_RAIN_SPAN_PERCENT = 50.0
+private const val MIN_SUNSHINE_TOTAL_HOURS = 10.0
+private const val MIN_RAIN_TOTAL_MM = 10.0

@@ -1,6 +1,5 @@
 package com.example.fineweather.ui.screens
 
-import com.example.fineweather.domain.AssessmentScales
 import com.example.fineweather.domain.DayPoint
 import com.example.fineweather.domain.ForecastOutlook
 import com.example.fineweather.domain.Metric
@@ -279,16 +278,10 @@ internal fun yearSummaryText(
     if (metric == Metric.TEMPERATURE) {
         return "So far $year is ${formatSigned(delta)}°C compared with $referenceLabel, with $months warmer than average."
     }
-    val percent = summary.deltaPercent
-    val change =
-        when {
-            percent != null && Metric.formatPercent(percent) == "0%" -> null
-            percent != null -> Metric.formatPercent(percent)
-            metric.negligible(delta) -> null
-            else -> metric.formatDelta(delta)
-        }
+    val total = summary.totalDelta ?: return "No monthly comparison is available yet."
+    val amount = formatAmountDelta(total, metric)
     val what = if (metric == Metric.PRECIPITATION) "rainfall" else "sunshine"
-    val lead = if (change == null) "$what in line with" else "${if (metric == Metric.PRECIPITATION) "$change rainfall" else change} compared with"
+    val lead = if (amount.none { it in '1'..'9' }) "$what in line with" else "$amount $what compared with"
     return "So far this year: $lead the $referenceLabel average, $months ${metric.wording.above}."
 }
 
@@ -307,50 +300,41 @@ internal fun yearChartDescription(
                 "${summary.warmerMonths} of ${summary.comparedMonths} months were ${metric.wording.above}."
     }
 
-/** The note under the monthly table. [withoutBar]: some month has no percent, so no bar. */
-internal fun yearChartCaption(
-    metric: Metric,
-    withoutBar: Boolean = false,
-): String {
+/** The note under the monthly table. */
+internal fun yearChartCaption(metric: Metric): String {
+    val partial = "A lighter bar is a month that is still running, compared with the same days only."
     val bars =
         when (metric) {
             Metric.TEMPERATURE -> "Bars show the deviation in °C."
-            Metric.SUNSHINE -> "Bars show the deviation in h/day."
-            Metric.PRECIPITATION -> "Bars show how much more or less rain fell than normal, in percent."
+            Metric.SUNSHINE -> "Bars show each month's hours of sunshine; the wider grey bar behind is the historical average."
+            Metric.PRECIPITATION -> "Bars show each month's rain in mm; the wider grey bar behind is the historical average."
         }
-    val partial = "A lighter bar is a month that is still running, compared with the same days only."
-    val minNormal = AssessmentScales.MIN_NORMAL_RAIN_MM.toInt()
-    val none = if (withoutBar) " A month with under $minNormal mm of normal rain has no bar; the table shows its difference in mm." else ""
-    return "$bars $partial$none"
+    return "$bars $partial"
 }
-
-/** Whether a month has a deviation but no bar to draw it with (rain with a tiny normal). */
-internal fun hasMonthWithoutBar(
-    metric: Metric,
-    months: List<MonthlyAnomaly>,
-): Boolean = months.any { it.delta != null && anomalyValue(metric, it) == null }
 
 /** The header texts of the monthly table. */
 internal fun yearTableHeader(metric: Metric): List<String> =
-    listOf("Month", if (metric == Metric.PRECIPITATION) "Total" else "Observed", "Reference", "Δ")
+    if (metric == Metric.TEMPERATURE) {
+        listOf("Month", "Observed", "Reference", "Δ")
+    } else {
+        listOf("Month", "Total", "Reference", "Δ", "Δ%")
+    }
 
-/** The cells of one row of the monthly table: observed, reference and delta in the metric's units. */
+/**
+ * The cells of one row of the monthly table after the month: observed, reference and delta, for sunshine
+ * and rain as monthly totals followed by the delta in percent.
+ */
 internal fun yearTableCells(
     metric: Metric,
     month: MonthlyAnomaly,
-): Triple<String, String, String> {
+): List<String> {
     if (metric == Metric.TEMPERATURE) {
-        return Triple(degrees(month.observedMean), degrees(month.referenceMean), month.delta?.let { formatSigned(it) } ?: "–")
+        return listOf(degrees(month.observedMean), degrees(month.referenceMean), month.delta?.let { formatSigned(it) } ?: "–")
     }
-    val delta = month.delta
-    val deltaText =
-        when {
-            delta == null -> "–"
-            else -> month.deltaPercent?.let { Metric.formatPercent(it) } ?: metric.formatDelta(delta, signAtZero = false)
-        }
-    return Triple(
-        month.observedMean?.let(metric::format) ?: "–",
-        month.referenceMean?.let(metric::format) ?: "–",
-        deltaText,
+    return listOf(
+        month.observedTotal?.let { formatAmount(metric, it) } ?: "–",
+        month.referenceTotal?.let { formatAmount(metric, it) } ?: "–",
+        month.totalDelta?.let { formatAmountDelta(it, metric) } ?: "–",
+        month.totalPercent?.let { Metric.formatPercent(it) } ?: "–",
     )
 }

@@ -452,8 +452,9 @@ private fun DrawScope.drawDailyBars(
 }
 
 /**
- * One bar per month for the deviation from the reference; unfinished months are drawn lighter. For
- * sunshine the bars are in h/day, for rain in percent of the normal (a month without a percent has no bar).
+ * One bar per month. Temperature shows the deviation from the reference in °C. Sunshine and rain show the
+ * month's total in front of a wider, grey bar with the historical average of the same days; unfinished
+ * months are drawn lighter.
  */
 @Composable
 internal fun AnomalyChart(
@@ -484,7 +485,9 @@ internal fun AnomalyChart(
         val width = size.width - left - right
         val chartHeight = size.height - top - bottom
         val bars = months.associate { it.month to anomalyValue(metric, it) }
-        val area = ChartArea(left, top, width, chartHeight, anomalyAxis(metric, bars.values.filterNotNull()))
+        val references = months.associate { it.month to anomalyReferenceValue(metric, it) }
+        val axisValues = (bars.values + references.values).filterNotNull()
+        val area = ChartArea(left, top, width, chartHeight, anomalyAxis(metric, axisValues))
 
         drawYAxis(area, text, { anomalyTickLabel(metric, it) }, emphasizeZero = true)
 
@@ -498,9 +501,58 @@ internal fun AnomalyChart(
                 topLeft = Offset(center - initial.size.width / 2f, area.bottom + 4.dp.toPx()),
             )
             val anomaly = months.firstOrNull { it.month == month } ?: continue
-            val value = bars[month] ?: continue
-            drawMonthBar(area, text, valueStyle, center, slot * 0.6f, metric, value, anomaly.partial, dark)
+            if (metric == Metric.TEMPERATURE) {
+                val value = bars[month] ?: continue
+                drawMonthBar(area, text, valueStyle, center, slot * 0.6f, metric, value, anomaly.partial, dark)
+            } else {
+                drawTotalBars(area, text, valueStyle, center, slot, metric, bars[month], references[month], anomaly.partial, dark)
+            }
         }
+    }
+}
+
+/**
+ * A month's total from zero, with its value above, in front of the wider grey bar of the historical average.
+ * The label goes above the taller of the two.
+ */
+private fun DrawScope.drawTotalBars(
+    area: ChartArea,
+    text: ChartText,
+    valueStyle: TextStyle,
+    center: Float,
+    slot: Float,
+    metric: Metric,
+    total: Double?,
+    reference: Double?,
+    partial: Boolean,
+    dark: Boolean,
+) {
+    val minHeight = 1.dp.toPx()
+    reference?.let {
+        val topLeft = Offset(center - slot * 0.36f, minOf(area.y(it), area.bottom - minHeight))
+        val barSize = Size(slot * 0.72f, area.bottom - topLeft.y)
+        drawRect(text.color.copy(alpha = 0.18f), topLeft, barSize)
+        drawRect(
+            text.color.copy(alpha = 0.5f),
+            topLeft,
+            barSize,
+            style = Stroke(1.dp.toPx()),
+        )
+    }
+    var labelTop = reference?.let { minOf(area.y(it), area.bottom - minHeight) } ?: area.bottom
+    total?.let {
+        val color = dailyBarColor(metric, dark)
+        val topLeft = Offset(center - slot * 0.25f, minOf(area.y(it), area.bottom - minHeight))
+        val barSize = Size(slot * 0.5f, area.bottom - topLeft.y)
+        drawRect(color.copy(alpha = if (partial) 0.4f else 0.9f), topLeft, barSize)
+        if (partial) drawRect(color, topLeft, barSize, style = Stroke(1.5.dp.toPx()))
+        labelTop = minOf(labelTop, topLeft.y)
+        val label = text.measurer.measure(anomalyBarLabel(metric, it), valueStyle)
+        drawText(
+            label,
+            color = text.color,
+            topLeft = Offset(center - label.size.width / 2f, (labelTop - label.size.height - 1.dp.toPx()).coerceAtLeast(0f)),
+        )
     }
 }
 

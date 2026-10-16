@@ -149,6 +149,37 @@ class MetricAnalysisTest {
     }
 
     @Test
+    fun yearToDate_sunshineTotalsAreHoursOverTheComparedDays() {
+        val months = yearToDate(yearSeries { 6.0 }, constant(5.0), today, sun)
+
+        val february = months[1]
+        assertEquals(168.0, february.observedTotal!!, 1e-9)
+        assertEquals(140.0, february.referenceTotal!!, 1e-9)
+        assertEquals(28.0, february.totalDelta!!, 1e-9)
+        assertEquals(20.0, february.totalPercent!!, 1e-9)
+        val october = months.last()
+        assertEquals(13, october.days)
+        assertEquals(78.0, october.observedTotal!!, 1e-9)
+        assertEquals(13.0, october.totalDelta!!, 1e-9)
+    }
+
+    @Test
+    fun monthlyAnomaly_totalsOfRainAreItsValuesAndTemperatureHasNone() {
+        val wet = MonthlyAnomaly(1, 93.0, 62.0, null, 31, false, rain)
+        assertEquals(93.0, wet.observedTotal!!, 1e-9)
+        assertEquals(31.0, wet.totalDelta!!, 1e-9)
+        assertEquals(50.0, wet.totalPercent!!, 1e-9)
+
+        val warm = MonthlyAnomaly(1, 12.0, 10.0, null, 31, false)
+        assertNull(warm.observedTotal)
+        assertNull(warm.totalDelta)
+        assertNull(warm.totalPercent)
+
+        // under an hour of normal sunshine there is no percent
+        assertNull(MonthlyAnomaly(1, 0.1, 0.02, null, 31, false, sun).totalPercent)
+    }
+
+    @Test
     fun monthlyAnomaly_percentNeedsANormalAboveZero() {
         assertNull(MonthlyAnomaly(1, 5.0, 0.0, null, 31, false, rain).deltaPercent)
         assertNull(MonthlyAnomaly(1, null, 5.0, null, 0, false, rain).deltaPercent)
@@ -165,6 +196,7 @@ class MetricAnalysisTest {
         // every day is 1 mm over its normal: 273 days up to Sep 30 and 13 of October
         assertEquals(286.0, summary.delta!!, 1e-9)
         assertEquals(50.0, summary.deltaPercent!!, 1e-9)
+        assertEquals(286.0, summary.totalDelta!!, 1e-9)
         assertEquals(10, summary.warmerMonths)
         assertEquals(10, summary.comparedMonths)
     }
@@ -180,6 +212,7 @@ class MetricAnalysisTest {
         val summary = summarizeYear(months)
 
         assertEquals((2.0 * 30 - 1.0 * 10) / 40, summary.delta!!, 1e-9)
+        assertEquals(2.0 * 30 - 1.0 * 10, summary.totalDelta!!, 1e-9)
         assertNull(summary.deltaPercent)
         assertEquals(1, summary.warmerMonths)
     }

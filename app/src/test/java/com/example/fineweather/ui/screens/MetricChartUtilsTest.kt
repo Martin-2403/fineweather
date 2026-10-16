@@ -125,44 +125,45 @@ class MetricChartUtilsTest {
     }
 
     @Test
-    fun anomalyAxis_sunshineSpansAtLeastOnePlusMinusOneHour() {
-        val axis = anomalyAxis(Metric.SUNSHINE, listOf(0.2, -0.1))
-        assertEquals(-1.0, axis.min, 1e-9)
-        assertEquals(1.0, axis.max, 1e-9)
-        assertTrue(axis.ticks.contains(0.0))
+    fun anomalyAxis_sunshineStartsAtZeroAndReachesAtLeastTenHours() {
+        val axis = anomalyAxis(Metric.SUNSHINE, listOf(2.0, 1.0))
+        assertEquals(0.0, axis.min, 1e-9)
+        assertEquals(10.0, axis.max, 1e-9)
 
-        val wide = anomalyAxis(Metric.SUNSHINE, listOf(-1.1, 3.0))
-        assertTrue(wide.min <= -1.1 && wide.max >= 3.0)
+        val wide = anomalyAxis(Metric.SUNSHINE, listOf(186.0, 250.0))
+        assertEquals(0.0, wide.min, 1e-9)
+        assertTrue(wide.max >= 250.0)
+        assertTrue(wide.ticks.contains(0.0))
     }
 
     @Test
-    fun anomalyAxis_rainSpansAtLeastFiftyPercentEitherWay() {
-        val axis = anomalyAxis(Metric.PRECIPITATION, listOf(10.0))
-        assertEquals(-50.0, axis.min, 1e-9)
-        assertEquals(50.0, axis.max, 1e-9)
+    fun anomalyAxis_rainStartsAtZeroAndReachesAtLeastTenMillimetres() {
+        val axis = anomalyAxis(Metric.PRECIPITATION, listOf(3.0))
+        assertEquals(0.0, axis.min, 1e-9)
+        assertEquals(10.0, axis.max, 1e-9)
 
-        val wide = anomalyAxis(Metric.PRECIPITATION, listOf(-77.0, 63.0))
-        assertEquals(-100.0, wide.min, 1e-9)
-        assertTrue(wide.max >= 63.0)
-        assertEquals(listOf(-50.0, -25.0, 0.0, 25.0, 50.0), anomalyAxis(Metric.PRECIPITATION, emptyList()).ticks)
+        val wide = anomalyAxis(Metric.PRECIPITATION, listOf(37.0, 163.0))
+        assertEquals(0.0, wide.min, 1e-9)
+        assertTrue(wide.max >= 163.0)
     }
 
     // ---- what a month's bar shows ----
 
     @Test
-    fun anomalyValue_isTheDeltaExceptForRainWhichIsAPercent() {
+    fun anomalyValue_isTheDeviationForTemperatureAndTheMonthlyTotalForSunshineAndRain() {
         assertEquals(1.5, anomalyValue(Metric.TEMPERATURE, month(Metric.TEMPERATURE, 11.5, 10.0))!!, 1e-9)
-        assertEquals(-0.8, anomalyValue(Metric.SUNSHINE, month(Metric.SUNSHINE, 4.2, 5.0))!!, 1e-9)
-        assertEquals(35.0, anomalyValue(Metric.PRECIPITATION, month(Metric.PRECIPITATION, 81.0, 60.0))!!, 1e-9)
+        // 20 days of 4.2 vs 5.0 h/day
+        assertEquals(84.0, anomalyValue(Metric.SUNSHINE, month(Metric.SUNSHINE, 4.2, 5.0))!!, 1e-9)
+        assertEquals(81.0, anomalyValue(Metric.PRECIPITATION, month(Metric.PRECIPITATION, 81.0, 60.0))!!, 1e-9)
+        assertNull(anomalyValue(Metric.PRECIPITATION, month(Metric.PRECIPITATION, null, 60.0)))
     }
 
     @Test
-    fun anomalyValue_rainWithATinyNormalHasNoBar() {
-        val dry = month(Metric.PRECIPITATION, 3.0, 1.5)
-
-        assertNull(anomalyValue(Metric.PRECIPITATION, dry))
-        assertEquals(1.5, dry.delta!!, 1e-9)
-        assertNull(anomalyValue(Metric.PRECIPITATION, month(Metric.PRECIPITATION, null, 60.0)))
+    fun anomalyReferenceValue_isTheHistoricalTotalOfTheComparedDays() {
+        assertEquals(100.0, anomalyReferenceValue(Metric.SUNSHINE, month(Metric.SUNSHINE, 4.2, 5.0))!!, 1e-9)
+        assertEquals(60.0, anomalyReferenceValue(Metric.PRECIPITATION, month(Metric.PRECIPITATION, 81.0, 60.0))!!, 1e-9)
+        assertNull(anomalyReferenceValue(Metric.PRECIPITATION, month(Metric.PRECIPITATION, 81.0, null)))
+        assertNull(anomalyReferenceValue(Metric.TEMPERATURE, month(Metric.TEMPERATURE, 11.5, 10.0)))
     }
 
     // ---- labels ----
@@ -177,24 +178,20 @@ class MetricChartUtilsTest {
     }
 
     @Test
-    fun anomalyTickLabel_isInHoursOrPercent() {
+    fun anomalyTickLabel_isInHoursOrMillimetres() {
         assertEquals("-5°C", anomalyTickLabel(Metric.TEMPERATURE, -5.0))
-        assertEquals("-1 h", anomalyTickLabel(Metric.SUNSHINE, -1.0))
-        assertEquals("0.5 h", anomalyTickLabel(Metric.SUNSHINE, 0.5))
-        assertEquals("50%", anomalyTickLabel(Metric.PRECIPITATION, 50.0))
-        assertEquals("-100%", anomalyTickLabel(Metric.PRECIPITATION, -100.0))
+        assertEquals("100 h", anomalyTickLabel(Metric.SUNSHINE, 100.0))
+        assertEquals("2.5 h", anomalyTickLabel(Metric.SUNSHINE, 2.5))
+        assertEquals("50 mm", anomalyTickLabel(Metric.PRECIPITATION, 50.0))
     }
 
     @Test
-    fun anomalyBarLabel_temperatureIsUnchangedAndTheOthersAreCompact() {
+    fun anomalyBarLabel_temperatureIsSignedAndTheTotalsAreCompact() {
         assertEquals("+1.8", anomalyBarLabel(Metric.TEMPERATURE, 1.84))
         assertEquals("-0.5", anomalyBarLabel(Metric.TEMPERATURE, -0.45))
-        assertEquals("+0.8", anomalyBarLabel(Metric.SUNSHINE, 0.84))
-        assertEquals("-1.1", anomalyBarLabel(Metric.SUNSHINE, -1.14))
-        assertEquals("0.0", anomalyBarLabel(Metric.SUNSHINE, 0.02))
-        assertEquals("+35%", anomalyBarLabel(Metric.PRECIPITATION, 34.6))
-        assertEquals("-77%", anomalyBarLabel(Metric.PRECIPITATION, -77.2))
-        assertEquals("0%", anomalyBarLabel(Metric.PRECIPITATION, 0.2))
+        assertEquals("186", anomalyBarLabel(Metric.SUNSHINE, 186.2))
+        assertEquals("7.5", anomalyBarLabel(Metric.PRECIPITATION, 7.46))
+        assertEquals("93", anomalyBarLabel(Metric.PRECIPITATION, 93.0))
     }
 
     // ---- colours ----

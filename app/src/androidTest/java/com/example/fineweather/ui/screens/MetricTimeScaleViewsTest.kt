@@ -11,6 +11,8 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -241,35 +243,42 @@ class MetricTimeScaleViewsTest {
 
         composeTestRule.onNodeWithText("2026 compared with 1961–1990").assertIsDisplayed()
         composeTestRule.onNodeWithTag("yearSummary")
-            .assertTextEquals("So far this year: +1.5 h/day compared with the 1961–1990 average, 10 of 10 months sunnier.")
-        composeTestRule.onNodeWithText("Observed").assertIsDisplayed()
+            .assertTextEquals("So far this year: +429 h sunshine compared with the 1961–1990 average, 10 of 10 months sunnier.")
+        composeTestRule.onNodeWithText("Total").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Δ%").assertIsDisplayed()
         composeTestRule.onNodeWithText("Jan").assertExists()
         composeTestRule.onNodeWithText("Oct*").assertExists()
-        composeTestRule.onNodeWithText("Bars show the deviation in h/day.", substring = true).assertExists()
+        // January: 31 days of 6.0 vs 4.5 h/day
+        composeTestRule.onNodeWithText("186 h").assertExists()
+        composeTestRule.onAllNodesWithText("+33%").onFirst().assertExists()
+        composeTestRule.onNodeWithText("Bars show each month's hours of sunshine", substring = true).assertExists()
         composeTestRule
             .onNodeWithContentDescription("Monthly sunshine compared with the 1961–1990 average. 10 of 10 months were sunnier.")
             .assertExists()
     }
 
     @Test
-    fun yearView_rainShowsPercentSentenceAndTotalsTable() {
+    fun yearView_rainShowsTheMillimetreSentenceAndTotalsTable() {
         show { YearView(rain, label, shape, cardColors, metric = Metric.PRECIPITATION) }
 
         composeTestRule.onNodeWithTag("yearSummary")
-            .assertTextEquals("So far this year: +50% rainfall compared with the 1961–1990 average, 10 of 10 months wetter.")
+            .assertTextEquals("So far this year: +286 mm rainfall compared with the 1961–1990 average, 10 of 10 months wetter.")
         composeTestRule.onNodeWithText("Total").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Bars show how much more or less rain fell than normal, in percent.", substring = true).assertExists()
+        // January: 31 days of 3 vs 2 mm
+        composeTestRule.onNodeWithText("+31 mm").assertExists()
+        composeTestRule.onAllNodesWithText("+50%").onFirst().assertExists()
+        composeTestRule.onNodeWithText("Bars show each month's rain in mm", substring = true).assertExists()
         composeTestRule
             .onNodeWithContentDescription("Monthly rain compared with the 1961–1990 average. 10 of 10 months were wetter.")
             .assertExists()
     }
 
     @Test
-    fun yearView_rainWithATinyNormalShowsTheMillimetreDeltaAndExplainsTheMissingBars() {
+    fun yearView_rainWithATinyNormalShowsTheMillimetreDeltaWithoutAPercent() {
         show { YearView(snapshot(Metric.PRECIPITATION, 0.2, 0.05, null), label, shape, cardColors, metric = Metric.PRECIPITATION) }
 
-        composeTestRule.onNodeWithText("A month with under 2 mm of normal rain has no bar", substring = true).assertExists()
         composeTestRule.onNodeWithText("+4.7 mm", substring = true).assertExists()
+        composeTestRule.onAllNodesWithText("–").onFirst().assertExists()
     }
 
     @Test

@@ -73,12 +73,53 @@ data class MonthlyAnomaly(
     /** True while the month is still running, i.e. only the first days are compared. */
     val partial: Boolean,
     val metric: Metric = Metric.TEMPERATURE,
+    /** The calendar days compared: the whole month, or the days so far while [partial]. */
+    val days: Int = daysObserved,
 ) {
     val delta: Double? get() = if (observedMean != null && referenceMean != null) observedMean - referenceMean else null
 
     /** [delta] as a percent of the normal; only for metrics that add up. */
     val deltaPercent: Double? get() = metric.percent(delta, referenceMean)
+
+    /** The observed amount over the compared days: hours of sunshine, mm of rain; null for temperature. */
+    val observedTotal: Double? get() = total(observedMean)
+
+    /** The normal amount over the compared days, see [observedTotal]. */
+    val referenceTotal: Double? get() = total(referenceMean)
+
+    val totalDelta: Double?
+        get() {
+            val observed = observedTotal ?: return null
+            val reference = referenceTotal ?: return null
+            return observed - reference
+        }
+
+    /**
+     * [totalDelta] as a percent of [referenceTotal]: for rain [deltaPercent], for sunshine only on a normal
+     * of at least [MIN_NORMAL_SUNSHINE_HOURS] (a few hours of polar-winter sun would give huge percents).
+     */
+    val totalPercent: Double?
+        get() =
+            when (metric) {
+                Metric.PRECIPITATION -> deltaPercent
+                Metric.SUNSHINE -> {
+                    val reference = referenceTotal
+                    val delta = totalDelta
+                    if (delta != null && reference != null && reference >= MIN_NORMAL_SUNSHINE_HOURS) delta / reference * 100.0 else null
+                }
+                Metric.TEMPERATURE -> null
+            }
+
+    private fun total(value: Double?): Double? =
+        when {
+            metric == Metric.TEMPERATURE -> null
+            metric.aggregation == Aggregation.TOTAL -> value
+            else -> value?.times(days)
+        }
 }
+
+/** Smallest normal sunshine total, in hours, that a month's sunshine is given a percent against. */
+const val MIN_NORMAL_SUNSHINE_HOURS = 1.0
 
 /**
  * January up to the month of yesterday. Finished months use the full-month reference, the
@@ -105,6 +146,7 @@ fun yearToDate(
             daysObserved = series.count(yearMonth.atDay(1), to),
             partial = running,
             metric = metric,
+            days = toDay,
         )
     }
 }
@@ -268,6 +310,8 @@ data class YearSummary(
     val comparedMonths: Int,
     /** For rain, [delta] as a percent of the normal of the compared months. */
     val deltaPercent: Double? = null,
+    /** The year's surplus in hours of sunshine or mm of rain, summed over the compared months; null for temperature. */
+    val totalDelta: Double? = null,
 )
 
 fun summarizeYear(months: List<MonthlyAnomaly>): YearSummary {
@@ -290,6 +334,7 @@ fun summarizeYear(months: List<MonthlyAnomaly>): YearSummary {
             } else {
                 null
             },
+        totalDelta = comparable.mapNotNull { it.totalDelta }.takeIf { it.isNotEmpty() }?.sum(),
     )
 }
 

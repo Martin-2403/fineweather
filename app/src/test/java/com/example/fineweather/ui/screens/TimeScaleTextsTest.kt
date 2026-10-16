@@ -301,24 +301,29 @@ class TimeScaleTextsTest {
         val s = summarizeYear(months(Metric.SUNSHINE, 5.0 to 4.5, 6.0 to 5.0, 4.0 to 5.0))
 
         assertEquals(
-            "So far this year: +0.2 h/day compared with the $ref average, 2 of 3 months sunnier.",
+            "So far this year: +15 h sunshine compared with the $ref average, 2 of 3 months sunnier.",
             yearSummaryText(2026, s, ref, Metric.SUNSHINE),
+        )
+        val duller = summarizeYear(months(Metric.SUNSHINE, 4.0 to 5.0, 4.5 to 5.0))
+        assertEquals(
+            "So far this year: -45 h sunshine compared with the $ref average, 0 of 2 months sunnier.",
+            yearSummaryText(2026, duller, ref, Metric.SUNSHINE),
         )
     }
 
     @Test
-    fun yearSummary_rainIsAPercentOfTheNormal() {
+    fun yearSummary_rainIsTheAbsoluteDifferenceInMillimetres() {
         val s = summarizeYear(months(Metric.PRECIPITATION, 80.0 to 60.0, 50.0 to 70.0, 120.0 to 100.0))
 
         assertEquals(
-            "So far this year: +9% rainfall compared with the $ref average, 2 of 3 months wetter.",
+            "So far this year: +20 mm rainfall compared with the $ref average, 2 of 3 months wetter.",
             yearSummaryText(2026, s, ref, Metric.PRECIPITATION),
         )
     }
 
     @Test
     fun yearSummary_neutralAndLowNormalVariants() {
-        val flat = summarizeYear(months(Metric.SUNSHINE, 5.0 to 5.0, 5.02 to 5.0))
+        val flat = summarizeYear(months(Metric.SUNSHINE, 5.0 to 5.0, 5.001 to 5.0))
         assertEquals(
             "So far this year: sunshine in line with the $ref average, 1 of 2 months sunnier.",
             yearSummaryText(2026, flat, ref, Metric.SUNSHINE),
@@ -342,46 +347,51 @@ class TimeScaleTextsTest {
             "Bars show the deviation in °C. A lighter bar is a month that is still running, compared with the same days only.",
             yearChartCaption(Metric.TEMPERATURE),
         )
-        assertTrue(yearChartCaption(Metric.SUNSHINE).startsWith("Bars show the deviation in h/day."))
-        assertTrue(yearChartCaption(Metric.PRECIPITATION).startsWith("Bars show how much more or less rain fell than normal, in percent."))
-        assertFalse(yearChartCaption(Metric.PRECIPITATION).contains("no bar"))
-        assertTrue(yearChartCaption(Metric.PRECIPITATION, withoutBar = true).contains("under 2 mm of normal rain has no bar"))
-    }
-
-    @Test
-    fun hasMonthWithoutBar_onlyForRainWithATinyNormal() {
-        assertFalse(hasMonthWithoutBar(Metric.PRECIPITATION, months(Metric.PRECIPITATION, 3.0 to 30.0)))
-        assertTrue(hasMonthWithoutBar(Metric.PRECIPITATION, months(Metric.PRECIPITATION, 3.0 to 1.0)))
-        assertFalse(hasMonthWithoutBar(Metric.SUNSHINE, months(Metric.SUNSHINE, 3.0 to 1.0)))
+        assertTrue(
+            yearChartCaption(Metric.SUNSHINE)
+                .startsWith("Bars show each month's hours of sunshine; the wider grey bar behind is the historical average."),
+        )
+        assertTrue(
+            yearChartCaption(Metric.PRECIPITATION)
+                .startsWith("Bars show each month's rain in mm; the wider grey bar behind is the historical average."),
+        )
     }
 
     @Test
     fun yearTable_headersAndCellsPerMetric() {
         assertEquals(listOf("Month", "Observed", "Reference", "Δ"), yearTableHeader(Metric.TEMPERATURE))
-        assertEquals(listOf("Month", "Observed", "Reference", "Δ"), yearTableHeader(Metric.SUNSHINE))
-        assertEquals(listOf("Month", "Total", "Reference", "Δ"), yearTableHeader(Metric.PRECIPITATION))
+        assertEquals(listOf("Month", "Total", "Reference", "Δ", "Δ%"), yearTableHeader(Metric.SUNSHINE))
+        assertEquals(listOf("Month", "Total", "Reference", "Δ", "Δ%"), yearTableHeader(Metric.PRECIPITATION))
 
         assertEquals(
-            Triple("12.0°C", "8.0°C", "+4.0"),
+            listOf("12.0°C", "8.0°C", "+4.0"),
             yearTableCells(Metric.TEMPERATURE, months(Metric.TEMPERATURE, 12.0 to 8.0).first()),
         )
+        // sunshine is shown as hours per month: 30 days of 5.4 vs 4.8 h/day
         assertEquals(
-            Triple("5.4 h/day", "4.9 h/day", "+0.5 h/day"),
-            yearTableCells(Metric.SUNSHINE, months(Metric.SUNSHINE, 5.4 to 4.9).first()),
+            listOf("162 h", "144 h", "+18 h", "+13%"),
+            yearTableCells(Metric.SUNSHINE, months(Metric.SUNSHINE, 5.4 to 4.8).first()),
         )
         assertEquals(
-            Triple("81 mm", "60 mm", "+35%"),
+            listOf("81 mm", "60 mm", "+21 mm", "+35%"),
             yearTableCells(Metric.PRECIPITATION, months(Metric.PRECIPITATION, 81.0 to 60.0).first()),
         )
-        // a tiny normal has no percent: the table shows the mm difference instead
+        // a tiny normal has no percent
         assertEquals(
-            Triple("3.0 mm", "1.0 mm", "+2.0 mm"),
+            listOf("3.0 mm", "1.0 mm", "+2.0 mm", "–"),
             yearTableCells(Metric.PRECIPITATION, months(Metric.PRECIPITATION, 3.0 to 1.0).first()),
         )
         assertEquals(
-            Triple("–", "8.0°C", "–"),
+            listOf("–", "8.0°C", "–"),
             yearTableCells(Metric.TEMPERATURE, MonthlyAnomaly(1, null, 8.0, null, 0, false)),
         )
+    }
+
+    @Test
+    fun yearTable_aRunningMonthUsesTheDaysSoFar() {
+        val running = MonthlyAnomaly(10, 4.0, 3.0, null, daysObserved = 14, partial = true, metric = Metric.SUNSHINE, days = 15)
+
+        assertEquals(listOf("60 h", "45 h", "+15 h", "+33%"), yearTableCells(Metric.SUNSHINE, running))
     }
 
     @Test
