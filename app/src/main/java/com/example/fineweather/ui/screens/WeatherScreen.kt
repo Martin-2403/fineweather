@@ -4,12 +4,9 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,7 +20,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardColors
 import androidx.compose.material3.CardDefaults
@@ -34,9 +30,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -75,13 +68,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.ImeAction
 import com.example.fineweather.R
 import com.example.fineweather.nunitoSansFamily
-import com.example.fineweather.data.models.GeoPlace
 import com.example.fineweather.domain.Metric
 import com.example.fineweather.ui.models.ValueWithIcons
-import com.example.fineweather.ui.theme.HazyBlue
-import com.example.fineweather.ui.theme.LightTeal
 import com.example.fineweather.ui.theme.SoftMist
-import com.example.fineweather.ui.theme.TealInk
 import com.example.fineweather.viewmodels.Loadable
 import com.example.fineweather.viewmodels.ReportRow
 import com.example.fineweather.viewmodels.SearchStatus
@@ -201,7 +190,7 @@ fun WeatherScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            MetricPills(selected = report.metric, onSelect = viewModel::selectMetric)
 
             StatusHeaderCard(
                 imageRes = resolveStatusImageRes(report.picture),
@@ -214,12 +203,13 @@ fun WeatherScreen(
                 metric = report.metric,
             )
 
-            MetricPills(selected = report.metric, onSelect = viewModel::selectMetric)
-
-            UnderlineTabs(
+            CardTabs(
                 labels = TimeScale.entries.map { it.label },
                 selectedIndex = timeScale.ordinal,
                 onSelect = { timeScale = TimeScale.entries[it] },
+                shape = cardShape,
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                modifier = Modifier.padding(top = 8.dp),
                 tagPrefix = "timeScale",
             )
 
@@ -470,12 +460,9 @@ internal fun MetricPills(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        // The end padding lines the pill up with the Month toggle inside the view card below.
         modifier = modifier
             .fillMaxWidth()
-            .height(38.dp)
-            .padding(end = 12.dp),
-        horizontalArrangement = Arrangement.End,
+            .height(38.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         CompactToggle(
@@ -484,6 +471,7 @@ internal fun MetricPills(
             onSelect = { onSelect(Metric.entries[it]) },
             tagPrefix = "metric",
             contentDescriptions = Metric.entries.map { it.pillDescription },
+            fillWidth = true,
         )
     }
 }
@@ -928,7 +916,6 @@ private fun EarthStatusPhotoCard(
  * A label with its value. [stacked] puts the value under the label in a tighter cell, for compact
  * widths that have no room for the label, a value text and up to three icons side by side.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun StatusTrendCell(
     label: String,
