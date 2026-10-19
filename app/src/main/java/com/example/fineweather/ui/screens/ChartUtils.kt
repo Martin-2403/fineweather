@@ -99,11 +99,11 @@ internal fun anomalyValue(
     month: MonthlyAnomaly,
 ): Double? = if (metric == Metric.TEMPERATURE) month.delta else month.observedTotal
 
-/** The total the grey bar behind a month's bar shows: the historical average of the compared days; none for temperature. */
+/** The total the grey bar behind a month's bar shows: the historical average of the whole month; none for temperature. */
 internal fun anomalyReferenceValue(
     metric: Metric,
     month: MonthlyAnomaly,
-): Double? = if (metric == Metric.TEMPERATURE) null else month.referenceTotal
+): Double? = if (metric == Metric.TEMPERATURE) null else month.referenceMonthTotal
 
 /** A tick of the daily bars' axis with the metric unit. */
 internal fun dailyTickLabel(

@@ -75,6 +75,10 @@ data class MonthlyAnomaly(
     val metric: Metric = Metric.TEMPERATURE,
     /** The calendar days compared: the whole month, or the days so far while [partial]. */
     val days: Int = daysObserved,
+    /** The calendar days of the whole month. */
+    val monthDays: Int = days,
+    /** The normal over the whole month, in the unit of [referenceMean]; the same as it unless the month is [partial]. */
+    val referenceMonthMean: Double? = referenceMean,
 ) {
     val delta: Double? get() = if (observedMean != null && referenceMean != null) observedMean - referenceMean else null
 
@@ -82,10 +86,13 @@ data class MonthlyAnomaly(
     val deltaPercent: Double? get() = metric.percent(delta, referenceMean)
 
     /** The observed amount over the compared days: hours of sunshine, mm of rain; null for temperature. */
-    val observedTotal: Double? get() = total(observedMean)
+    val observedTotal: Double? get() = total(observedMean, days)
 
     /** The normal amount over the compared days, see [observedTotal]. */
-    val referenceTotal: Double? get() = total(referenceMean)
+    val referenceTotal: Double? get() = total(referenceMean, days)
+
+    /** The normal amount over the whole month, also while it is [partial], see [observedTotal]. */
+    val referenceMonthTotal: Double? get() = total(referenceMonthMean, monthDays)
 
     val totalDelta: Double?
         get() {
@@ -110,11 +117,14 @@ data class MonthlyAnomaly(
                 Metric.TEMPERATURE -> null
             }
 
-    private fun total(value: Double?): Double? =
+    private fun total(
+        value: Double?,
+        over: Int,
+    ): Double? =
         when {
             metric == Metric.TEMPERATURE -> null
             metric.aggregation == Aggregation.TOTAL -> value
-            else -> value?.times(days)
+            else -> value?.times(over)
         }
 }
 
@@ -135,8 +145,9 @@ fun yearToDate(
     val year = yesterday.year
     return (1..yesterday.monthValue).map { month ->
         val yearMonth = YearMonth.of(year, month)
-        val running = month == yesterday.monthValue && yesterday.dayOfMonth < yearMonth.lengthOfMonth()
-        val toDay = if (running) yesterday.dayOfMonth else yearMonth.lengthOfMonth()
+        val length = yearMonth.lengthOfMonth()
+        val running = month == yesterday.monthValue && yesterday.dayOfMonth < length
+        val toDay = if (running) yesterday.dayOfMonth else length
         val to = yearMonth.atDay(toDay)
         MonthlyAnomaly(
             month = month,
@@ -147,6 +158,36 @@ fun yearToDate(
             partial = running,
             metric = metric,
             days = toDay,
+            monthDays = length,
+            referenceMonthMean = climate?.windowMean(month, 1, length)?.let { metric.periodValue(it, length) },
+        )
+    }
+}
+
+/**
+ * The months after yesterday's, carrying only their normal over the whole month, so the rest of the year can be
+ * shown ahead of time. Empty for temperature, which has no total to show, and without a reference.
+ */
+fun upcomingMonths(
+    climate: ReferenceClimate?,
+    today: LocalDate,
+    metric: Metric = Metric.TEMPERATURE,
+): List<MonthlyAnomaly> {
+    if (climate == null || metric == Metric.TEMPERATURE) return emptyList()
+    val yesterday = today.minusDays(1)
+    return (yesterday.monthValue + 1..12).map { month ->
+        val length = YearMonth.of(yesterday.year, month).lengthOfMonth()
+        MonthlyAnomaly(
+            month = month,
+            observedMean = null,
+            referenceMean = null,
+            referenceStdDev = null,
+            daysObserved = 0,
+            partial = false,
+            metric = metric,
+            days = 0,
+            monthDays = length,
+            referenceMonthMean = climate.windowMean(month, 1, length)?.let { metric.periodValue(it, length) },
         )
     }
 }
@@ -349,6 +390,9 @@ fun ClimateSnapshot.lastDays(days: Int = 31): Double? = lastDaysMean(series, tod
 
 /** The months of the year up to yesterday, see [yearToDate]. */
 fun ClimateSnapshot.months(): List<MonthlyAnomaly> = yearToDate(series, reference, today, metric)
+
+/** The rest of the year after yesterday's month, see [upcomingMonths]. */
+fun ClimateSnapshot.upcomingMonths(): List<MonthlyAnomaly> = upcomingMonths(reference, today, metric)
 
 /** The next [days] of the forecast, see [forecastOutlook]. */
 fun ClimateSnapshot.outlook(days: Int): ForecastOutlook? = forecastOutlook(forecast, reference, days, metric)

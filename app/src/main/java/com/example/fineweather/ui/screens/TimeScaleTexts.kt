@@ -302,12 +302,17 @@ internal fun yearChartDescription(
 
 /** The note under the monthly table. */
 internal fun yearChartCaption(metric: Metric): String {
-    val partial = "A lighter bar is a month that is still running, compared with the same days only."
+    val partial =
+        if (metric == Metric.TEMPERATURE) {
+            "A lighter bar is a month that is still running, compared with the same days only."
+        } else {
+            "A lighter bar is a month that is still running; the table compares it with the same days only."
+        }
     val bars =
         when (metric) {
             Metric.TEMPERATURE -> "Bars show the deviation in °C."
-            Metric.SUNSHINE -> "Bars show each month's hours of sunshine; the wider grey bar behind is the historical average."
-            Metric.PRECIPITATION -> "Bars show each month's rain in mm; the wider grey bar behind is the historical average."
+            Metric.SUNSHINE -> "Bars show each month's hours of sunshine; the wider grey bar behind is the historical average for the whole month."
+            Metric.PRECIPITATION -> "Bars show each month's rain in mm; the wider grey bar behind is the historical average for the whole month."
         }
     return "$bars $partial"
 }

@@ -47,6 +47,7 @@ import com.example.fineweather.domain.months
 import com.example.fineweather.domain.outlook
 import com.example.fineweather.domain.summarize
 import com.example.fineweather.domain.summarizeYear
+import com.example.fineweather.domain.upcomingMonths
 import com.example.fineweather.nunitoSansFamily
 import java.time.LocalDate
 import java.time.format.TextStyle
@@ -289,12 +290,13 @@ internal fun YearView(
         CardTitle("$year compared with $referenceLabel")
         val months = remember(snapshot) { snapshot.months() }
         val summary = remember(months) { summarizeYear(months) }
+        val chartMonths = remember(snapshot, months) { months + snapshot.upcomingMonths() }
         if (snapshot.reference == null || summary.comparedMonths == 0) {
             Caption("No monthly comparison is available yet.")
             return@ViewCard
         }
         AnomalyChart(
-            months = months,
+            months = chartMonths,
             monthInitials = (1..12).map { monthName(it, TextStyle.NARROW) },
             description = yearChartDescription(summary, referenceLabel, metric),
             metric = metric,

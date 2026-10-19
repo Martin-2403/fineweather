@@ -159,11 +159,23 @@ class MetricChartUtilsTest {
     }
 
     @Test
-    fun anomalyReferenceValue_isTheHistoricalTotalOfTheComparedDays() {
+    fun anomalyReferenceValue_isTheHistoricalTotalOfTheWholeMonth() {
         assertEquals(100.0, anomalyReferenceValue(Metric.SUNSHINE, month(Metric.SUNSHINE, 4.2, 5.0))!!, 1e-9)
         assertEquals(60.0, anomalyReferenceValue(Metric.PRECIPITATION, month(Metric.PRECIPITATION, 81.0, 60.0))!!, 1e-9)
         assertNull(anomalyReferenceValue(Metric.PRECIPITATION, month(Metric.PRECIPITATION, 81.0, null)))
         assertNull(anomalyReferenceValue(Metric.TEMPERATURE, month(Metric.TEMPERATURE, 11.5, 10.0)))
+    }
+
+    @Test
+    fun anomalyReferenceValue_ofARunningMonthCoversTheDaysToCome() {
+        // 15 of 31 days observed; the normal is 5.0 h/day over the compared days and 4.0 over the whole month
+        val running =
+            MonthlyAnomaly(10, 6.0, 5.0, null, 15, true, Metric.SUNSHINE, days = 15, monthDays = 31, referenceMonthMean = 4.0)
+        assertEquals(124.0, anomalyReferenceValue(Metric.SUNSHINE, running)!!, 1e-9)
+        assertEquals(90.0, anomalyValue(Metric.SUNSHINE, running)!!, 1e-9)
+
+        val rain = MonthlyAnomaly(10, 30.0, 26.0, null, 15, true, Metric.PRECIPITATION, days = 15, monthDays = 31, referenceMonthMean = 62.0)
+        assertEquals(62.0, anomalyReferenceValue(Metric.PRECIPITATION, rain)!!, 1e-9)
     }
 
     // ---- labels ----

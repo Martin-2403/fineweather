@@ -164,6 +164,47 @@ class MetricAnalysisTest {
     }
 
     @Test
+    fun yearToDate_aRunningMonthKeepsTheNormalOfTheWholeMonth() {
+        val months = yearToDate(yearSeries { 6.0 }, constant(5.0), today, sun)
+
+        val october = months.last()
+        assertEquals(13, october.days)
+        assertEquals(65.0, october.referenceTotal!!, 1e-9)
+        assertEquals(31, october.monthDays)
+        assertEquals(155.0, october.referenceMonthTotal!!, 1e-9)
+        // a finished month compares its whole length either way
+        val february = months[1]
+        assertEquals(february.referenceTotal!!, february.referenceMonthTotal!!, 1e-9)
+
+        val rainMonths = yearToDate(yearSeries { 3.0 }, constant(2.0), today, rain)
+        assertEquals(26.0, rainMonths.last().referenceTotal!!, 1e-9)
+        assertEquals(62.0, rainMonths.last().referenceMonthTotal!!, 1e-9)
+    }
+
+    @Test
+    fun upcomingMonths_carryOnlyTheNormalOfTheWholeMonth() {
+        val upcoming = upcomingMonths(constant(2.0), today, rain)
+
+        assertEquals(listOf(11, 12), upcoming.map { it.month })
+        assertEquals(listOf(60.0, 62.0), upcoming.map { it.referenceMonthTotal!! })
+        upcoming.forEach {
+            assertNull(it.observedTotal)
+            assertNull(it.delta)
+            assertEquals(0, it.daysObserved)
+        }
+        assertEquals(listOf(150.0, 155.0), upcomingMonths(constant(5.0), today, sun).map { it.referenceMonthTotal!! })
+        // they never count as compared months
+        assertEquals(10, summarizeYear(yearToDate(yearSeries { 3.0 }, constant(2.0), today, rain) + upcoming).comparedMonths)
+    }
+
+    @Test
+    fun upcomingMonths_areEmptyForTemperatureWithoutAReferenceAndAtTheEndOfTheYear() {
+        assertTrue(upcomingMonths(constant(5.0), today).isEmpty())
+        assertTrue(upcomingMonths(null, today, rain).isEmpty())
+        assertTrue(upcomingMonths(constant(2.0), LocalDate.of(2027, 1, 1), rain).isEmpty())
+    }
+
+    @Test
     fun monthlyAnomaly_totalsOfRainAreItsValuesAndTemperatureHasNone() {
         val wet = MonthlyAnomaly(1, 93.0, 62.0, null, 31, false, rain)
         assertEquals(93.0, wet.observedTotal!!, 1e-9)

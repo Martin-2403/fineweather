@@ -453,8 +453,8 @@ private fun DrawScope.drawDailyBars(
 
 /**
  * One bar per month. Temperature shows the deviation from the reference in °C. Sunshine and rain show the
- * month's total in front of a wider, grey bar with the historical average of the same days; unfinished
- * months are drawn lighter.
+ * month's total in front of a wider, grey bar with the historical average of the whole month, also for the
+ * months still to come; unfinished months are drawn lighter.
  */
 @Composable
 internal fun AnomalyChart(

@@ -349,12 +349,13 @@ class TimeScaleTextsTest {
         )
         assertTrue(
             yearChartCaption(Metric.SUNSHINE)
-                .startsWith("Bars show each month's hours of sunshine; the wider grey bar behind is the historical average."),
+                .startsWith("Bars show each month's hours of sunshine; the wider grey bar behind is the historical average for the whole month."),
         )
         assertTrue(
             yearChartCaption(Metric.PRECIPITATION)
-                .startsWith("Bars show each month's rain in mm; the wider grey bar behind is the historical average."),
+                .startsWith("Bars show each month's rain in mm; the wider grey bar behind is the historical average for the whole month."),
         )
+        assertTrue(yearChartCaption(Metric.PRECIPITATION).endsWith("the table compares it with the same days only."))
     }
 
     @Test
