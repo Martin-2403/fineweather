@@ -100,7 +100,7 @@ enum class Metric(
             } else {
                 formatNumber(a) to formatNumber(b)
             }
-        return "${numbers.first} vs ${numbers.second}$unitSuffix"
+        return "${numbers.first}$unitSuffix vs ${numbers.second}$unitSuffix"
     }
 
     /** Whether a rain amount is shown with a decimal: below 10 mm once rounded to one decimal. */

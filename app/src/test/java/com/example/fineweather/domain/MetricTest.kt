@@ -119,18 +119,18 @@ class MetricTest {
 
     @Test
     fun formatPair_rainSharesOnePrecision() {
-        assertEquals("62 vs 33 mm", Metric.PRECIPITATION.formatPair(62.0, 33.0))
-        assertEquals("61.0 vs 4.2 mm", Metric.PRECIPITATION.formatPair(61.0, 4.2))
-        assertEquals("5.0 vs 33.0 mm", Metric.PRECIPITATION.formatPair(5.0, 33.0))
+        assertEquals("62 mm vs 33 mm", Metric.PRECIPITATION.formatPair(62.0, 33.0))
+        assertEquals("61.0 mm vs 4.2 mm", Metric.PRECIPITATION.formatPair(61.0, 4.2))
+        assertEquals("5.0 mm vs 33.0 mm", Metric.PRECIPITATION.formatPair(5.0, 33.0))
         // 9.96 rounds to 10, so both are whole
-        assertEquals("10 vs 33 mm", Metric.PRECIPITATION.formatPair(9.96, 33.0))
-        assertEquals("0.0 vs 0.0 mm", Metric.PRECIPITATION.formatPair(0.0, 0.0))
+        assertEquals("10 mm vs 33 mm", Metric.PRECIPITATION.formatPair(9.96, 33.0))
+        assertEquals("0.0 mm vs 0.0 mm", Metric.PRECIPITATION.formatPair(0.0, 0.0))
     }
 
     @Test
     fun formatPair_otherMetricsFormatEachNumberAsUsual() {
-        assertEquals("6.0 vs 5.0 h/day", Metric.SUNSHINE.formatPair(6.0, 5.0))
-        assertEquals("12.34 vs 11.00°C", Metric.TEMPERATURE.formatPair(12.34, 11.0))
+        assertEquals("6.0 h/day vs 5.0 h/day", Metric.SUNSHINE.formatPair(6.0, 5.0))
+        assertEquals("12.34°C vs 11.00°C", Metric.TEMPERATURE.formatPair(12.34, 11.0))
     }
 
     @Test

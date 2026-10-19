@@ -457,8 +457,8 @@ class MetricAnalysisTest {
                     TemperatureComparisonMode.ABSOLUTE_DELTA, outlook, month.daysObserved, snapshot.metric,
                 ),
             )
-        assertEquals("October so far: clearly wetter than the 1961–1990 average (+50%, 39 vs 26 mm).", text[0].text)
-        assertEquals("Next 7 days: wetter than usual (21 vs 14 mm).", text[1].text)
+        assertEquals("October so far: clearly wetter than the 1961–1990 average (+50%, 39 mm vs 26 mm).", text[0].text)
+        assertEquals("Next 7 days: wetter than usual (21 mm vs 14 mm).", text[1].text)
     }
 
     @Test

@@ -92,23 +92,23 @@ class MetricSummaryTest {
     @Test
     fun rain_headlineShowsPercentAndBothTotals() {
         assertEquals(
-            "October so far: much wetter than the 1961–1990 average (+85%, 61 vs 33 mm).",
+            "October so far: much wetter than the 1961–1990 average (+85%, 61 mm vs 33 mm).",
             headline(rain(61.0)).text,
         )
         assertEquals(
-            "October so far: clearly wetter than the 1961–1990 average (+52%, 50 vs 33 mm).",
+            "October so far: clearly wetter than the 1961–1990 average (+52%, 50 mm vs 33 mm).",
             headline(rain(50.0)).text,
         )
         assertEquals(
-            "October so far: a little wetter than the 1961–1990 average (+36%, 45 vs 33 mm).",
+            "October so far: a little wetter than the 1961–1990 average (+36%, 45 mm vs 33 mm).",
             headline(rain(45.0)).text,
         )
         assertEquals(
-            "October so far: clearly drier than the 1961–1990 average (-70%, 10 vs 33 mm).",
+            "October so far: clearly drier than the 1961–1990 average (-70%, 10 mm vs 33 mm).",
             headline(rain(10.0)).text,
         )
         assertEquals(
-            "October so far: much drier than the 1961–1990 average (-85%, 5.0 vs 33.0 mm).",
+            "October so far: much drier than the 1961–1990 average (-85%, 5.0 mm vs 33.0 mm).",
             headline(rain(5.0)).text,
         )
     }
@@ -117,14 +117,14 @@ class MetricSummaryTest {
     fun rain_neutralSaysCloseTo() {
         val headline = headline(rain(35.0))
 
-        assertEquals("October so far: close to the 1961–1990 average (+6%, 35 vs 33 mm).", headline.text)
+        assertEquals("October so far: close to the 1961–1990 average (+6%, 35 mm vs 33 mm).", headline.text)
         assertEquals(Band.NEUTRAL, headline.band)
     }
 
     @Test
     fun rain_smallTotalsKeepADecimal() {
         assertEquals(
-            "October so far: much wetter than the 1961–1990 average (+79%, 7.5 vs 4.2 mm).",
+            "October so far: much wetter than the 1961–1990 average (+79%, 7.5 mm vs 4.2 mm).",
             headline(rain(7.5, reference = 4.2)).text,
         )
     }
@@ -146,15 +146,15 @@ class MetricSummaryTest {
         val text = headline(rain(61.0, stdDev = 14.0, mode = TemperatureComparisonMode.NORMALIZED_ANOMALY)).text
 
         // z = 2.0 is a "clearly", where the +85 % alone would be "much"
-        assertEquals("October so far: clearly wetter than the 1961–1990 average (+85%, 61 vs 33 mm).", text)
+        assertEquals("October so far: clearly wetter than the 1961–1990 average (+85%, 61 mm vs 33 mm).", text)
     }
 
     @Test
     fun rain_outlookComparesTheTotals() {
         fun outlook(mean: Double, reference: Double?) = ForecastOutlook(7, mean, reference, Metric.PRECIPITATION)
 
-        assertEquals("Next 7 days: wetter than usual (25 vs 14 mm).", buildSummary(rain(40.0, outlook = outlook(25.0, 14.0))).last().text)
-        assertEquals("Next 7 days: drier than usual (5.0 vs 14.0 mm).", buildSummary(rain(40.0, outlook = outlook(5.0, 14.0))).last().text)
+        assertEquals("Next 7 days: wetter than usual (25 mm vs 14 mm).", buildSummary(rain(40.0, outlook = outlook(25.0, 14.0))).last().text)
+        assertEquals("Next 7 days: drier than usual (5.0 mm vs 14.0 mm).", buildSummary(rain(40.0, outlook = outlook(5.0, 14.0))).last().text)
         assertEquals("Next 7 days: about as wet as usual (15 mm).", buildSummary(rain(40.0, outlook = outlook(15.0, 14.0))).last().text)
         assertEquals("Next 7 days: forecast to bring 25 mm.", buildSummary(rain(40.0, outlook = outlook(25.0, null))).last().text)
     }
@@ -220,12 +220,12 @@ class MetricSummaryTest {
     @Test
     fun rain_twoNumbersShareOnePrecision() {
         assertEquals(
-            "October so far: much wetter than the 1961–1990 average (+1352%, 61.0 vs 4.2 mm).",
+            "October so far: much wetter than the 1961–1990 average (+1352%, 61.0 mm vs 4.2 mm).",
             headline(rain(61.0, reference = 4.2)).text,
         )
         val outlook = ForecastOutlook(7, 21.0, 7.0, Metric.PRECIPITATION)
         assertEquals(
-            "Next 7 days: wetter than usual (21.0 vs 7.0 mm).",
+            "Next 7 days: wetter than usual (21.0 mm vs 7.0 mm).",
             buildSummary(rain(40.0, outlook = outlook)).last().text,
         )
     }

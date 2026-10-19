@@ -112,10 +112,10 @@ class WeatherReportMetricTest {
         val blocks = ((report(loaded(), Metric.PRECIPITATION).summary) as Loadable.Ready).value
 
         assertEquals(
-            "October so far: much wetter than the 1961–1990 average (+100%, 26 vs 13 mm).",
+            "October so far: much wetter than the 1961–1990 average (+100%, 26 mm vs 13 mm).",
             (blocks.first() as SummaryBlock.Headline).text,
         )
-        assertEquals("Next 7 days: wetter than usual (21.0 vs 7.0 mm).", blocks[1].text)
+        assertEquals("Next 7 days: wetter than usual (21.0 mm vs 7.0 mm).", blocks[1].text)
     }
 
     @Test
