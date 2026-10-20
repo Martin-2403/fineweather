@@ -192,13 +192,31 @@ internal fun buildTrendCardValue(
     )
 }
 
-internal fun resolveStatusImageRes(picture: StatusPicture): Int =
+/**
+ * The illustration of [picture] for [metric]. WARM and COLD are the polarity of the metric, above and below
+ * its normal: warm and cold for temperature, sunny and dark for sunshine, wet and dry for rain.
+ */
+internal fun resolveStatusImageRes(
+    picture: StatusPicture,
+    metric: Metric = Metric.TEMPERATURE,
+): Int =
     when (picture) {
         // While loading, the header shows a spinner instead of this picture.
         StatusPicture.LOADING, StatusPicture.INITIAL -> R.drawable.initial
-        StatusPicture.WARM -> R.drawable.warm
-        StatusPicture.COLD -> R.drawable.cold
         StatusPicture.EQUAL -> R.drawable.equal
+        StatusPicture.WARM ->
+            when (metric) {
+                Metric.TEMPERATURE -> R.drawable.warm
+                Metric.SUNSHINE -> R.drawable.sunny
+                Metric.PRECIPITATION -> R.drawable.wet
+            }
+
+        StatusPicture.COLD ->
+            when (metric) {
+                Metric.TEMPERATURE -> R.drawable.cold
+                Metric.SUNSHINE -> R.drawable.dark
+                Metric.PRECIPITATION -> R.drawable.dry
+            }
     }
 
 internal fun SearchStatus.displayText(metric: Metric = Metric.TEMPERATURE): String =

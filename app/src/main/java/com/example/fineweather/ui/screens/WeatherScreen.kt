@@ -188,7 +188,7 @@ fun WeatherScreen(
             MetricPills(selected = report.metric, onSelect = viewModel::selectMetric)
 
             StatusHeaderCard(
-                imageRes = resolveStatusImageRes(report.picture),
+                imageRes = resolveStatusImageRes(report.picture, report.metric),
                 summary = report.summary.toBlocks(),
                 statusCardValue = statusCardValue,
                 trendCardValue = trendCardValue,

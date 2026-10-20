@@ -209,25 +209,25 @@ class WeatherReportMetricTest {
     // ---- the picture ----
 
     @Test
-    fun picture_isAlwaysTheTemperaturesWhateverTheMetric() {
-        // temperature is on its normal, rain is far above it
-        listOf(Metric.TEMPERATURE, Metric.SUNSHINE, Metric.PRECIPITATION).forEach { metric ->
-            assertEquals(StatusPicture.EQUAL, report(loaded(), metric).picture)
-        }
-        val warm = loaded(year = Loadable.Ready(year(temperature = { 20.0 }, rain = { 0.0 })))
-        listOf(Metric.TEMPERATURE, Metric.SUNSHINE, Metric.PRECIPITATION).forEach { metric ->
-            assertEquals(StatusPicture.WARM, report(warm, metric).picture)
-        }
+    fun picture_followsTheMetric() {
+        // temperature is on its normal, sunshine is an hour above it and rain far above it
+        assertEquals(StatusPicture.EQUAL, report(loaded(), Metric.TEMPERATURE).picture)
+        assertEquals(StatusPicture.WARM, report(loaded(), Metric.SUNSHINE).picture)
+        assertEquals(StatusPicture.WARM, report(loaded(), Metric.PRECIPITATION).picture)
+        // warm and sunny, but without any rain
+        val dry = loaded(year = Loadable.Ready(year(temperature = { 20.0 }, rain = { 0.0 })))
+        assertEquals(StatusPicture.WARM, report(dry, Metric.TEMPERATURE).picture)
+        assertEquals(StatusPicture.WARM, report(dry, Metric.SUNSHINE).picture)
+        assertEquals(StatusPicture.COLD, report(dry, Metric.PRECIPITATION).picture)
     }
 
     @Test
-    fun picture_isLoadingWhileTheTemperatureReferenceLoadsEvenIfTheMetricIsReady() {
+    fun picture_waitsForTheDataOfItsMetric() {
+        assertEquals(StatusPicture.LOADING, report(loaded(extras = Loadable.Loading), Metric.PRECIPITATION).picture)
+        // the temperature reference is no concern of rain, whose normal came with the extras
         val state = loaded(reference = Loadable.Loading)
-
-        val report = report(state, Metric.PRECIPITATION)
-
-        assertTrue(report.headline is Loadable.Ready)
-        assertEquals(StatusPicture.LOADING, report.picture)
+        assertEquals(StatusPicture.WARM, report(state, Metric.PRECIPITATION).picture)
+        assertEquals(StatusPicture.LOADING, report(state, Metric.TEMPERATURE).picture)
     }
 
     // ---- the extras ----
@@ -274,8 +274,7 @@ class WeatherReportMetricTest {
             listOf("The 1961–1990 reference is not available yet.", "Next 7 days: forecast to bring 21 mm."),
             report.blocks().map { it.text },
         )
-        // the picture is still the temperature's
-        assertEquals(StatusPicture.EQUAL, report.picture)
+        assertEquals(StatusPicture.INITIAL, report.picture)
     }
 
     @Test

@@ -44,6 +44,7 @@ data class WeatherUiState(
     val extras: Loadable<Map<Metric, ReferenceClimate>> = Loadable.Idle,
 )
 
+/** Which picture the header shows; WARM and COLD are above and below the normal of the metric, whichever it is. */
 enum class StatusPicture { LOADING, INITIAL, WARM, COLD, EQUAL }
 
 /** What the screen shows for the loaded data and the current settings. */
@@ -65,8 +66,8 @@ data class WeatherReport(
 )
 
 /**
- * The report of [metric]. The [picture] is always the temperature's, whatever the metric. Rain values
- * are totals in mm, sunshine and temperature daily means.
+ * The report of [metric]. The [picture] follows the headline of the metric, so it waits for the same data.
+ * Rain values are totals in mm, sunshine and temperature daily means.
  */
 fun buildReport(
     state: WeatherUiState,
@@ -130,8 +131,7 @@ fun buildReport(
                     ),
                 )
             },
-        picture =
-            pictureFor(if (metric == Metric.TEMPERATURE) headline else monthSoFar(state, mode, Metric.TEMPERATURE).headline),
+        picture = pictureFor(headline),
         snapshot =
             when {
                 anyLoading -> Loadable.Loading

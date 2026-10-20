@@ -250,30 +250,34 @@ class WeatherViewModelMetricTest {
         assertEquals(Loadable.Loading, report.headline)
         assertEquals(Loadable.Loading, report.trend)
         assertEquals(Loadable.Loading, report.summary)
-        // the picture stays the temperature's, which needs no extras
-        assertEquals(StatusPicture.WARM, report.picture)
+        assertEquals(StatusPicture.LOADING, report.picture)
 
         gate.complete(CacheResult(extras, fromCache = false))
         advanceUntilIdle()
 
+        assertEquals(StatusPicture.COLD, report.picture)
         assertEquals(6.0, referenceValue!!, 1e-9)
         assertEquals(5.0, monthValue!!, 1e-9)
     }
 
     @Test
-    fun theHeaderFollowsTheMetricAndThePictureStaysTemperature() = runTest {
+    fun theHeaderAndThePictureFollowTheMetric() = runTest {
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
-        val temperaturePicture = report.picture
-        assertEquals(StatusPicture.WARM, temperaturePicture)
+        assertEquals(StatusPicture.WARM, report.picture)
 
         viewModel.selectMetric(Metric.SUNSHINE)
         advanceUntilIdle()
 
-        // 1 h/day less sunshine than normal, but 6 degrees warmer: the text says dull, the picture warm
+        // 1 h/day less sunshine than normal, though 6 degrees warmer: the picture follows the sunshine
         assertEquals(Band.COLD, (report.headline as Loadable.Ready).value.band)
-        assertEquals(temperaturePicture, report.picture)
+        assertEquals(StatusPicture.COLD, report.picture)
         assertEquals(Metric.SUNSHINE, (report.trend as Loadable.Ready).value.metric)
+
+        viewModel.selectMetric(Metric.TEMPERATURE)
+        advanceUntilIdle()
+
+        assertEquals(StatusPicture.WARM, report.picture)
     }
 
     @Test

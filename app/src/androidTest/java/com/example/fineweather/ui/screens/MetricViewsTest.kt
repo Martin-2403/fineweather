@@ -225,7 +225,7 @@ class MetricViewsTest {
     }
 
     @Test
-    fun theHeaderKeepsItsLabelsAndTheTemperaturePictureForEveryMetric() {
+    fun theHeaderKeepsItsLabelsAndShowsThePictureOfEveryMetric() {
         var metric by mutableStateOf(Metric.TEMPERATURE)
         show { ReportViews(report(metric)) }
 
@@ -236,8 +236,9 @@ class MetricViewsTest {
             composeTestRule.onNodeWithText("So far").assertIsDisplayed()
             composeTestRule.onNodeWithContentDescription("Status illustration").assertIsDisplayed()
             composeTestRule.onNodeWithTag("statusSummary").assertIsDisplayed()
-            // the picture follows the temperature (6 degrees warmer) even while sunshine is short
-            assertEquals(StatusPicture.WARM, report(it).picture)
+            // 6 degrees warmer, an hour less sunshine, twice the rain
+            val expected = if (it == Metric.SUNSHINE) StatusPicture.COLD else StatusPicture.WARM
+            assertEquals(expected, report(it).picture)
         }
     }
 
@@ -251,8 +252,9 @@ class MetricViewsTest {
         composeTestRule.onAllNodesWithContentDescription("Loading").assertCountEquals(2)
         composeTestRule.onAllNodesWithContentDescription("Loading report").assertCountEquals(1)
         composeTestRule.onNodeWithTag("statusDetails").assertIsDisplayed()
-        // the picture is the temperature's and needs no extras
-        composeTestRule.onNodeWithContentDescription("Status illustration").assertIsDisplayed()
+        // the picture waits for the normal of its metric too
+        composeTestRule.onNodeWithContentDescription("Loading picture").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("Status illustration").assertDoesNotExist()
     }
 
     @Test

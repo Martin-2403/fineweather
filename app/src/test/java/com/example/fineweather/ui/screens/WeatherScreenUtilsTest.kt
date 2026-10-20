@@ -131,6 +131,20 @@ class WeatherScreenUtilsTest {
     }
 
     @Test
+    fun resolveStatusImageRes_picksTheIllustrationOfTheMetric() {
+        assertEquals(R.drawable.sunny, resolveStatusImageRes(StatusPicture.WARM, Metric.SUNSHINE))
+        assertEquals(R.drawable.dark, resolveStatusImageRes(StatusPicture.COLD, Metric.SUNSHINE))
+        assertEquals(R.drawable.wet, resolveStatusImageRes(StatusPicture.WARM, Metric.PRECIPITATION))
+        assertEquals(R.drawable.dry, resolveStatusImageRes(StatusPicture.COLD, Metric.PRECIPITATION))
+        // near normal and not yet known look the same for every metric
+        Metric.entries.forEach {
+            assertEquals(R.drawable.equal, resolveStatusImageRes(StatusPicture.EQUAL, it))
+            assertEquals(R.drawable.initial, resolveStatusImageRes(StatusPicture.INITIAL, it))
+            assertEquals(R.drawable.initial, resolveStatusImageRes(StatusPicture.LOADING, it))
+        }
+    }
+
+    @Test
     fun searchStatus_isShownAsTheOneLineStatus() {
         assertEquals("Enter a location to see temperature averages", SearchStatus.Idle.displayText())
         assertEquals("Searching for Ulm...", SearchStatus.Searching("Ulm").displayText())
