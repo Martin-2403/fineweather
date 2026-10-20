@@ -66,7 +66,7 @@ data class WeatherReport(
 )
 
 /**
- * The report of [metric]. The [picture] follows the headline of the metric, so it waits for the same data.
+ * The report of [metric]. The [WeatherReport.picture] follows the headline of the metric, so it waits for the same data.
  * Rain values are totals in mm, sunshine and temperature daily means.
  */
 fun buildReport(
@@ -143,7 +143,7 @@ fun buildReport(
     )
 }
 
-/** This month so far of [metric] against the reference, with the slices it is made of. */
+/** This month so far of the metric against the reference, with the slices it is made of. */
 private class MonthSoFar(
     val year: Loadable<DailySeries>,
     val referenceSlice: Loadable<ReferenceClimate>,

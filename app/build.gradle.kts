@@ -146,8 +146,8 @@ tasks.register<JacocoReport>("jacocoTestReport") {
             "**/*_Impl*.*",
             "**/*_Factory*.*",
             "**/*_MembersInjector*.*",
-            "**/*\$Lambda\$*.*",
-            "**/*\$inlined\$*.*",
+            "**/*\$Lambda$*.*",
+            "**/*\$inlined$*.*",
             "**/*\$Companion*.*",
         )
 

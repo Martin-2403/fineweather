@@ -15,6 +15,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
+import kotlin.math.sqrt
 
 class WeatherReportMetricTest {
 
@@ -79,7 +80,7 @@ class WeatherReportMetricTest {
         // 13 days of 2 mm against 13 days of 1 mm, and 7 days of 3 mm against 7 days of 1 mm
         val headline = (report.headline as Loadable.Ready).value
         assertEquals(13.0, headline.reference!!, 1e-9)
-        assertEquals(26.0, headline.reference!! + headline.delta, 1e-9)
+        assertEquals(26.0, headline.reference + headline.delta, 1e-9)
         assertEquals(21.0, (report.trend as Loadable.Ready).value.mean, 1e-9)
         assertEquals(13, report.dayCount)
     }
@@ -133,9 +134,9 @@ class WeatherReportMetricTest {
         val long = report(loaded(), Metric.PRECIPITATION, forecastDays = 14)
 
         assertEquals(28.0, (long.trend as Loadable.Ready).value.mean, 1e-9) // 7 x 3 + 7 x 1
-        assertEquals(14, (long.trend as Loadable.Ready).value.days)
+        assertEquals(14, long.trend.value.days)
         assertTrue(long.blocks()[1].text.startsWith("Next 14 days"))
-        assertEquals(14.0, (long.trend as Loadable.Ready).value.referenceMean!!, 1e-9)
+        assertEquals(14.0, long.trend.value.referenceMean!!, 1e-9)
     }
 
     @Test
@@ -159,7 +160,7 @@ class WeatherReportMetricTest {
 
         // 15 years of 0 mm and 15 of 2 mm a day: sigma of the 13-day totals is 13 times that of the daily means
         assertTrue(headline.normalized)
-        assertEquals(13 * Math.sqrt(30.0 / 29.0), headline.stdDev!!, 1e-9)
+        assertEquals(13 * sqrt(30.0 / 29.0), headline.stdDev!!, 1e-9)
         assertEquals(13.0, headline.reference!!, 1e-9)
     }
 
@@ -268,7 +269,7 @@ class WeatherReportMetricTest {
         assertEquals(Loadable.Failed(FailKind.RATE_LIMITED), report.headline)
         // the outlook has no normal, but still its total
         assertNull((report.trend as Loadable.Ready).value.delta)
-        assertEquals(21.0, (report.trend as Loadable.Ready).value.mean, 1e-9)
+        assertEquals(21.0, report.trend.value.mean, 1e-9)
         assertNull((report.snapshot as Loadable.Ready).value.reference)
         assertEquals(
             listOf("The 1961–1990 reference is not available yet.", "Next 7 days: forecast to bring 21 mm."),
@@ -310,7 +311,7 @@ class WeatherReportMetricTest {
         // the 13 days are measured against 13 days of the normal, however many of them have a value
         val headline = (report.headline as Loadable.Ready).value
         assertEquals(13.0, headline.reference!!, 1e-9)
-        assertEquals(26.0, headline.reference!! + headline.delta, 1e-9)
+        assertEquals(26.0, headline.reference + headline.delta, 1e-9)
         assertEquals(11, report.dayCount)
     }
 

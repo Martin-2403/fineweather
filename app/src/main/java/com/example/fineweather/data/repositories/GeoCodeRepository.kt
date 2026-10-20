@@ -25,7 +25,7 @@ class GeoCodeRepository(
             val cached = geoCodeDao.getByQuery(cacheKey)
             val fallbackCached =
                 if (cached.isEmpty()) geoCodeDao.getByQuery(normalized) else emptyList()
-            val cachedEntries = if (cached.isNotEmpty()) cached else fallbackCached
+            val cachedEntries = cached.ifEmpty { fallbackCached }
             if (cachedEntries.isNotEmpty()) {
                 if (cachedEntries.first().query != cacheKey) {
                     geoCodeDao.deleteByQuery(cacheKey)

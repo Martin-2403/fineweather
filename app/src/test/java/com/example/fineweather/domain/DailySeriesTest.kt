@@ -18,7 +18,7 @@ class DailySeriesTest {
     ) = DailySeries.fromApi(
         start,
         start.plusDays(days - 1L),
-        (0 until values.size).map { start.plusDays(it.toLong()).toString() },
+        values.indices.map { start.plusDays(it.toLong()).toString() },
         values,
         divisor,
     )

@@ -4,7 +4,6 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.example.fineweather.data.models.HistoricReference
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
@@ -15,7 +14,6 @@ import kotlin.io.path.createTempFile
 
 class SettingsRepositoryTest {
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun defaults_areExposedWhenEmpty() = runTest {
         val repository = DataStoreSettingsRepository(createDataStore(this))
@@ -25,7 +23,6 @@ class SettingsRepositoryTest {
         assertEquals(SettingsDefaults.DEFAULT_SEARCH_LANGUAGE, repository.searchLanguage.first())
     }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun setForecastDays_updatesFlow() = runTest {
         val repository = DataStoreSettingsRepository(createDataStore(this))
@@ -35,7 +32,6 @@ class SettingsRepositoryTest {
         assertEquals(SettingsDefaults.FORECAST_DAYS_LONG, repository.forecastDays.first())
     }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun setForecastDays_invalidValuesFallbackToDefault() = runTest {
         val repository = DataStoreSettingsRepository(createDataStore(this))
@@ -45,7 +41,6 @@ class SettingsRepositoryTest {
         assertEquals(SettingsDefaults.DEFAULT_FORECAST_DAYS, repository.forecastDays.first())
     }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun setHistoricReference_updatesFlow() = runTest {
         val repository = DataStoreSettingsRepository(createDataStore(this))
@@ -55,7 +50,6 @@ class SettingsRepositoryTest {
         assertEquals(HistoricReference.CURRENT, repository.historicReference.first())
     }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun setSearchLanguage_updatesFlow() = runTest {
         val repository = DataStoreSettingsRepository(createDataStore(this))
@@ -65,7 +59,6 @@ class SettingsRepositoryTest {
         assertEquals("de", repository.searchLanguage.first())
     }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun setSearchLanguage_invalidValuesFallbackToDefault() = runTest {
         val repository = DataStoreSettingsRepository(createDataStore(this))

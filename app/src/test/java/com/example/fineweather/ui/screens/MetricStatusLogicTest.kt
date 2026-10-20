@@ -9,9 +9,7 @@ import com.example.fineweather.domain.Band
 import com.example.fineweather.domain.ForecastOutlook
 import com.example.fineweather.domain.Metric
 import com.example.fineweather.ui.models.ValueWithIcons
-import com.example.fineweather.viewmodels.FailKind
 import com.example.fineweather.viewmodels.Loadable
-import com.example.fineweather.viewmodels.Reason
 import com.example.fineweather.viewmodels.SearchStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

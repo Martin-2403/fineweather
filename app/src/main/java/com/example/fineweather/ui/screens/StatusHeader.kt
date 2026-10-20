@@ -30,7 +30,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.example.fineweather.domain.Band
 import com.example.fineweather.domain.Metric
 import com.example.fineweather.domain.SummaryBlock
 import com.example.fineweather.nunitoSansFamily

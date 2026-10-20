@@ -92,7 +92,7 @@ class WeatherReportTest {
         assertEquals(12.0, (report.trend as Loadable.Ready).value.mean, 1e-9)
         assertEquals(Band.WARM, headline.band)
         assertEquals(StatusPicture.WARM, report.picture)
-        assertEquals(8.0, (report.trend as Loadable.Ready).value.delta!!, 1e-9)
+        assertEquals(8.0, report.trend.value.delta!!, 1e-9)
         assertEquals("1961–1990", report.referenceLabel)
         assertEquals(today, report.today)
         assertEquals(
@@ -133,7 +133,7 @@ class WeatherReportTest {
 
         assertTrue(long.blocks()[1].text.startsWith("Next 14 days"))
         assertEquals(13.5, (long.trend as Loadable.Ready).value.mean, 1e-9)
-        assertEquals(14, (long.trend as Loadable.Ready).value.days)
+        assertEquals(14, long.trend.value.days)
     }
 
     @Test

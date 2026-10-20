@@ -46,7 +46,7 @@ class LoadingPlaceholdersTest {
     private val cardColors = CardColors(Color.Transparent, Color.Black, Color.Transparent, Color.Black)
     private val noDelay = LoadingConfig(delayMs = 0, animated = false)
 
-    /** Long enough that the margins around it are far wider than a frame. */
+    /** Long enough that the surrounding margins are far wider than a frame. */
     private val delayed = LoadingConfig(delayMs = 1000, animated = false)
 
     private val loadingCell = ValueWithIcons(text = "", icons = null, loading = true)
@@ -73,8 +73,6 @@ class LoadingPlaceholdersTest {
     }
 
     private fun bounds(tag: String): DpRect = composeTestRule.onNodeWithTag(tag).getUnclippedBoundsInRoot()
-
-    private val DpRect.heightDp get() = bottom - top
 
     private fun assertNoPlaceholders() {
         composeTestRule.onAllNodesWithContentDescription("Loading").assertCountEquals(0)
@@ -370,8 +368,8 @@ class LoadingPlaceholdersTest {
     // rememberDelayedFlag
 
     @Composable
-    private fun Flag(active: Boolean, delayMs: Long) {
-        Text(if (rememberDelayedFlag(active, delayMs)) "on" else "off")
+    private fun Flag(active: Boolean) {
+        Text(if (rememberDelayedFlag(active, delayMs = 500)) "on" else "off")
     }
 
     @Test
@@ -388,7 +386,7 @@ class LoadingPlaceholdersTest {
     @Test
     fun delayedFlag_turnsOnAfterTheDelayAndOffAtOnce() {
         var active by mutableStateOf(true)
-        show(paused = true) { Flag(active, 500) }
+        show(paused = true) { Flag(active) }
 
         advance(300)
         composeTestRule.onNodeWithText("off").assertIsDisplayed()
@@ -403,7 +401,7 @@ class LoadingPlaceholdersTest {
     @Test
     fun delayedFlag_startsTheDelayAgainWhenActiveTurnsOnAgain() {
         var active by mutableStateOf(false)
-        show(paused = true) { Flag(active, 500) }
+        show(paused = true) { Flag(active) }
 
         advance(3000)
         composeTestRule.onNodeWithText("off").assertIsDisplayed()
@@ -419,7 +417,7 @@ class LoadingPlaceholdersTest {
     @Test
     fun delayedFlag_staysOffWhenActiveEndsBeforeTheDelay() {
         var active by mutableStateOf(true)
-        show(paused = true) { Flag(active, 500) }
+        show(paused = true) { Flag(active) }
 
         advance(300)
         active = false

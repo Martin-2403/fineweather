@@ -157,7 +157,7 @@ class WeatherScreenUtilsTest {
 
     @Test
     fun summary_hasNoBlocksWhileLoadingAndTheBlocksWhenReady() {
-        assertEquals(emptyList<SummaryBlock>(), Loadable.Loading.toBlocks())
+        assertEquals(Loadable.Loading.toBlocks(), emptyList<SummaryBlock>())
         val blocks = listOf<SummaryBlock>(SummaryBlock.Detail("text"))
         assertEquals(blocks, Loadable.Ready(blocks).toBlocks())
     }

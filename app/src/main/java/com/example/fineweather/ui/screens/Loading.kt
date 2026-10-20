@@ -23,6 +23,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -37,6 +38,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * How placeholders behave: they show [delayMs] after loading began, so quick (cached) loads never
@@ -69,7 +71,7 @@ internal fun rememberDelayedFlag(
     var elapsed by remember(active) { mutableStateOf(false) }
     LaunchedEffect(active) {
         if (active) {
-            delay(delayMs)
+            delay(delayMs.milliseconds)
             elapsed = true
         }
     }
@@ -114,7 +116,7 @@ internal fun LoadingSpinner(
  */
 @Composable
 internal fun rememberSkeletonPulse(): State<Float> {
-    if (!LocalLoadingConfig.current.animated) return remember { mutableStateOf(SKELETON_ALPHA_STATIC) }
+    if (!LocalLoadingConfig.current.animated) return remember { mutableFloatStateOf(SKELETON_ALPHA_STATIC) }
     return rememberInfiniteTransition(label = "skeleton").animateFloat(
         initialValue = SKELETON_ALPHA_MIN,
         targetValue = SKELETON_ALPHA_MAX,

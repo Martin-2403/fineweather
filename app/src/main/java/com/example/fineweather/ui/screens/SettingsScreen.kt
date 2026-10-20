@@ -72,8 +72,7 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.Top,
     ) {
-        Column(
-        ) {
+        Column {
             Card(
                 colors =
                     CardDefaults.cardColors(

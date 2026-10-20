@@ -1,7 +1,9 @@
 package com.example.fineweather.data.repositories
 
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -9,6 +11,7 @@ import org.junit.Test
 
 class KeyedMutexTest {
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun sameKeyRunsOneAtATime() = runTest {
         val mutex = KeyedMutex()
@@ -26,6 +29,7 @@ class KeyedMutexTest {
         assertEquals(listOf("first start", "first end", "second start"), events)
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun differentKeysRunInParallel() = runTest {
         val mutex = KeyedMutex()
@@ -37,7 +41,7 @@ class KeyedMutexTest {
 
         assertEquals(3, started)
         gate.complete(Unit)
-        assertEquals(listOf("a", "b", "c"), calls.map { it.await() })
+        assertEquals(listOf("a", "b", "c"), calls.awaitAll())
     }
 
     @Test

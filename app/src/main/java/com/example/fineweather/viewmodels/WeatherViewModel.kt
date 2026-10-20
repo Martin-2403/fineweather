@@ -5,8 +5,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.fineweather.data.models.GeoPlace
-import com.example.fineweather.data.models.HistoricReference
-import com.example.fineweather.data.models.TemperatureComparisonMode
 import com.example.fineweather.data.repositories.CacheResult
 import com.example.fineweather.data.repositories.FavoriteAddResult
 import com.example.fineweather.data.repositories.FavoriteRepository

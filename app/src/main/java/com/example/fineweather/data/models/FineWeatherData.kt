@@ -34,7 +34,7 @@ class FineWeatherData(
 }
 
 // Helper function to build a FineWeatherData object from an entity
-fun FineWeatherData.toEntity(locationId: Long): WeatherEntity =
+fun FineWeatherData.toEntity(): WeatherEntity =
     WeatherEntity(
         id = this.id,
         date = this.timestamp, // "yyyy-MM-dd"
