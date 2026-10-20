@@ -3,7 +3,7 @@ name: Release APK
 on:
   push:
     tags:
-      - "debug"
+      - "debug-"
   workflow_dispatch:
 
 jobs:
