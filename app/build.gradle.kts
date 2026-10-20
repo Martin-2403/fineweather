@@ -9,6 +9,10 @@ plugins {
     id("jacoco")
 }
 
+base {
+    archivesName = "fw"
+}
+
 android {
     namespace = "com.example.fineweather"
     compileSdk = 36
