@@ -92,7 +92,7 @@ private fun headline(
     assessment: Assessment,
 ): String {
     val metric = input.metric
-    val start = "${input.monthName} so far:"
+    val start = "${input.monthName}: So far it is"
     if (assessment.lowNormal) {
         // A normal this small makes any percent meaningless; say what fell and what is usual.
         return "$start ${metric.format(observed)} of ${metric.wording.quantity}, " +

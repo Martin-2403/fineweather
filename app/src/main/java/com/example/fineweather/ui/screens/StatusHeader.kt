@@ -48,7 +48,7 @@ internal fun StatusHeaderCard(
     summary: List<SummaryBlock>,
     statusCardValue: ValueWithIcons,
     trendCardValue: ValueWithIcons,
-    /** What the trend cell covers, as "Next 7 days"; the status cell is always the month so far. */
+    /** What the forecast row covers, as "Forecast of 7 days"; the other row is always the month so far. */
     trendLabel: String,
     shape: RoundedCornerShape,
     pictureLoading: Boolean = false,
@@ -81,9 +81,6 @@ internal fun StatusHeaderCard(
                 val cardWidth = maxWidth
                 val imageWidth =
                     if (wide) minOf(cardWidth * 0.5f, WideImageMaxWidth) else cardWidth * COMPACT_IMAGE_FRACTION
-                // A phone has no room for the label, a value with its unit and three icons side by side.
-                // Every metric stacks, so the header keeps its height when the metric changes.
-                val stacked = !wide
                 Column(modifier = Modifier.fillMaxWidth()) {
                     ImageWithText(
                         imageRes = imageRes,
@@ -93,30 +90,21 @@ internal fun StatusHeaderCard(
                         summaryLoading = summaryLoading,
                         metric = metric,
                     )
-                    // The verdict sits beside the picture; the rest has the whole width of the card.
+
                     SummaryDetails(blocks = summary.drop(1), loading = summaryLoading, metric = metric)
                     DividerLine()
-                    // The split lines up with the edge of the picture above.
-                    Row(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .height(IntrinsicSize.Min),
-                    ) {
-                        StatusTrendCell(
-                            label = trendLabel,
-                            value = if (stacked) trendCardValue.withoutUnit(metric) else trendCardValue,
-                            modifier = Modifier.width(imageWidth),
-                            stacked = stacked,
-                        )
-                        VerticalDividerLine()
-                        StatusTrendCell(
-                            label = "So far",
-                            value = statusCardValue,
-                            modifier = Modifier.weight(1f),
-                            stacked = stacked,
-                        )
-                    }
+                    // A small table: the month so far, then the forecast.
+                    StatusTrendRow(
+                        label = "This month so far",
+                        value = statusCardValue,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    DividerLine()
+                    StatusTrendRow(
+                        label = trendLabel,
+                        value = trendCardValue,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
             }
         }

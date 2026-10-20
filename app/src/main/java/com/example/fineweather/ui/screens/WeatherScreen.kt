@@ -192,7 +192,7 @@ fun WeatherScreen(
                 summary = report.summary.toBlocks(),
                 statusCardValue = statusCardValue,
                 trendCardValue = trendCardValue,
-                trendLabel = "Next $forecastDays days",
+                trendLabel = "Forecast of $forecastDays days",
                 shape = cardShape,
                 pictureLoading = report.picture == StatusPicture.LOADING,
                 summaryLoading = report.summary is Loadable.Loading,
@@ -592,8 +592,8 @@ internal fun InfoOverlay(
                             Text(text = "\u2022")
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                text = "Both cells show how far from normal it is, compared with the 30 year baseline: So far is this month up to yesterday " +
-                                        "against exactly the same days, and Next 7 days (or 14) is the forecast against the normal of those days. " +
+                                text = "Both rows show how far from normal it is, compared with the 30 year baseline: This month so far is this month up to yesterday " +
+                                        "against exactly the same days, and Forecast of 7 days (or 14) is the forecast against the normal of those days. " +
                                         "A short report around the picture sums it up, with the figures it is based on.",
                                 fontFamily = nunitoSansFamily,
                                 style = MaterialTheme.typography.bodyMedium,
@@ -759,60 +759,66 @@ private fun EarthStatusPhotoCard(
     }
 }
 
+private val TrendValueColumnWidth = 84.dp
+private val TrendIconsColumnWidth = 68.dp
+
 /**
- * A label with its value. [stacked] puts the value under the label in a tighter cell, for compact
- * widths that have no room for the label, a value text and up to three icons side by side.
+ * One table row: label, value text and icons. The value and icon columns have fixed widths, so
+ * they line up across rows; the label takes the remaining space and wraps if it must.
  */
 @Composable
-internal fun StatusTrendCell(
+internal fun StatusTrendRow(
     label: String,
     value: ValueWithIcons,
     modifier: Modifier = Modifier,
-    stacked: Boolean = false,
 ) {
-    val labelText: @Composable () -> Unit = {
+    Row(
+        modifier = modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Text(
             text = label,
             fontFamily = nunitoSansFamily,
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.weight(1f),
         )
-    }
-    if (stacked) {
-        Column(modifier = modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
-            labelText()
-            // A row as tall as a line of text, whatever the value is: nothing, a spinner, a text, or icons.
-            Box(contentAlignment = Alignment.CenterStart) {
+        Box(
+            modifier = Modifier.widthIn(min = TrendValueColumnWidth),
+            contentAlignment = Alignment.CenterEnd,
+        ) {
+            if (value.loading) {
+                LoadingSpinner(size = 20.dp)
+            } else if (value.text.isNotBlank()) {
                 Text(
-                    text = "0",
-                    modifier = Modifier
-                        .alpha(0f)
-                        .clearAndSetSemantics {},
+                    text = value.text,
                     fontFamily = nunitoSansFamily,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = valueColor(value.placeholder),
+                    textAlign = TextAlign.End,
+                    softWrap = false,
                 )
-                // Wraps below its text only when even this tight row is too narrow (large fonts).
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                    itemVerticalAlignment = Alignment.CenterVertically,
-                ) {
-                    CellValue(value, compact = true)
-                }
             }
         }
-    } else {
-        Row(
-            modifier = modifier.padding(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Box(
+            modifier = Modifier.width(TrendIconsColumnWidth).padding(start = 8.dp),
+            contentAlignment = Alignment.CenterStart,
         ) {
-            labelText()
-            Spacer(Modifier.weight(1f))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                CellValue(value, compact = false)
+            val icons = value.icons
+            if (icons != null && !value.loading) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    repeat(icons.count) { index ->
+                        Icon(
+                            painter = painterResource(icons.resId),
+                            contentDescription = if (index == 0) icons.contentDescription else null,
+                            tint = icons.tint,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                }
             }
         }
     }
@@ -827,42 +833,6 @@ private fun valueColor(placeholder: Boolean): Color {
     }
 }
 
-/** The spinner, text and icons of a cell as separate items of the surrounding row. */
-@Composable
-private fun CellValue(
-    value: ValueWithIcons,
-    compact: Boolean,
-) {
-    if (value.loading) {
-        LoadingSpinner(size = if (compact) 18.dp else 20.dp)
-    }
-    if (value.text.isNotBlank()) {
-        Text(
-            text = value.text,
-            fontFamily = nunitoSansFamily,
-            style = if (compact) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge,
-            color = valueColor(value.placeholder),
-            textAlign = TextAlign.End,
-        )
-    }
-    val icons = value.icons
-    if (icons != null) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(if (compact) 1.dp else 2.dp),
-        ) {
-            repeat(icons.count) { index ->
-                Icon(
-                    painter = painterResource(icons.resId),
-                    contentDescription = if (index == 0) icons.contentDescription else null,
-                    tint = icons.tint,
-                    modifier = Modifier.size(if (compact) 18.dp else 20.dp),
-                )
-            }
-        }
-    }
-}
-
 @Composable
 internal fun DividerLine() {
     Box(
@@ -870,17 +840,6 @@ internal fun DividerLine() {
             Modifier
                 .fillMaxWidth()
                 .height(1.dp)
-                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)),
-    )
-}
-
-@Composable
-internal fun VerticalDividerLine() {
-    Box(
-        modifier =
-            Modifier
-                .fillMaxHeight()
-                .width(1.dp)
                 .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)),
     )
 }

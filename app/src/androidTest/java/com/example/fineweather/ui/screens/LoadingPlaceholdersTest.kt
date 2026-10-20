@@ -91,7 +91,7 @@ class LoadingPlaceholdersTest {
             summary = summary,
             statusCardValue = cell,
             trendCardValue = cell,
-            trendLabel = "Next 7 days",
+            trendLabel = "Forecast of 7 days",
             shape = shape,
             pictureLoading = loading,
             summaryLoading = loading,
@@ -116,8 +116,8 @@ class LoadingPlaceholdersTest {
         composeTestRule.onNodeWithContentDescription("Loading picture").assertIsDisplayed()
         composeTestRule.onNodeWithContentDescription("Loading report").assertIsDisplayed()
         composeTestRule.onAllNodesWithContentDescription("Loading").assertCountEquals(2)
-        composeTestRule.onNodeWithText("Next 7 days").assertIsDisplayed()
-        composeTestRule.onNodeWithText("So far").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Forecast of 7 days").assertIsDisplayed()
+        composeTestRule.onNodeWithText("This month so far").assertIsDisplayed()
         composeTestRule.onNodeWithContentDescription("Status illustration").assertDoesNotExist()
         composeTestRule.onNodeWithText("…").assertDoesNotExist()
         composeTestRule.onNodeWithText("Loading…").assertDoesNotExist()
@@ -198,8 +198,8 @@ class LoadingPlaceholdersTest {
     }
 
     @Test
-    fun statusCell_withDelay_showsItsSpinnerOnlyAfterTheDelay() {
-        show(delayed, paused = true) { StatusTrendCell("Trend", loadingCell, Modifier.testTag("cell")) }
+    fun statusRow_withDelay_showsItsSpinnerOnlyAfterTheDelay() {
+        show(delayed, paused = true) { StatusTrendRow("Trend", loadingCell, Modifier.testTag("cell")) }
 
         advance(800)
         assertNoPlaceholders()

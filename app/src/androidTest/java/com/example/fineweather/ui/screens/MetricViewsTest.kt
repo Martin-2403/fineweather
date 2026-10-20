@@ -123,7 +123,7 @@ class MetricViewsTest {
             summary = report.summary.toBlocks(),
             statusCardValue = buildStatusCardValue(report.headline, isDarkCard()),
             trendCardValue = buildTrendCardValue(report.trend, isDarkCard()),
-            trendLabel = "Next 7 days",
+            trendLabel = "Forecast of 7 days",
             shape = shape,
             pictureLoading = report.picture == StatusPicture.LOADING,
             summaryLoading = report.summary is Loadable.Loading,
@@ -232,8 +232,8 @@ class MetricViewsTest {
         Metric.entries.forEach {
             metric = it
 
-            composeTestRule.onNodeWithText("Next 7 days").assertIsDisplayed()
-            composeTestRule.onNodeWithText("So far").assertIsDisplayed()
+            composeTestRule.onNodeWithText("Forecast of 7 days").assertIsDisplayed()
+            composeTestRule.onNodeWithText("This month so far").assertIsDisplayed()
             composeTestRule.onNodeWithContentDescription("Status illustration").assertIsDisplayed()
             composeTestRule.onNodeWithTag("statusSummary").assertIsDisplayed()
             // 6 degrees warmer, an hour less sunshine, twice the rain
@@ -328,7 +328,7 @@ class MetricViewsTest {
                             summary = listOf(SummaryBlock.Detail("A short sentence.")),
                             statusCardValue = headerCases[index].second,
                             trendCardValue = headerCases[index].first,
-                            trendLabel = "Next 14 days",
+                            trendLabel = "Forecast of 14 days",
                             shape = shape,
                             metric = metric(index),
                         )
@@ -364,40 +364,5 @@ class MetricViewsTest {
         val heights = headerHeights(900.dp, 1f, metricOfCase)
 
         assertEquals(heights.toString(), 1, heights.toSet().size)
-    }
-
-    @Test
-    fun stackedCell_isAtMostSixteenDpTallerThanTheInlineOne() {
-        var stacked by mutableStateOf(false)
-        composeTestRule.setContent {
-            FineWeatherTheme {
-                Box(Modifier.width(144.dp).testTag("cell")) {
-                    StatusTrendCell("Trend", cell("", 3), stacked = stacked)
-                }
-            }
-        }
-        val inline = composeTestRule.onNodeWithTag("cell").getUnclippedBoundsInRoot().let { it.bottom - it.top }
-        stacked = true
-        composeTestRule.waitForIdle()
-        val stackedHeight = composeTestRule.onNodeWithTag("cell").getUnclippedBoundsInRoot().let { it.bottom - it.top }
-
-        assertTrue("$inline -> $stackedHeight", stackedHeight - inline <= 16.dp)
-        println("STACKED_CELL_DP inline=$inline stacked=$stackedHeight")
-    }
-
-    @Test
-    fun stackedCell_showsAllThreeIconsOfAWideTextWithinItsWidth() {
-        show {
-            Box(Modifier.width(144.dp).testTag("cell")) {
-                StatusTrendCell("Trend", ValueWithIcons("+100 mm", icons(3)), stacked = true)
-            }
-        }
-
-        val text = composeTestRule.onNodeWithText("+100 mm").getUnclippedBoundsInRoot()
-        val firstIcon = composeTestRule.onNodeWithContentDescription("icons").getUnclippedBoundsInRoot()
-        val cell = composeTestRule.onNodeWithTag("cell").getUnclippedBoundsInRoot()
-        // text and icons share one line, and nothing reaches beyond the cell
-        assertTrue("$text $firstIcon", kotlin.math.abs(((text.top + text.bottom) - (firstIcon.top + firstIcon.bottom)).value) < 8f)
-        assertTrue(firstIcon.right <= cell.right)
     }
 }
