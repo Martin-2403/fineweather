@@ -86,7 +86,7 @@ internal fun monthSummaryText(
     }
     if (observed == null) return "No daily data available for this period yet."
     val base =
-        if (metric == Metric.PRECIPITATION) "$days: ${metric.format(observed)} in total" else "$days averaged ${metric.format(observed)}"
+        if (metric == Metric.PRECIPITATION) "$days ${metric.format(observed)} in total" else "$days averaged ${metric.format(observed)}"
     if (reference == null) return "$base."
     val comparison = comparisonText(metric, observed, reference, summary.deltaPercent)
     return if (comparison == null) {

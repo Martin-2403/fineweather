@@ -7,6 +7,7 @@ import com.example.fineweather.domain.Assessment
 import com.example.fineweather.domain.Band
 import com.example.fineweather.domain.ClimateSnapshot
 import com.example.fineweather.domain.DailySeries
+import com.example.fineweather.domain.DataSource
 import com.example.fineweather.domain.ForecastOutlook
 import com.example.fineweather.domain.Metric
 import com.example.fineweather.domain.MetricSeries
@@ -16,7 +17,6 @@ import com.example.fineweather.domain.SummaryInput
 import com.example.fineweather.domain.assess
 import com.example.fineweather.domain.buildSummary
 import com.example.fineweather.domain.forecastOutlook
-import com.example.fineweather.domain.lastDaysMean
 import com.example.fineweather.domain.PeriodComparison
 import com.example.fineweather.domain.monthToDate
 import java.time.LocalDate
@@ -44,20 +44,12 @@ data class WeatherUiState(
     val extras: Loadable<Map<Metric, ReferenceClimate>> = Loadable.Idle,
 )
 
-data class ReportRow(
-    val label: String,
-    val value: Loadable<Double>,
-    /** Whether the value rests on so few days that the UI offers an explanation. */
-    val showWarning: Boolean = false,
-)
-
 enum class StatusPicture { LOADING, INITIAL, WARM, COLD, EQUAL }
 
 /** What the screen shows for the loaded data and the current settings. */
 data class WeatherReport(
     val today: LocalDate,
     val referenceLabel: String,
-    val rows: List<ReportRow>,
     /** This month so far against the same days of the reference. */
     val headline: Loadable<Assessment>,
     /** The next forecast days against the normal of those days. */
@@ -68,7 +60,7 @@ data class WeatherReport(
     val snapshot: Loadable<ClimateSnapshot>,
     /** Complete days of this month so far. */
     val dayCount: Int,
-    /** What the rows, [headline], [trend], [summary] and [snapshot] are about; their values are in its period unit. */
+    /** What [headline], [trend], [summary] and [snapshot] are about; their values are in its period unit. */
     val metric: Metric = Metric.TEMPERATURE,
 )
 
@@ -98,10 +90,6 @@ fun buildReport(
     val historicValue = month.reference
     val headline = month.headline
 
-    val lastDays: Loadable<Double> =
-        year.map { lastDaysMean(it, today, metric = metric) }.availableOr(Reason.NOT_AVAILABLE)
-    val forecastValue: Loadable<Double> =
-        forecast.map { outlook?.mean }.availableOr(Reason.NOT_AVAILABLE)
     val trend: Loadable<ForecastOutlook> =
         when {
             forecast is Loadable.Ready && referenceSlice is Loadable.Loading -> Loadable.Loading
@@ -110,22 +98,15 @@ fun buildReport(
     val anyLoading =
         forecast is Loadable.Loading || year is Loadable.Loading || referenceSlice is Loadable.Loading
 
-    val monthWarning =
-        (monthValue is Loadable.Ready && dayCount in 1..6) ||
-            (monthValue is Loadable.Unavailable && monthValue.reason == Reason.NO_DATA_YET)
+    val failed =
+        buildSet {
+            if (year is Loadable.Failed) add(DataSource.OBSERVED)
+            if (referenceSlice is Loadable.Failed) add(DataSource.REFERENCE)
+            if (forecast is Loadable.Failed) add(DataSource.FORECAST)
+        }
     return WeatherReport(
         today = today,
         referenceLabel = historic.displayLabel(today),
-        rows =
-            listOf(
-                ReportRow("Last 31 days", lastDays),
-                ReportRow("This month so far", monthValue, monthWarning),
-                ReportRow("Next $forecastDays days (forecast)", forecastValue),
-                ReportRow(
-                    if (dayCount > 0) "Historical (30y), same days" else "Historical (30y) for this month",
-                    historicValue,
-                ),
-            ),
         headline = headline,
         trend = trend,
         summary =
@@ -144,6 +125,7 @@ fun buildReport(
                             outlook = outlook,
                             daysObserved = dayCount,
                             metric = metric,
+                            failed = failed,
                         ),
                     ),
                 )

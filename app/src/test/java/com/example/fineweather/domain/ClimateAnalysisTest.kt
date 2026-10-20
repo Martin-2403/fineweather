@@ -45,16 +45,6 @@ class ClimateAnalysisTest {
     }
 
     @Test
-    fun lastDaysMean_endsYesterday() {
-        val series = yearSeries { date -> if (date == LocalDate.of(2026, 10, 14)) 999.0 else date.dayOfMonth.toDouble() }
-
-        val mean = lastDaysMean(series, today, days = 3)!!
-
-        // Oct 11, 12, 13
-        assertEquals(12.0, mean, 1e-6)
-    }
-
-    @Test
     fun yearToDate_listsMonthsUpToYesterdayAndFlagsRunningMonth() {
         val result = yearToDate(yearSeries { 10.0 }, climate, today)
 
@@ -137,7 +127,7 @@ class MonthViewDataTest {
     }
 
     @Test
-    fun summary_matchesTheCurrentViewsMonthToDateComparison() {
+    fun summary_matchesTheMonthToDateComparison() {
         val snapshot = snapshot()
         val summary = summarize(dayPoints(snapshot, MonthWindow.THIS_MONTH))
         val monthToDate = monthToDate(snapshot.series, climate, today)!!

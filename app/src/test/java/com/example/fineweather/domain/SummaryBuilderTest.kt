@@ -14,6 +14,7 @@ class SummaryBuilderTest {
         mode: TemperatureComparisonMode = TemperatureComparisonMode.ABSOLUTE_DELTA,
         outlook: ForecastOutlook? = null,
         daysObserved: Int = 13,
+        failed: Set<DataSource> = emptySet(),
     ) = SummaryInput(
         monthName = "October",
         monthToDate = monthToDate,
@@ -23,6 +24,7 @@ class SummaryBuilderTest {
         mode = mode,
         outlook = outlook,
         daysObserved = daysObserved,
+        failed = failed,
     )
 
     @Test
@@ -35,10 +37,24 @@ class SummaryBuilderTest {
     }
 
     @Test
-    fun noCompleteDayYet_explainsWaiting() {
+    fun noCompleteDayYet_explainsWaitingAndGivesTheNormalOfTheMonth() {
         val blocks = buildSummary(input(monthToDate = null))
 
-        assertEquals("No complete day of October yet, check back tomorrow.", blocks.single().text)
+        assertEquals(
+            listOf(
+                "No complete day of October yet, check back tomorrow.",
+                "The 1961–1990 average for October is 11.00°C.",
+            ),
+            blocks.map { it.text },
+        )
+        assertTrue(blocks.none { it is SummaryBlock.Headline })
+    }
+
+    @Test
+    fun noCompleteDayYet_stillGivesTheOutlook() {
+        val blocks = buildSummary(input(monthToDate = null, outlook = outlook(14.0, 10.0)))
+
+        assertEquals("Next 7 days: about 4.0°C warmer than usual (14.0°C vs 10.0°C).", blocks.last().text)
     }
 
     @Test
@@ -53,7 +69,7 @@ class SummaryBuilderTest {
         val headline = buildSummary(input()).first() as SummaryBlock.Headline
 
         assertEquals(
-            "October so far: clearly warmer than the 1961–1990 average (+2.00°C).",
+            "October so far: clearly warmer than the 1961–1990 average (+2.00°C, 13.00°C vs 11.00°C).",
             headline.text,
         )
         assertEquals(Band.WARM, headline.band)
@@ -64,7 +80,7 @@ class SummaryBuilderTest {
         val headline = buildSummary(input(monthToDate = 6.0)).first() as SummaryBlock.Headline
 
         assertEquals(
-            "October so far: much colder than the 1961–1990 average (-5.00°C).",
+            "October so far: much colder than the 1961–1990 average (-5.00°C, 6.00°C vs 11.00°C).",
             headline.text,
         )
         assertEquals(Band.COLD, headline.band)
@@ -75,7 +91,7 @@ class SummaryBuilderTest {
         val headline = buildSummary(input(monthToDate = 11.4)).first() as SummaryBlock.Headline
 
         assertEquals(
-            "October so far: close to the 1961–1990 average (+0.40°C).",
+            "October so far: close to the 1961–1990 average (+0.40°C, 11.40°C vs 11.00°C).",
             headline.text,
         )
         assertEquals(Band.NEUTRAL, headline.band)
@@ -96,9 +112,9 @@ class SummaryBuilderTest {
         val warmer = buildSummary(input(outlook = outlook(14.0, 10.0))).last().text
         val cooler = buildSummary(input(outlook = outlook(7.5, 10.0))).last().text
 
-        assertEquals("Next 7 days: about as warm as usual.", steady)
-        assertEquals("Next 7 days: about 4.0°C warmer than usual.", warmer)
-        assertEquals("Next 7 days: about 2.5°C cooler than usual.", cooler)
+        assertEquals("Next 7 days: about as warm as usual (10.4°C vs 10.0°C).", steady)
+        assertEquals("Next 7 days: about 4.0°C warmer than usual (14.0°C vs 10.0°C).", warmer)
+        assertEquals("Next 7 days: about 2.5°C cooler than usual (7.5°C vs 10.0°C).", cooler)
     }
 
     @Test
@@ -117,5 +133,46 @@ class SummaryBuilderTest {
         assertEquals("Only 1 day so far, so this can change quickly.", one.text)
         assertEquals("Only 5 days so far, so this can change quickly.", five.text)
         assertTrue(seven.none { it is SummaryBlock.Caveat })
+    }
+
+    @Test
+    fun theVerdictComesFirstSoItCanSitBesideThePicture() {
+        val blocks = buildSummary(input(outlook = outlook(14.0, 10.0), daysObserved = 3, failed = setOf(DataSource.FORECAST)))
+
+        assertTrue(blocks[0] is SummaryBlock.Headline)
+        assertTrue(blocks[1] is SummaryBlock.Detail)
+        assertTrue(blocks.drop(2).all { it is SummaryBlock.Caveat })
+    }
+
+    // ---- what could not be loaded ----
+
+    @Test
+    fun failedObservations_saySoInsteadOfWaitingForTomorrow() {
+        val blocks = buildSummary(input(monthToDate = null, failed = setOf(DataSource.OBSERVED)))
+
+        assertEquals("This year's weather data could not be loaded.", blocks.first().text)
+        assertEquals("The 1961–1990 average for October is 11.00°C.", blocks[1].text)
+    }
+
+    @Test
+    fun nothingLoadedAfterAFailure_doesNotAskToSearch() {
+        val blocks = buildSummary(input(monthToDate = null, reference = null, failed = setOf(DataSource.OBSERVED, DataSource.REFERENCE)))
+
+        assertEquals("The weather data could not be loaded.", blocks.single().text)
+    }
+
+    @Test
+    fun failedForecast_endsWithACaveat() {
+        val blocks = buildSummary(input(failed = setOf(DataSource.FORECAST)))
+
+        assertEquals(2, blocks.size)
+        assertEquals(SummaryBlock.Caveat("The forecast could not be loaded."), blocks.last())
+    }
+
+    @Test
+    fun failedReference_keepsTheMessageOfAMissingReference() {
+        val blocks = buildSummary(input(reference = null, failed = setOf(DataSource.REFERENCE)))
+
+        assertEquals("The 1961–1990 reference is not available yet.", blocks.single().text)
     }
 }

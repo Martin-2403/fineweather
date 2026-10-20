@@ -59,23 +59,23 @@ class MetricStatusLogicTest {
     }
 
     @Test
-    fun statusCard_rainShowsThePercentOfTheNormal() {
+    fun statusCard_rainShowsTheMillimetresAboveOrBelowTheNormal() {
         val wetter = buildStatusCardValue(divergence(Metric.PRECIPITATION, 29.0, 33.0))
-        assertEquals("+88%", wetter.text)
+        assertEquals("+29 mm", wetter.text)
         assertEquals(R.drawable.drop, wetter.icons?.resId)
         assertEquals(LightMetricTints.drop, wetter.icons?.tint)
         assertEquals(3, wetter.icons?.count)
         assertEquals("+++ wetter than average", wetter.icons?.contentDescription)
 
         val drier = buildStatusCardValue(divergence(Metric.PRECIPITATION, -20.0, 40.0))
-        assertEquals("-50%", drier.text)
+        assertEquals("-20 mm", drier.text)
         assertEquals(R.drawable.drop_dry, drier.icons?.resId)
         assertEquals(LightMetricTints.dry, drier.icons?.tint)
         assertEquals(2, drier.icons?.count)
         assertEquals("-- drier than average", drier.icons?.contentDescription)
 
         val near = buildStatusCardValue(divergence(Metric.PRECIPITATION, 2.0, 33.0))
-        assertEquals("+6%", near.text)
+        assertEquals("+2.0 mm", near.text)
         assertNull(near.icons)
     }
 
@@ -95,7 +95,7 @@ class MetricStatusLogicTest {
                 divergence(Metric.PRECIPITATION, 29.0, 33.0, stdDev = 20.0, mode = TemperatureComparisonMode.NORMALIZED_ANOMALY),
             )
 
-        assertEquals("+88%", value.text)
+        assertEquals("+29 mm", value.text)
         assertEquals(1, value.icons?.count) // z = 1.45
     }
 
@@ -140,21 +140,21 @@ class MetricStatusLogicTest {
     }
 
     @Test
-    fun trendCard_rainShowsThePercentOfTheNormalTotal() {
+    fun trendCard_rainShowsTheMillimetresAboveOrBelowTheNormalTotal() {
         val wetter = buildTrendCardValue(outlook(Metric.PRECIPITATION, 25.0, 14.0))
-        assertEquals("+79%", wetter.text)
+        assertEquals("+11 mm", wetter.text)
         assertEquals(R.drawable.up, wetter.icons?.resId)
         assertEquals(LightMetricTints.drop, wetter.icons?.tint)
         assertEquals(3, wetter.icons?.count)
         assertEquals("Forecast wetter than normal", wetter.icons?.contentDescription)
 
         val drier = buildTrendCardValue(outlook(Metric.PRECIPITATION, 5.0, 14.0))
-        assertEquals("-64%", drier.text)
+        assertEquals("-9.0 mm", drier.text)
         assertEquals(2, drier.icons?.count)
         assertEquals("Forecast drier than normal", drier.icons?.contentDescription)
 
         val steady = buildTrendCardValue(outlook(Metric.PRECIPITATION, 15.0, 14.0))
-        assertEquals("+7%", steady.text)
+        assertEquals("+1.0 mm", steady.text)
         assertEquals(R.drawable.arrow_right, steady.icons?.resId)
     }
 
@@ -167,19 +167,23 @@ class MetricStatusLogicTest {
     }
 
     @Test
-    fun trendCard_temperatureIsUnchanged() {
+    fun trendCard_temperatureShowsTheDeltaWithOneDecimalAndArrows() {
         val warmer = buildTrendCardValue(outlook(Metric.TEMPERATURE, 12.0, 8.0))
-        assertEquals("", warmer.text)
+        assertEquals("+4.0°C", warmer.text)
         assertEquals(R.drawable.up, warmer.icons?.resId)
         assertEquals(WarmIconTint, warmer.icons?.tint)
         assertEquals("Forecast warmer than normal", warmer.icons?.contentDescription)
 
         val cooler = buildTrendCardValue(outlook(Metric.TEMPERATURE, 4.0, 8.0))
+        assertEquals("-4.0°C", cooler.text)
         assertEquals(R.drawable.down, cooler.icons?.resId)
         assertEquals(CoolIconTint, cooler.icons?.tint)
         assertEquals("Forecast cooler than normal", cooler.icons?.contentDescription)
 
-        assertEquals(NeutralIconTint, buildTrendCardValue(outlook(Metric.TEMPERATURE, 8.2, 8.0)).icons?.tint)
+        val steady = buildTrendCardValue(outlook(Metric.TEMPERATURE, 8.2, 8.0))
+        assertEquals(NeutralIconTint, steady.icons?.tint)
+        assertEquals("+0.2°C", steady.text)
+        assertEquals("0.0°C", buildTrendCardValue(outlook(Metric.TEMPERATURE, 8.0, 8.0)).text)
     }
 
     @Test
@@ -200,36 +204,14 @@ class MetricStatusLogicTest {
         }
     }
 
-    // ---- row text ----
-
-    @Test
-    fun displayText_formatsRowsPerMetric() {
-        assertEquals("5.3 h/day", Loadable.Ready(5.26).displayText(Metric.SUNSHINE))
-        assertEquals("42 mm", Loadable.Ready(42.4).displayText(Metric.PRECIPITATION))
-        assertEquals("7.5 mm", Loadable.Ready(7.54).displayText(Metric.PRECIPITATION))
-        assertEquals("12.30°C", Loadable.Ready(12.3).displayText(Metric.TEMPERATURE))
-        Metric.entries.forEach { metric ->
-            assertEquals("-", Loadable.Idle.displayText(metric))
-            assertEquals("", Loadable.Loading.displayText(metric))
-            assertEquals("N/A", Loadable.Unavailable(Reason.NOT_AVAILABLE).displayText(metric))
-            assertEquals("No data yet", Loadable.Unavailable(Reason.NO_DATA_YET).displayText(metric))
-            assertEquals("Error", Loadable.Failed(FailKind.NETWORK).displayText(metric))
-        }
-    }
-
     // ---- texts of the metric switch ----
 
     @Test
     fun metricTexts_followTheMetric() {
-        assertEquals("Average temperatures", Metric.TEMPERATURE.currentTitle)
-        assertEquals("Average sunshine", Metric.SUNSHINE.currentTitle)
-        assertEquals("Rain totals", Metric.PRECIPITATION.currentTitle)
         assertEquals(
             listOf("Temperature", "Sunshine", "Rain"),
             Metric.entries.map { it.pillDescription },
         )
-        assertEquals("average", Metric.SUNSHINE.summaryNoun)
-        assertEquals("total", Metric.PRECIPITATION.summaryNoun)
         assertEquals("Enter a location to see temperature averages", SearchStatus.Idle.displayText())
         assertEquals("Enter a location to see sunshine averages", SearchStatus.Idle.displayText(Metric.SUNSHINE))
         assertEquals("Enter a location to see rain totals", SearchStatus.Idle.displayText(Metric.PRECIPITATION))
@@ -316,11 +298,10 @@ class MetricStatusLogicTest {
     // ---- narrow cells ----
 
     @Test
-    fun withoutUnit_dropsTheUnitOfSunshineAndRainOnly() {
+    fun withoutUnit_dropsTheUnitOfSunshineOnly() {
         val sun = ValueWithIcons("-3.2 h/day", null)
         assertEquals("-3.2", sun.withoutUnit(Metric.SUNSHINE).text)
-        assertEquals("+2.0", ValueWithIcons("+2.0 mm", null).withoutUnit(Metric.PRECIPITATION).text)
-        assertEquals("+33%", ValueWithIcons("+33%", null).withoutUnit(Metric.PRECIPITATION).text)
+        assertEquals("+2.0 mm", ValueWithIcons("+2.0 mm", null).withoutUnit(Metric.PRECIPITATION).text)
         assertEquals("-", ValueWithIcons("-", null, placeholder = true).withoutUnit(Metric.SUNSHINE).text)
         assertEquals("", ValueWithIcons("", null).withoutUnit(Metric.TEMPERATURE).text)
         assertEquals("+1.43°C", ValueWithIcons("+1.43°C", null).withoutUnit(Metric.TEMPERATURE).text)

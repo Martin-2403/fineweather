@@ -6,11 +6,11 @@ FineWeather is an Android app that compares recent, forecast, and historic tempe
 
 ## Features
 - Search by city or place with geocoding, localized results, and alternate-match resolution for ambiguous names
-- Average temperatures for the last 31 days, current month so far, and next 7 or 14 days
+- Average temperatures for the current month so far and the next 7 or 14 days
 - Historical baseline (1961-1990 or current 30-year normal), always compared for the **same calendar days**, so a half-finished month is never measured against a whole one
-- Divergence (this month so far vs. the baseline) and Trend (the coming days vs. normal for those same days) comparisons, plus a warning when current-month data is limited
-- A plain-language summary next to the status illustration
-- Three views: **Current** (the averages), **Month** (daily chart over the typical range with the forecast as a dashed line, for the month or the last 30 days) and **Year** (every month of the year so far against the baseline)
+- Two cells that show how far from normal it is: **So far** (this month up to yesterday vs. the baseline) and **Next 7/14 days** (the forecast vs. normal for those same days), plus a caveat when current-month data is limited
+- A plain-language report with the figures: the verdict next to the status illustration, the outlook and caveats (few days of data, a forecast that could not be loaded) beneath it
+- Two views: **Month** (daily chart over the typical range with the forecast as a dashed line, for the month or the last 30 days) and **Year** (every month of the year so far against the baseline)
 - Favorites for saving places locally (star next to the search bar) and reopening them from the list icon in the header; "Not your city?" switches between places with the same name
 - Settings for forecast length, historic reference, search language, and divergence method
 - Local caching: the 30-year baseline is stored once per place (least recently used places are evicted, favorites are kept), the current year's daily values and the 14-day forecast refresh once a day; settings live in DataStore. Data is complete up to yesterday

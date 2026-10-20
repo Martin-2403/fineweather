@@ -1,6 +1,5 @@
 package com.example.fineweather.ui.screens
 
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CardColors
 import androidx.compose.material3.Text
@@ -11,7 +10,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -22,20 +20,16 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import com.example.fineweather.R
+import com.example.fineweather.domain.Band
 import com.example.fineweather.domain.ClimateSnapshot
 import com.example.fineweather.domain.DailySeries
 import com.example.fineweather.domain.ReferenceClimate
 import com.example.fineweather.domain.SummaryBlock
 import com.example.fineweather.ui.models.ValueWithIcons
 import com.example.fineweather.ui.theme.FineWeatherTheme
-import com.example.fineweather.viewmodels.FailKind
-import com.example.fineweather.viewmodels.Loadable
-import com.example.fineweather.viewmodels.Reason
-import com.example.fineweather.viewmodels.ReportRow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -86,7 +80,6 @@ class LoadingPlaceholdersTest {
         composeTestRule.onAllNodesWithContentDescription("Loading").assertCountEquals(0)
         composeTestRule.onAllNodesWithContentDescription("Loading picture").assertCountEquals(0)
         composeTestRule.onAllNodesWithContentDescription("Loading report").assertCountEquals(0)
-        composeTestRule.onAllNodesWithContentDescription("Loading value").assertCountEquals(0)
     }
 
     @Composable
@@ -100,6 +93,7 @@ class LoadingPlaceholdersTest {
             summary = summary,
             statusCardValue = cell,
             trendCardValue = cell,
+            trendLabel = "Next 7 days",
             shape = shape,
             pictureLoading = loading,
             summaryLoading = loading,
@@ -124,8 +118,8 @@ class LoadingPlaceholdersTest {
         composeTestRule.onNodeWithContentDescription("Loading picture").assertIsDisplayed()
         composeTestRule.onNodeWithContentDescription("Loading report").assertIsDisplayed()
         composeTestRule.onAllNodesWithContentDescription("Loading").assertCountEquals(2)
-        composeTestRule.onNodeWithText("Trend").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Divergence").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Next 7 days").assertIsDisplayed()
+        composeTestRule.onNodeWithText("So far").assertIsDisplayed()
         composeTestRule.onNodeWithContentDescription("Status illustration").assertDoesNotExist()
         composeTestRule.onNodeWithText("…").assertDoesNotExist()
         composeTestRule.onNodeWithText("Loading…").assertDoesNotExist()
@@ -219,78 +213,55 @@ class LoadingPlaceholdersTest {
         assertEquals(cell, bounds("cell"))
     }
 
-    // The Current view
+    // The two parts of the report
 
-    private val rows =
-        listOf(
-            ReportRow("Last 31 days", Loadable.Loading),
-            ReportRow("This month so far", Loadable.Ready(12.3)),
-            ReportRow("Next 7 days (forecast)", Loadable.Unavailable(Reason.NOT_AVAILABLE)),
-            ReportRow("Historical (30y), same days", Loadable.Failed(FailKind.NETWORK)),
-        )
+    private val verdict = SummaryBlock.Headline("It was warm.", Band.WARM)
+    private val outlook = SummaryBlock.Detail("Next 7 days: about as warm as usual.")
+    private val caveat = SummaryBlock.Caveat("Only 3 days so far, so this can change quickly.")
 
     @Test
-    fun currentView_showsASkeletonOnlyForTheLoadingRow() {
-        show { CurrentView(rows, shape, cardColors, onWarningClick = {}) }
+    fun headerCard_putsTheVerdictBesideThePictureAndTheRestBeneathIt() {
+        show { HeaderCard(loading = false, summary = listOf(verdict, outlook, caveat)) }
 
-        composeTestRule.onAllNodesWithContentDescription("Loading value").assertCountEquals(1)
-        rows.forEach { composeTestRule.onNodeWithText(it.label).assertIsDisplayed() }
-        composeTestRule.onNodeWithText("12.30°C").assertIsDisplayed()
-        composeTestRule.onNodeWithText("N/A").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Error").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Loading…").assertDoesNotExist()
+        listOf(verdict, outlook, caveat).forEach { composeTestRule.onNodeWithText(it.text).assertIsDisplayed() }
+        val picture = bounds("statusPicture")
+        val summary = bounds("statusSummary")
+        val details = bounds("statusDetails")
+        assertTrue(summary.left >= picture.right)
+        assertTrue(details.top >= picture.bottom)
+        assertTrue(details.right - details.left > summary.right - summary.left)
     }
 
     @Test
-    fun currentView_keepsNoDataYetAsText() {
-        show {
-            CurrentView(
-                listOf(ReportRow("This month so far", Loadable.Unavailable(Reason.NO_DATA_YET))),
-                shape,
-                cardColors,
-                onWarningClick = {},
-            )
-        }
+    fun headerCard_withOnlyAVerdict_hasNothingBeneathThePicture() {
+        show { HeaderCard(loading = false, summary = listOf(verdict)) }
 
-        composeTestRule.onNodeWithText("No data yet").assertIsDisplayed()
-        composeTestRule.onAllNodesWithContentDescription("Loading value").assertCountEquals(0)
+        composeTestRule.onNodeWithText(verdict.text).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("statusDetails").assertDoesNotExist()
     }
 
     @Test
-    fun currentView_withDelay_keepsItsHeightAndAddsTheSkeletonAfterTheDelay() {
-        show(delayed, paused = true) { CurrentView(rows, shape, cardColors, onWarningClick = {}) }
+    fun headerCard_whileLoading_holdsThePlaceOfBothParts() {
+        show { HeaderCard(loading = true) }
+
+        composeTestRule.onAllNodesWithContentDescription("Loading report").assertCountEquals(1)
+        composeTestRule.onNodeWithTag("statusSummary").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("statusDetails").assertIsDisplayed()
+    }
+
+    @Test
+    fun headerCard_withDelay_keepsBothPartsAtTheSameSizeUntilTheDelayIsOver() {
+        show(delayed, paused = true) { HeaderCard(loading = true) }
 
         advance(800)
-        composeTestRule.onAllNodesWithContentDescription("Loading value").assertCountEquals(0)
-        val card = bounds("currentView")
-        composeTestRule.onNodeWithText("Last 31 days").assertIsDisplayed()
+        val summary = bounds("statusSummary")
+        val details = bounds("statusDetails")
 
         advance(400)
-        composeTestRule.onAllNodesWithContentDescription("Loading value").assertCountEquals(1)
-        assertEquals(card, bounds("currentView"))
+        composeTestRule.onNodeWithContentDescription("Loading report").assertIsDisplayed()
+        assertEquals(summary, bounds("statusSummary"))
+        assertEquals(details, bounds("statusDetails"))
     }
-
-    private fun rowHeightStaysWhenTheValueArrives(fontScale: Float) {
-        var row by mutableStateOf(ReportRow("Last 31 days", Loadable.Loading))
-        composeTestRule.setContent {
-            CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale)) {
-                FineWeatherTheme { CurrentView(listOf(row), shape, cardColors, onWarningClick = {}) }
-            }
-        }
-        val loadingHeight = bounds("currentView").heightDp
-
-        row = ReportRow("Last 31 days", Loadable.Ready(9.0))
-        composeTestRule.waitForIdle()
-
-        assertEquals(loadingHeight, bounds("currentView").heightDp)
-    }
-
-    @Test
-    fun currentView_whenTheValueArrives_doesNotChangeTheRowHeight() = rowHeightStaysWhenTheValueArrives(1f)
-
-    @Test
-    fun currentView_whenTheValueArrivesAtALargeFontScale_doesNotChangeTheRowHeight() =
-        rowHeightStaysWhenTheValueArrives(2f)
 
     // The Month and Year cards
 
@@ -383,10 +354,7 @@ class LoadingPlaceholdersTest {
     @Test
     fun animatedConfig_showsAllPlaceholdersAfterTheDelayAndKeepsRunning() {
         show(LoadingConfig(delayMs = 150, animated = true), paused = true) {
-            Column {
-                HeaderCard(loading = true)
-                CurrentView(rows, shape, cardColors, onWarningClick = {})
-            }
+            HeaderCard(loading = true)
         }
 
         advance(100)
@@ -394,7 +362,6 @@ class LoadingPlaceholdersTest {
         advance(200)
         composeTestRule.onNodeWithContentDescription("Loading picture").assertIsDisplayed()
         composeTestRule.onNodeWithContentDescription("Loading report").assertIsDisplayed()
-        composeTestRule.onAllNodesWithContentDescription("Loading value").assertCountEquals(1)
         composeTestRule.onAllNodesWithContentDescription("Loading").assertCountEquals(2)
         repeat(20) { advance(100) }
         composeTestRule.onNodeWithContentDescription("Loading picture").assertIsDisplayed()

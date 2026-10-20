@@ -74,13 +74,22 @@ enum class Metric(
             Aggregation.TOTAL -> dailyMean * days
         }
 
-    /** A value of this metric with its unit: `12.34°C`, `5.3 h/day`, `42 mm` (`7.5 mm` below 10). */
-    fun format(value: Double): String = formatNumber(value) + unitSuffix
+    /**
+     * A value of this metric with its unit: `12.34°C`, `5.3 h/day`, `42 mm` (`7.5 mm` below 10).
+     * With [compact] a temperature has one decimal, as `12.3°C`, for the narrow places.
+     */
+    fun format(
+        value: Double,
+        compact: Boolean = false,
+    ): String = formatNumber(value, compact) + unitSuffix
 
     /** [format] without the unit. */
-    fun formatNumber(value: Double): String =
+    fun formatNumber(
+        value: Double,
+        compact: Boolean = false,
+    ): String =
         when (this) {
-            TEMPERATURE -> String.format(Locale.US, "%.2f", value)
+            TEMPERATURE -> String.format(Locale.US, if (compact) "%.1f" else "%.2f", value)
             SUNSHINE -> String.format(Locale.US, "%.1f", value)
             PRECIPITATION -> String.format(Locale.US, if (hasDecimal(value)) "%.1f" else "%.0f", value)
         }
@@ -108,20 +117,22 @@ enum class Metric(
 
     /**
      * A signed difference: `+1.30°C`, `-0.8 h/day`, `+19 mm`. With [signAtZero] false an exact zero has
-     * no sign. For sunshine and rain a difference that rounds to zero has none either.
+     * no sign. For sunshine and rain a difference that rounds to zero has none either, and neither has
+     * a [compact] temperature (`0.0°C`, never `+0.0°C`).
      */
     fun formatDelta(
         delta: Double,
         signAtZero: Boolean = true,
+        compact: Boolean = false,
     ): String {
-        val number = formatNumber(abs(delta))
+        val number = formatNumber(abs(delta), compact)
         val sign =
             when {
                 delta < 0 -> "-"
                 delta > 0 || signAtZero -> "+"
                 else -> ""
             }
-        val roundsToZero = this != TEMPERATURE && number.toDouble() == 0.0
+        val roundsToZero = (this != TEMPERATURE || compact) && number.toDouble() == 0.0
         return (if (roundsToZero) "" else sign) + number + unitSuffix
     }
 

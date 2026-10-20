@@ -46,19 +46,19 @@ class MetricSummaryTest {
     @Test
     fun sunshine_headlineNamesTheSeverityAndTheHourDifference() {
         assertEquals(
-            "October so far: a little sunnier than the 1961–1990 average (+0.8 h/day).",
+            "October so far: a little sunnier than the 1961–1990 average (+0.8 h/day, 5.8 h/day vs 5.0 h/day).",
             headline(sun(5.8)).text,
         )
         assertEquals(
-            "October so far: clearly sunnier than the 1961–1990 average (+1.0 h/day).",
+            "October so far: clearly sunnier than the 1961–1990 average (+1.0 h/day, 6.0 h/day vs 5.0 h/day).",
             headline(sun(6.0)).text,
         )
         assertEquals(
-            "October so far: much duller than the 1961–1990 average (-2.0 h/day).",
+            "October so far: much duller than the 1961–1990 average (-2.0 h/day, 3.0 h/day vs 5.0 h/day).",
             headline(sun(3.0)).text,
         )
         assertEquals(
-            "October so far: a little duller than the 1961–1990 average (-0.7 h/day).",
+            "October so far: a little duller than the 1961–1990 average (-0.7 h/day, 4.3 h/day vs 5.0 h/day).",
             headline(sun(4.3)).text,
         )
     }
@@ -67,7 +67,7 @@ class MetricSummaryTest {
     fun sunshine_neutralSaysCloseTo() {
         val headline = headline(sun(5.2))
 
-        assertEquals("October so far: close to the 1961–1990 average (+0.2 h/day).", headline.text)
+        assertEquals("October so far: close to the 1961–1990 average (+0.2 h/day, 5.2 h/day vs 5.0 h/day).", headline.text)
         assertEquals(Band.NEUTRAL, headline.band)
     }
 
@@ -81,9 +81,9 @@ class MetricSummaryTest {
     fun sunshine_outlookIsComparedWithTheNormalOfThoseDays() {
         fun outlook(mean: Double, reference: Double?) = ForecastOutlook(7, mean, reference, Metric.SUNSHINE)
 
-        assertEquals("Next 7 days: about 1.2 h/day sunnier than usual.", buildSummary(sun(6.0, outlook = outlook(6.2, 5.0))).last().text)
-        assertEquals("Next 7 days: about 1.0 h/day duller than usual.", buildSummary(sun(6.0, outlook = outlook(4.0, 5.0))).last().text)
-        assertEquals("Next 7 days: about as sunny as usual.", buildSummary(sun(6.0, outlook = outlook(5.2, 5.0))).last().text)
+        assertEquals("Next 7 days: about 1.2 h/day sunnier than usual (6.2 h/day vs 5.0 h/day).", buildSummary(sun(6.0, outlook = outlook(6.2, 5.0))).last().text)
+        assertEquals("Next 7 days: about 1.0 h/day duller than usual (4.0 h/day vs 5.0 h/day).", buildSummary(sun(6.0, outlook = outlook(4.0, 5.0))).last().text)
+        assertEquals("Next 7 days: about as sunny as usual (5.2 h/day vs 5.0 h/day).", buildSummary(sun(6.0, outlook = outlook(5.2, 5.0))).last().text)
         assertEquals("Next 7 days: forecast to average 6.2 h/day.", buildSummary(sun(6.0, outlook = outlook(6.2, null))).last().text)
     }
 
@@ -155,7 +155,7 @@ class MetricSummaryTest {
 
         assertEquals("Next 7 days: wetter than usual (25 mm vs 14 mm).", buildSummary(rain(40.0, outlook = outlook(25.0, 14.0))).last().text)
         assertEquals("Next 7 days: drier than usual (5.0 mm vs 14.0 mm).", buildSummary(rain(40.0, outlook = outlook(5.0, 14.0))).last().text)
-        assertEquals("Next 7 days: about as wet as usual (15 mm).", buildSummary(rain(40.0, outlook = outlook(15.0, 14.0))).last().text)
+        assertEquals("Next 7 days: about as wet as usual (15 mm vs 14 mm).", buildSummary(rain(40.0, outlook = outlook(15.0, 14.0))).last().text)
         assertEquals("Next 7 days: forecast to bring 25 mm.", buildSummary(rain(40.0, outlook = outlook(25.0, null))).last().text)
     }
 
@@ -177,7 +177,7 @@ class MetricSummaryTest {
             assertTrue(buildSummary(input(metric)).single().text.startsWith("Search for a place"))
             assertEquals(
                 "No complete day of October yet, check back tomorrow.",
-                buildSummary(input(metric, reference = 5.0)).single().text,
+                buildSummary(input(metric, reference = 5.0)).first().text,
             )
             assertEquals(
                 "The 1961–1990 reference is not available yet.",
@@ -212,8 +212,8 @@ class MetricSummaryTest {
 
         val blocks = buildSummary(default)
 
-        assertEquals("October so far: a little warmer than the 1961–1990 average (+1.30°C).", blocks[0].text)
-        assertEquals("Next 7 days: about 1.5°C warmer than usual.", blocks[1].text)
+        assertEquals("October so far: a little warmer than the 1961–1990 average (+1.30°C, 12.30°C vs 11.00°C).", blocks[0].text)
+        assertEquals("Next 7 days: about 1.5°C warmer than usual (11.5°C vs 10.0°C).", blocks[1].text)
         assertEquals(Metric.TEMPERATURE, default.metric)
     }
 
@@ -235,11 +235,11 @@ class MetricSummaryTest {
         val anomaly = TemperatureComparisonMode.NORMALIZED_ANOMALY
         // +1.5 h/day is "much" in hours, but only 1.5 standard deviations: "clearly"
         assertEquals(
-            "October so far: much sunnier than the 1961–1990 average (+1.5 h/day).",
+            "October so far: much sunnier than the 1961–1990 average (+1.5 h/day, 6.5 h/day vs 5.0 h/day).",
             headline(sun(6.5)).text,
         )
         assertEquals(
-            "October so far: clearly sunnier than the 1961–1990 average (+1.5 h/day).",
+            "October so far: clearly sunnier than the 1961–1990 average (+1.5 h/day, 6.5 h/day vs 5.0 h/day).",
             headline(input(Metric.SUNSHINE, 6.5, 5.0, stdDev = 1.0, mode = anomaly)).text,
         )
         // the outlook never uses the spread

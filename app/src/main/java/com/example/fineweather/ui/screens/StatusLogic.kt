@@ -6,7 +6,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import com.example.fineweather.R
 import com.example.fineweather.data.models.TemperatureComparisonMode
-import com.example.fineweather.domain.Aggregation
 import com.example.fineweather.domain.Band
 import com.example.fineweather.domain.Assessment
 import com.example.fineweather.domain.ForecastOutlook
@@ -15,7 +14,6 @@ import com.example.fineweather.domain.SummaryBlock
 import com.example.fineweather.ui.models.IconStack
 import com.example.fineweather.ui.models.ValueWithIcons
 import com.example.fineweather.viewmodels.Loadable
-import com.example.fineweather.viewmodels.Reason
 import com.example.fineweather.viewmodels.SearchStatus
 import com.example.fineweather.viewmodels.StatusPicture
 import com.example.fineweather.viewmodels.valueOrNull
@@ -76,21 +74,6 @@ internal fun bandTint(
         null -> Color.Transparent
     }
 
-/** The signed delta of [assessment] as a status card shows it: a percent of the normal for rain, else the delta. */
-private fun deltaText(assessment: Assessment): String {
-    val metric = assessment.metric
-    return assessment.percent?.let { Metric.formatPercent(it) } ?: metric.formatDelta(assessment.delta, signAtZero = false)
-}
-
-/** The title of the Current view's card. */
-internal val Metric.currentTitle: String
-    get() =
-        when (this) {
-            Metric.TEMPERATURE -> "Average temperatures"
-            Metric.SUNSHINE -> "Average sunshine"
-            Metric.PRECIPITATION -> "Rain totals"
-        }
-
 /** What the app compares, for the prompt before a search. */
 private val Metric.overview: String
     get() =
@@ -109,21 +92,17 @@ internal val Metric.pillDescription: String
             Metric.PRECIPITATION -> "Rain"
         }
 
-/** What the value of a period is called: rain adds up, the others average. */
-internal val Metric.summaryNoun: String
-    get() = if (aggregation == Aggregation.TOTAL) "total" else "average"
-
-/** [this] without the unit of [metric] behind its number, for cells too narrow for it. */
+/** [this] without the unit of [metric] behind its number, for cells too narrow for it; only sunshine's is long. */
 internal fun ValueWithIcons.withoutUnit(metric: Metric): ValueWithIcons {
     val suffix = " ${metric.unit}"
-    return if (metric == Metric.TEMPERATURE || !text.endsWith(suffix)) this else copy(text = text.removeSuffix(suffix))
+    return if (metric != Metric.SUNSHINE || !text.endsWith(suffix)) this else copy(text = text.removeSuffix(suffix))
 }
 
 /** A cell that is still waiting for its value; it draws a spinner. */
 private val LoadingValue = ValueWithIcons(text = "", icons = null, loading = true)
 
 /**
- * The divergence of this month so far: a signed value (in °C, h/day, or % of the normal for rain) with icons by
+ * The divergence of this month so far: a signed value (in °C, h/day or mm) with icons by
  * severity: fire/frost for temperature, sun/cloud for sunshine, drop/dry drop for rain.
  */
 internal fun buildStatusCardValue(
@@ -137,7 +116,7 @@ internal fun buildStatusCardValue(
             else -> return ValueWithIcons("-", null, placeholder = true)
         }
     val delta = assessment.delta
-    val valueText = deltaText(assessment)
+    val valueText = assessment.metric.formatDelta(delta, signAtZero = false)
     val count = assessment.severity
     if (count == 0) {
         return ValueWithIcons(valueText, null)
@@ -158,8 +137,9 @@ internal fun buildStatusCardValue(
 }
 
 /**
- * Whether the next forecast days are warmer or cooler (sunnier, wetter, ...) than normal for those same days.
- * Sunshine and rain also show the delta as text; the arrows are tinted by what the metric is above or below.
+ * Whether the next forecast days are warmer or cooler (sunnier, wetter, ...) than normal for those same days,
+ * as the delta from that normal in the unit of the metric (rain in mm, not a percent), and arrows tinted by what
+ * the metric is above or below. The cell is narrow, so a temperature has one decimal here.
  */
 internal fun buildTrendCardValue(
     trend: Loadable<ForecastOutlook>,
@@ -170,7 +150,7 @@ internal fun buildTrendCardValue(
     val delta = outlook?.delta ?: return ValueWithIcons("-", null, placeholder = true)
     val metric = outlook.metric
     val assessment = Assessment(delta, null, TemperatureComparisonMode.ABSOLUTE_DELTA, metric, outlook.referenceMean)
-    val text = if (metric == Metric.TEMPERATURE) "" else deltaText(assessment)
+    val text = metric.formatDelta(delta, signAtZero = false, compact = true)
     val wording = metric.wording
     val (resId, tint, description) =
         when (assessment.band) {
@@ -220,25 +200,6 @@ internal fun resolveStatusImageRes(picture: StatusPicture): Int =
         StatusPicture.COLD -> R.drawable.cold
         StatusPicture.EQUAL -> R.drawable.equal
     }
-
-/** A value of [metric] for a row of the Current view. */
-internal fun Loadable<Double>.displayText(metric: Metric): String =
-    when (this) {
-        is Loadable.Ready -> metric.format(value)
-        Loadable.Idle -> "-"
-        // Drawn as a skeleton bar, so this text is never shown.
-        Loadable.Loading -> ""
-        is Loadable.Unavailable -> reason.displayText()
-        is Loadable.Failed -> "Error"
-    }
-
-internal fun Reason.displayText(): String =
-    when (this) {
-        Reason.NO_DATA_YET -> "No data yet"
-        Reason.NOT_AVAILABLE -> "N/A"
-    }
-
-internal fun Loadable<*>.isPlaceholder(): Boolean = this !is Loadable.Ready
 
 internal fun SearchStatus.displayText(metric: Metric = Metric.TEMPERATURE): String =
     when (this) {

@@ -53,7 +53,6 @@ import java.time.LocalDate
 import java.time.format.TextStyle
 
 internal enum class TimeScale(val label: String) {
-    CURRENT("Current"),
     MONTH("Month"),
     YEAR("Year"),
 }

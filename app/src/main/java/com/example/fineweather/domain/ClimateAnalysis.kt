@@ -49,17 +49,6 @@ fun monthToDate(
     )
 }
 
-/** The last [days] complete days ending yesterday: their mean, or for rain their total (mean times [days]). */
-fun lastDaysMean(
-    series: DailySeries,
-    today: LocalDate,
-    days: Int = 31,
-    metric: Metric = Metric.TEMPERATURE,
-): Double? {
-    val yesterday = today.minusDays(1)
-    return series.mean(yesterday.minusDays(days - 1L), yesterday)?.let { metric.periodValue(it, days) }
-}
-
 /**
  * One month of the Year view. The three values are in the period unit of [metric]: a daily mean, or for
  * rain the total over the days compared (the month so far while it is [partial], else the whole month).
@@ -197,7 +186,7 @@ enum class MonthWindow { THIS_MONTH, LAST_30_DAYS }
 /**
  * One day of the Month view, in the daily unit of the metric. [band] is the smoothed normal (±3 days) the
  * chart draws, never below the metric's lower bound; [referenceMean] is the exact same-calendar-day mean,
- * so period averages agree with the Current view (as long as no day is missing).
+ * so period averages agree with the summary of the month so far (as long as no day is missing).
  */
 data class DayPoint(
     val date: LocalDate,
@@ -385,8 +374,6 @@ fun summarizeYear(months: List<MonthlyAnomaly>): YearSummary {
  */
 
 fun ClimateSnapshot.monthToDate(): PeriodComparison? = monthToDate(series, reference, today, metric)
-
-fun ClimateSnapshot.lastDays(days: Int = 31): Double? = lastDaysMean(series, today, days, metric)
 
 /** The months of the year up to yesterday, see [yearToDate]. */
 fun ClimateSnapshot.months(): List<MonthlyAnomaly> = yearToDate(series, reference, today, metric)

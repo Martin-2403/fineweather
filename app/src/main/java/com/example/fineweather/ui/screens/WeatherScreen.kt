@@ -21,17 +21,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardColors
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedButton
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -72,7 +69,6 @@ import com.example.fineweather.domain.Metric
 import com.example.fineweather.ui.models.ValueWithIcons
 import com.example.fineweather.ui.theme.SoftMist
 import com.example.fineweather.viewmodels.Loadable
-import com.example.fineweather.viewmodels.ReportRow
 import com.example.fineweather.viewmodels.SearchStatus
 import com.example.fineweather.viewmodels.StatusPicture
 import com.example.fineweather.viewmodels.WeatherViewModel
@@ -88,9 +84,8 @@ fun WeatherScreen(
     modifier: Modifier = Modifier,
 ) {
     var location by rememberSaveable { mutableStateOf("") }
-    var showCurrentMonthWarning by rememberSaveable { mutableStateOf(false) }
     var showAlternatives by rememberSaveable { mutableStateOf(false) }
-    var timeScale by rememberSaveable { mutableStateOf(TimeScale.CURRENT) }
+    var timeScale by rememberSaveable { mutableStateOf(TimeScale.MONTH) }
     val state by viewModel.state.collectAsState()
     val report by viewModel.report.collectAsState()
     val forecastDays by viewModel.forecastDays.collectAsState(
@@ -197,6 +192,7 @@ fun WeatherScreen(
                 summary = report.summary.toBlocks(),
                 statusCardValue = statusCardValue,
                 trendCardValue = trendCardValue,
+                trendLabel = "Next $forecastDays days",
                 shape = cardShape,
                 pictureLoading = report.picture == StatusPicture.LOADING,
                 summaryLoading = report.summary is Loadable.Loading,
@@ -218,15 +214,6 @@ fun WeatherScreen(
                 cardShape.copy(topStart = CornerSize(0.dp), topEnd = CornerSize(0.dp))
 
             when (timeScale) {
-                TimeScale.CURRENT ->
-                    CurrentView(
-                        rows = report.rows,
-                        shape = attachedShape,
-                        colors = cardColors,
-                        onWarningClick = { showCurrentMonthWarning = true },
-                        metric = report.metric,
-                    )
-
                 TimeScale.MONTH ->
                     MonthView(
                         snapshot = report.snapshot.valueOrNull(),
@@ -287,36 +274,6 @@ fun WeatherScreen(
             onDismiss = { showAlternatives = false },
         )
     }
-    if (showCurrentMonthWarning) {
-        AlertDialog(
-            onDismissRequest = { showCurrentMonthWarning = false },
-            title = {
-                Text(
-                    text = "Limited data so far",
-                    fontFamily = nunitoSansFamily,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            },
-            text = {
-                Text(
-                    text =
-                        if (report.dayCount == 0) {
-                            "This month has no data yet. Check back soon for a more stable ${report.metric.summaryNoun}."
-                        } else {
-                            "This month's ${report.metric.summaryNoun} is based on ${report.dayCount} days of data. " +
-                                    "Values can shift as more data arrives."
-                        },
-                    fontFamily = nunitoSansFamily,
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { showCurrentMonthWarning = false }) {
-                    Text("OK", fontFamily = nunitoSansFamily)
-                }
-            },
-        )
-    }
-
     if (showInfo) {
         InfoOverlay(
             onDismiss = onDismissInfo,
@@ -476,116 +433,6 @@ internal fun MetricPills(
     }
 }
 
-@Composable
-internal fun CurrentView(
-    rows: List<ReportRow>,
-    shape: RoundedCornerShape,
-    colors: CardColors,
-    onWarningClick: () -> Unit,
-    metric: Metric = Metric.TEMPERATURE,
-) {
-    ViewCard(shape, colors, Modifier.testTag("currentView")) {
-        Text(
-            metric.currentTitle,
-            fontFamily = nunitoSansFamily,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-        )
-        rows.forEachIndexed { index, row ->
-            MetricRow(
-                label = row.label,
-                value = row.value,
-                metric = metric,
-                showWarning = row.showWarning,
-                onWarningClick = if (row.showWarning) onWarningClick else null,
-            )
-            if (index != rows.lastIndex) {
-                Box(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .height(1.dp)
-                            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f)),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun MetricRow(
-    label: String,
-    value: Loadable<Double>,
-    metric: Metric,
-    showWarning: Boolean = false,
-    onWarningClick: (() -> Unit)? = null,
-) {
-    Row(
-        modifier =
-            Modifier
-                .fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Row(
-            modifier = Modifier.weight(1f),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = label,
-                fontFamily = nunitoSansFamily,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (showWarning && onWarningClick != null) {
-                Spacer(modifier = Modifier.width(6.dp))
-                Icon(
-                    painter = painterResource(R.drawable.warning),
-                    contentDescription = "Limited forecast data",
-                    tint = WarningIconTint,
-                    modifier =
-                        Modifier
-                            .size(16.dp)
-                            .clickable { onWarningClick() },
-                )
-            }
-        }
-        if (value is Loadable.Loading) {
-            Box(contentAlignment = Alignment.CenterEnd) {
-                // Invisible text, so the row is as tall as it will be with the value.
-                Text(
-                    text = "0",
-                    modifier = Modifier
-                        .alpha(0f)
-                        .clearAndSetSemantics {},
-                    fontFamily = nunitoSansFamily,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                SkeletonLine(width = scaledDp(64f), description = "Loading value")
-            }
-        } else {
-            val isPlaceholder = value.isPlaceholder()
-            Text(
-                text = value.displayText(metric),
-                fontFamily = nunitoSansFamily,
-                textAlign = TextAlign.End,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = if (isPlaceholder) FontWeight.Normal else FontWeight.SemiBold,
-                color = valueColor(isPlaceholder),
-            )
-        }
-    }
-}
-
-@Composable
-private fun valueColor(placeholder: Boolean): Color {
-    return if (placeholder) {
-        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-    } else {
-        MaterialTheme.colorScheme.onSurface
-    }
-}
-
 /**
  * Place name on the first line (shortened when too long), the coordinates on the second.
  * [onShowAlternatives] adds a "Not your city?" link after the coordinates when the search had
@@ -735,7 +582,7 @@ internal fun InfoOverlay(
                             Text(text = "\u2022")
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                text = "Search a city or place to see the temperature averages of the last 31 days, this month so far (up to yesterday), and the forecast average temperature.",
+                                text = "Search a city or place to see how this month so far (up to yesterday) and the coming days compare with the climate average of the place.",
                                 fontFamily = nunitoSansFamily,
                                 style = MaterialTheme.typography.bodyMedium,
                             )
@@ -745,9 +592,9 @@ internal fun InfoOverlay(
                             Text(text = "\u2022")
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                text = "The divergence compares this month so far with exactly the same days of the 30 year baseline, " +
-                                        "and Trend shows whether the coming days are forecast to be warmer or cooler than normal for those days. " +
-                                        "A short text next to the picture sums it up.",
+                                text = "Both cells show how far from normal it is, compared with the 30 year baseline: So far is this month up to yesterday " +
+                                        "against exactly the same days, and Next 7 days (or 14) is the forecast against the normal of those days. " +
+                                        "A short report around the picture sums it up, with the figures it is based on.",
                                 fontFamily = nunitoSansFamily,
                                 style = MaterialTheme.typography.bodyMedium,
                             )
@@ -757,7 +604,7 @@ internal fun InfoOverlay(
                             Text(text = "\u2022")
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                text = "Below the report, switch between Current (the averages), Month (a daily chart against the typical range, " +
+                                text = "Below the report, switch between Month (a daily chart against the typical range, " +
                                         "for this month or the last 30 days, with the forecast as a dashed line) and Year (every month of the year so far compared with the climate average).",
                                 fontFamily = nunitoSansFamily,
                                 style = MaterialTheme.typography.bodyMedium,
@@ -968,6 +815,15 @@ internal fun StatusTrendCell(
                 CellValue(value, compact = false)
             }
         }
+    }
+}
+
+@Composable
+private fun valueColor(placeholder: Boolean): Color {
+    return if (placeholder) {
+        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+    } else {
+        MaterialTheme.colorScheme.onSurface
     }
 }
 

@@ -108,6 +108,10 @@ class WeatherViewModelMetricTest {
     private val state get() = viewModel.state.value
     private val report get() = viewModel.report.value
 
+    /** What the report was made of, read from its headline: this month so far and the same days of the reference. */
+    private val monthValue: Double? get() = (report.headline as? Loadable.Ready)?.value?.let { it.reference!! + it.delta }
+    private val referenceValue: Double? get() = (report.headline as? Loadable.Ready)?.value?.reference
+
     private fun extrasCalls(count: Int) =
         coVerify(exactly = count) { weatherRepository.getReferenceExtras(any(), any(), any(), any(), any()) }
 
@@ -215,8 +219,8 @@ class WeatherViewModelMetricTest {
         }
         assertEquals(Loadable.Ready(extras), state.extras)
         // five hours of sunshine on the one complete day of April against a normal of six
-        assertEquals(Loadable.Ready(5.0), report.rows[1].value)
-        assertEquals(Loadable.Ready(6.0), report.rows[3].value)
+        assertEquals(5.0, monthValue!!, 1e-9)
+        assertEquals(6.0, referenceValue!!, 1e-9)
         assertEquals(-1.0, (report.headline as Loadable.Ready).value.delta, 1e-9)
     }
 
@@ -228,8 +232,8 @@ class WeatherViewModelMetricTest {
         viewModel.selectMetric(Metric.PRECIPITATION)
         advanceUntilIdle()
 
-        assertEquals(Loadable.Ready(1.0), report.rows[1].value)
-        assertEquals(Loadable.Ready(1.5), report.rows[3].value)
+        assertEquals(1.0, monthValue!!, 1e-9)
+        assertEquals(1.5, referenceValue!!, 1e-9)
         assertEquals(Metric.PRECIPITATION, (report.headline as Loadable.Ready).value.metric)
     }
 
@@ -243,17 +247,17 @@ class WeatherViewModelMetricTest {
         viewModel.selectMetric(Metric.SUNSHINE)
 
         assertEquals(Loadable.Loading, state.extras)
-        assertEquals(Loadable.Loading, report.rows[3].value)
         assertEquals(Loadable.Loading, report.headline)
         assertEquals(Loadable.Loading, report.trend)
-        // what does not need the normal is there already, and the picture stays the temperature's
-        assertEquals(Loadable.Ready(5.0), report.rows[1].value)
+        assertEquals(Loadable.Loading, report.summary)
+        // the picture stays the temperature's, which needs no extras
         assertEquals(StatusPicture.WARM, report.picture)
 
         gate.complete(CacheResult(extras, fromCache = false))
         advanceUntilIdle()
 
-        assertEquals(Loadable.Ready(6.0), report.rows[3].value)
+        assertEquals(6.0, referenceValue!!, 1e-9)
+        assertEquals(5.0, monthValue!!, 1e-9)
     }
 
     @Test
@@ -391,7 +395,6 @@ class WeatherViewModelMetricTest {
 
         assertEquals(Loadable.Idle, state.extras)
         assertEquals(Loadable.Loading, report.headline)
-        assertEquals(Loadable.Loading, report.rows[3].value)
         geocode.complete(selectionOf(hamburg))
         advanceUntilIdle()
 
@@ -463,7 +466,7 @@ class WeatherViewModelMetricTest {
         advanceUntilIdle()
 
         assertEquals(Loadable.Ready(newExtras), state.extras)
-        assertEquals(Loadable.Ready(7.0), report.rows[3].value)
+        assertEquals(7.0, referenceValue!!, 1e-9)
         // the forecast and the year were not requested again
         coVerify(exactly = 1) { weatherRepository.getForecast(any(), any(), any(), any()) }
         coVerify(exactly = 1) { weatherRepository.getYearToDate(any(), any(), any(), any()) }
@@ -569,7 +572,7 @@ class WeatherViewModelMetricTest {
         advanceUntilIdle()
 
         assertEquals(Loadable.Ready(currentExtras), state.extras)
-        assertEquals(Loadable.Ready(7.0), report.rows[3].value)
+        assertEquals(7.0, referenceValue!!, 1e-9)
         extrasCalls(1)
         coVerify(exactly = 1) {
             weatherRepository.getReferenceExtras(any(), any(), any(), HistoricReference.CURRENT, any())
@@ -589,7 +592,8 @@ class WeatherViewModelMetricTest {
         listOf(report.headline, report.trend, report.snapshot, report.summary).forEach {
             assertTrue("$it", it !is Loadable.Loading)
         }
-        report.rows.forEach { assertEquals(Loadable.Unavailable(Reason.NOT_AVAILABLE), it.value) }
+        assertEquals(Loadable.Unavailable(Reason.NOT_AVAILABLE), report.headline)
+        assertEquals(Loadable.Unavailable(Reason.NOT_AVAILABLE), report.trend)
         assertEquals(StatusPicture.INITIAL, report.picture)
         extrasCalls(0)
     }
@@ -787,7 +791,7 @@ class WeatherViewModelMetricTest {
 
             assertEquals(hamburgPlace, state.selectedPlace)
             assertEquals(Loadable.Ready(extras), state.extras)
-            assertEquals(Loadable.Ready(6.0), report.rows[3].value)
+            assertEquals(6.0, referenceValue!!, 1e-9)
             assertEquals(emptyList<String>(), messages)
         }
     }

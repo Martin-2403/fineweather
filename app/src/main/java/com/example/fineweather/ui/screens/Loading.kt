@@ -147,17 +147,23 @@ internal fun SkeletonLine(
     Box(modifier.then(size).height(height).then(look))
 }
 
-/** Skeleton lines under one description, as tall as lines of body text, standing in for a block of text. */
+/**
+ * Skeleton lines under one [description] (none for a block next to one that has it), as tall as lines of
+ * body text, standing in for a block of text.
+ */
 @Composable
 internal fun SkeletonBlock(
-    description: String,
+    description: String?,
     modifier: Modifier = Modifier,
     fractions: List<Float> = listOf(0.85f, 1f, 0.6f),
 ) {
     val shown = rememberDelayedFlag(active = true)
     val pulse = rememberSkeletonPulse()
     Column(
-        modifier = modifier.then(if (shown) Modifier.semantics { contentDescription = description } else Modifier),
+        modifier =
+            modifier.then(
+                if (shown && description != null) Modifier.semantics { contentDescription = description } else Modifier,
+            ),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         fractions.forEach {

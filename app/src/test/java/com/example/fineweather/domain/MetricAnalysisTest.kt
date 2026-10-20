@@ -88,28 +88,6 @@ class MetricAnalysisTest {
         assertNull(result.referenceStdDev)
     }
 
-    // ---- last days ----
-
-    @Test
-    fun lastDays_rainIsTheTotalOfTheWindow() {
-        assertEquals(31.0, lastDaysMean(yearSeries { 1.0 }, today, metric = rain)!!, 1e-9)
-        assertEquals(7.0, lastDaysMean(yearSeries { 1.0 }, today, days = 7, metric = rain)!!, 1e-9)
-    }
-
-    @Test
-    fun lastDays_missingRecentDaysDoNotShrinkTheTotal() {
-        val series = yearSeries { if (it.isAfter(LocalDate.of(2026, 10, 10))) null else 1.0 }
-
-        assertEquals(31.0, lastDaysMean(series, today, metric = rain)!!, 1e-9)
-        assertNull(lastDaysMean(yearSeries { null }, today, metric = rain))
-    }
-
-    @Test
-    fun lastDays_sunshineAndTemperatureStayMeans() {
-        assertEquals(1.0, lastDaysMean(yearSeries { 1.0 }, today, metric = sun)!!, 1e-9)
-        assertEquals(1.0, lastDaysMean(yearSeries { 1.0 }, today)!!, 1e-9)
-    }
-
     // ---- year ----
 
     @Test
@@ -313,7 +291,7 @@ class MetricAnalysisTest {
     }
 
     @Test
-    fun summarize_rainTotalsAgreeWithTheCurrentView() {
+    fun summarize_rainTotalsAgreeWithTheMonthToDate() {
         val snapshot = snapshot(rain, constant(2.0)) { if (it.monthValue == 10 && it.dayOfMonth in 5..6) null else 3.0 }
 
         val summary = summarize(dayPoints(snapshot, MonthWindow.THIS_MONTH), rain)
@@ -440,7 +418,6 @@ class MetricAnalysisTest {
         assertEquals(39.0, month.observedMean, 1e-9)
         assertEquals(26.0, month.referenceMean!!, 1e-9)
         assertEquals(rain, month.metric)
-        assertEquals(93.0, snapshot.lastDays()!!, 1e-9)
         assertEquals(93.0, months.first().observedMean!!, 1e-9)
         assertEquals(50.0, months.last().deltaPercent!!, 1e-9)
         assertEquals(39.0, summary.observedMean!!, 1e-9)
@@ -466,7 +443,6 @@ class MetricAnalysisTest {
         val snapshot = ClimateSnapshot(yearSeries { 20.0 }, syntheticReference(), today, forecast { 8.0 })
 
         assertEquals(20.0, snapshot.monthToDate()!!.observedMean, 1e-9)
-        assertEquals(20.0, snapshot.lastDays()!!, 1e-9)
         assertEquals(20.0, snapshot.months().last().observedMean!!, 1e-9)
         assertEquals(8.0, snapshot.outlook(7)!!.mean, 1e-9)
     }

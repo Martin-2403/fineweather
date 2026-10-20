@@ -67,7 +67,7 @@ class WeatherReportMetricTest {
         mode: TemperatureComparisonMode = TemperatureComparisonMode.ABSOLUTE_DELTA,
     ) = buildReport(state, forecastDays, mode, HistoricReference.CLASSIC, metric)
 
-    private fun WeatherReport.values() = rows.map { it.value }
+    private fun WeatherReport.blocks() = (summary as Loadable.Ready).value
 
     // ---- rain ----
 
@@ -76,12 +76,11 @@ class WeatherReportMetricTest {
         val report = report(loaded(), Metric.PRECIPITATION)
 
         assertEquals(Metric.PRECIPITATION, report.metric)
-        assertEquals(
-            listOf("Last 31 days", "This month so far", "Next 7 days (forecast)", "Historical (30y), same days"),
-            report.rows.map { it.label },
-        )
-        // 31 and 13 days of 2 mm, 7 days of 3 mm, 13 days of 1 mm
-        assertEquals(listOf(62.0, 26.0, 21.0, 13.0).map { Loadable.Ready(it) }, report.values())
+        // 13 days of 2 mm against 13 days of 1 mm, and 7 days of 3 mm against 7 days of 1 mm
+        val headline = (report.headline as Loadable.Ready).value
+        assertEquals(13.0, headline.reference!!, 1e-9)
+        assertEquals(26.0, headline.reference!! + headline.delta, 1e-9)
+        assertEquals(21.0, (report.trend as Loadable.Ready).value.mean, 1e-9)
         assertEquals(13, report.dayCount)
     }
 
@@ -133,9 +132,9 @@ class WeatherReportMetricTest {
     fun rain_forecastDaysSettingSlicesTheForecast() {
         val long = report(loaded(), Metric.PRECIPITATION, forecastDays = 14)
 
-        assertEquals("Next 14 days (forecast)", long.rows[2].label)
-        assertEquals(Loadable.Ready(28.0), long.rows[2].value) // 7 x 3 + 7 x 1
+        assertEquals(28.0, (long.trend as Loadable.Ready).value.mean, 1e-9) // 7 x 3 + 7 x 1
         assertEquals(14, (long.trend as Loadable.Ready).value.days)
+        assertTrue(long.blocks()[1].text.startsWith("Next 14 days"))
         assertEquals(14.0, (long.trend as Loadable.Ready).value.referenceMean!!, 1e-9)
     }
 
@@ -144,10 +143,10 @@ class WeatherReportMetricTest {
         val first = LocalDate.of(2026, 10, 1)
         val report = report(loaded(today = first, year = Loadable.Ready(year(to = LocalDate.of(2026, 9, 30)))), Metric.PRECIPITATION)
 
-        assertEquals(Loadable.Unavailable(Reason.NOT_AVAILABLE), report.rows[1].value)
-        assertEquals("Historical (30y) for this month", report.rows[3].label)
-        assertEquals(Loadable.Ready(31.0), report.rows[3].value) // 31 days of 1 mm
-        assertEquals(Loadable.Ready(62.0), report.rows[0].value)
+        assertEquals(0, report.dayCount)
+        assertEquals("No complete day of October yet, check back tomorrow.", report.blocks()[0].text)
+        // 31 days of 1 mm
+        assertEquals("The 1961–1990 average for October is 31 mm.", report.blocks()[1].text)
     }
 
     @Test
@@ -184,9 +183,9 @@ class WeatherReportMetricTest {
     fun sunshine_reportsDailyMeansInHours() {
         val report = report(loaded(), Metric.SUNSHINE)
 
-        assertEquals(listOf(6.0, 6.0, 7.0, 5.0).map { Loadable.Ready(it) }, report.values())
         val headline = (report.headline as Loadable.Ready).value
         assertEquals(Metric.SUNSHINE, headline.metric)
+        assertEquals(5.0, headline.reference!!, 1e-9)
         assertEquals(1.0, headline.delta, 1e-9)
         assertEquals(Band.WARM, headline.band)
         assertEquals(2, headline.severity)
@@ -195,8 +194,8 @@ class WeatherReportMetricTest {
         assertEquals(7.0, trend.mean, 1e-9)
         assertEquals(2.0, trend.delta!!, 1e-9)
         assertEquals(
-            "October so far: clearly sunnier than the 1961–1990 average (+1.0 h/day).",
-            (((report.summary as Loadable.Ready).value).first()).text,
+            "October so far: clearly sunnier than the 1961–1990 average (+1.0 h/day, 6.0 h/day vs 5.0 h/day).",
+            report.blocks().first().text,
         )
     }
 
@@ -204,7 +203,7 @@ class WeatherReportMetricTest {
     fun sunshine_fourteenDaysIsTheMeanOfBothWeeks() {
         val report = report(loaded(), Metric.SUNSHINE, forecastDays = 14)
 
-        assertEquals(Loadable.Ready(5.5), report.rows[2].value)
+        assertEquals(5.5, (report.trend as Loadable.Ready).value.mean, 1e-9)
     }
 
     // ---- the picture ----
@@ -238,15 +237,10 @@ class WeatherReportMetricTest {
         listOf(Loadable.Idle, Loadable.Loading).forEach { extras ->
             val report = report(loaded(extras = extras), Metric.PRECIPITATION)
 
-            assertEquals(Loadable.Ready(62.0), report.rows[0].value)
-            assertEquals(Loadable.Ready(26.0), report.rows[1].value)
-            assertEquals(Loadable.Ready(21.0), report.rows[2].value)
-            assertEquals(Loadable.Loading, report.rows[3].value)
             assertEquals(Loadable.Loading, report.headline)
             assertEquals(Loadable.Loading, report.trend)
             assertEquals(Loadable.Loading, report.summary)
             assertEquals(Loadable.Loading, report.snapshot)
-            assertFalse(report.rows.any { it.showWarning })
         }
     }
 
@@ -254,34 +248,32 @@ class WeatherReportMetricTest {
     fun extras_idleBeforeAnythingWasRequestedStayIdle() {
         val report = report(WeatherUiState(today = today), Metric.SUNSHINE)
 
-        report.values().forEach { assertEquals(Loadable.Idle, it) }
         assertEquals(Loadable.Idle, report.headline)
         assertEquals(Loadable.Idle, report.trend)
         assertEquals(Loadable.Idle, report.snapshot)
-        assertTrue((report.summary as Loadable.Ready).value.single().text.startsWith("Search for a place"))
+        assertTrue(report.blocks().single().text.startsWith("Search for a place"))
     }
 
     @Test
     fun extras_neverComeAfterAFailedTemperatureReference() {
         val report = report(loaded(reference = Loadable.Failed(FailKind.NETWORK), extras = Loadable.Idle), Metric.SUNSHINE)
 
-        assertEquals(Loadable.Failed(FailKind.NETWORK), report.rows[3].value)
         assertEquals(Loadable.Failed(FailKind.NETWORK), report.headline)
-        assertEquals(Loadable.Ready(6.0), report.rows[1].value)
     }
 
     @Test
     fun extras_failedAreShownWhereTheyAreMissing() {
         val report = report(loaded(extras = Loadable.Failed(FailKind.RATE_LIMITED)), Metric.PRECIPITATION)
 
-        assertEquals(Loadable.Failed(FailKind.RATE_LIMITED), report.rows[3].value)
         assertEquals(Loadable.Failed(FailKind.RATE_LIMITED), report.headline)
-        assertEquals(Loadable.Ready(26.0), report.rows[1].value)
         // the outlook has no normal, but still its total
         assertNull((report.trend as Loadable.Ready).value.delta)
         assertEquals(21.0, (report.trend as Loadable.Ready).value.mean, 1e-9)
         assertNull((report.snapshot as Loadable.Ready).value.reference)
-        assertTrue((report.summary as Loadable.Ready).value.single().text.contains("reference is not available"))
+        assertEquals(
+            listOf("The 1961–1990 reference is not available yet.", "Next 7 days: forecast to bring 21 mm."),
+            report.blocks().map { it.text },
+        )
         // the picture is still the temperature's
         assertEquals(StatusPicture.EQUAL, report.picture)
     }
@@ -292,7 +284,6 @@ class WeatherReportMetricTest {
 
         val report = report(state, Metric.PRECIPITATION)
 
-        assertEquals(Loadable.Unavailable(Reason.NOT_AVAILABLE), report.rows[3].value)
         assertEquals(Loadable.Unavailable(Reason.NOT_AVAILABLE), report.headline)
         // the other metric of the same extras is fine
         assertTrue(report(state, Metric.SUNSHINE).headline is Loadable.Ready)
@@ -306,9 +297,8 @@ class WeatherReportMetricTest {
 
         val report = report(loaded(year = Loadable.Ready(onlyTemperature)), Metric.SUNSHINE)
 
-        assertEquals(Loadable.Unavailable(Reason.NOT_AVAILABLE), report.rows[0].value)
-        assertEquals(Loadable.Unavailable(Reason.NO_DATA_YET), report.rows[1].value)
-        assertTrue(report.rows[1].showWarning)
+        assertEquals(Loadable.Unavailable(Reason.NO_DATA_YET), report.headline)
+        assertEquals("No complete day of October yet, check back tomorrow.", report.blocks().first().text)
         assertFalse((report.snapshot as Loadable.Ready).value.series.hasValues())
     }
 
@@ -318,7 +308,10 @@ class WeatherReportMetricTest {
 
         val report = report(loaded(year = Loadable.Ready(gaps)), Metric.PRECIPITATION)
 
-        assertEquals(Loadable.Ready(26.0), report.rows[1].value)
+        // the 13 days are measured against 13 days of the normal, however many of them have a value
+        val headline = (report.headline as Loadable.Ready).value
+        assertEquals(13.0, headline.reference!!, 1e-9)
+        assertEquals(26.0, headline.reference!! + headline.delta, 1e-9)
         assertEquals(11, report.dayCount)
     }
 
@@ -333,7 +326,6 @@ class WeatherReportMetricTest {
 
         // the series have no equality, so compare what the report is made of
         listOf(without, explicit).forEach {
-            assertEquals(withExtras.rows, it.rows)
             assertEquals(withExtras.headline, it.headline)
             assertEquals(withExtras.trend, it.trend)
             assertEquals(withExtras.summary, it.summary)
@@ -341,21 +333,18 @@ class WeatherReportMetricTest {
             assertEquals(withExtras.dayCount, it.dayCount)
         }
         assertEquals(Metric.TEMPERATURE, withExtras.metric)
-        assertEquals(listOf(10.0, 10.0, 12.0, 10.0).map { Loadable.Ready(it) }, withExtras.values())
         val headline = (withExtras.headline as Loadable.Ready).value
         assertEquals(Metric.TEMPERATURE, headline.metric)
+        assertEquals(10.0, headline.reference!!, 1e-9)
         assertEquals(0.0, headline.delta, 1e-9)
+        assertEquals(12.0, (withExtras.trend as Loadable.Ready).value.mean, 1e-9)
     }
 
     @Test
-    fun extras_readyWhileTheYearLoads_keepTheHistoricRowAndTheHeadlineLoading() {
+    fun extras_readyWhileTheYearLoads_keepTheHeadlineLoading() {
         val report = report(loaded(year = Loadable.Loading), Metric.PRECIPITATION)
 
-        assertEquals(Loadable.Loading, report.rows[0].value)
-        assertEquals(Loadable.Loading, report.rows[1].value)
-        assertEquals(Loadable.Ready(21.0), report.rows[2].value)
-        // it must not flip to the whole month's normal while the same days are still unknown
-        assertEquals(Loadable.Loading, report.rows[3].value)
+        // the comparison must not flip to the whole month's normal while the same days are still unknown
         assertEquals(Loadable.Loading, report.headline)
         assertEquals(Loadable.Loading, report.summary)
         assertEquals(Loadable.Loading, report.snapshot)

@@ -111,7 +111,12 @@ class WeatherViewModelTest {
     private val state get() = viewModel.state.value
     private val report get() = viewModel.report.value
 
-    private fun row(index: Int) = report.rows[index].value
+    /** What the report was made of, read from its headline (this month so far, the same days of the reference) and trend. */
+    private val monthValue: Double? get() = (report.headline as? Loadable.Ready)?.value?.let { it.reference!! + it.delta }
+    private val referenceValue: Double? get() = (report.headline as? Loadable.Ready)?.value?.reference
+    private val forecastMean: Double? get() = (report.trend as? Loadable.Ready)?.value?.mean
+
+    private fun summaryTexts() = ((report.summary as Loadable.Ready).value).map { it.text }
 
     // ---- fetching ----
 
@@ -123,11 +128,10 @@ class WeatherViewModelTest {
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
 
-        assertEquals(Loadable.Ready(10.0), row(0))
-        assertEquals(Loadable.Ready(10.0), row(1))
+        assertEquals(10.0, monthValue!!, 1e-9)
         assertEquals(1, report.dayCount)
-        assertEquals(Loadable.Ready(4.0), row(3))
-        assertEquals(Loadable.Ready(12.0), row(2))
+        assertEquals(4.0, referenceValue!!, 1e-9)
+        assertEquals(12.0, forecastMean!!, 1e-9)
         assertEquals(0.0, (report.headline as Loadable.Ready).value.stdDev!!, 1e-9)
         assertEquals("Berlin", state.selectedPlace?.name)
         val snapshot = (report.snapshot as Loadable.Ready).value
@@ -163,7 +167,7 @@ class WeatherViewModelTest {
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
 
-        assertEquals(Loadable.Ready(12.0), row(2))
+        assertEquals(12.0, forecastMean!!, 1e-9)
         assertEquals(1, viewModel.apiCallCount.value) // only the year series
         assertEquals(2, viewModel.cacheHitCount.value) // reference and forecast
     }
@@ -176,7 +180,6 @@ class WeatherViewModelTest {
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
 
-        assertEquals(Loadable.Ready(12.0), row(2))
         val outlook = (report.trend as Loadable.Ready).value
         assertEquals(7, outlook.days)
         assertEquals(12.0, outlook.mean, 1e-9)
@@ -196,7 +199,7 @@ class WeatherViewModelTest {
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
 
-        assertEquals(Loadable.Ready(13.5), row(2))
+        assertEquals(13.5, forecastMean!!, 1e-9)
         assertEquals(14, (report.trend as Loadable.Ready).value.days)
         coVerify(exactly = 1) { weatherRepository.getForecast(data.id, 1.0, 2.0, fixedNow) }
     }
@@ -224,10 +227,12 @@ class WeatherViewModelTest {
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
 
-        assertEquals(Loadable.Unavailable(Reason.NOT_AVAILABLE), row(1))
+        assertEquals(Loadable.Unavailable(Reason.NOT_AVAILABLE), report.headline)
         assertEquals(0, report.dayCount)
-        assertEquals(Loadable.Ready(4.0), row(3))
-        assertEquals(Loadable.Ready(10.0), row(0))
+        assertEquals(
+            listOf("No complete day of April yet, check back tomorrow.", "The 1961–1990 average for April is 4.00°C."),
+            summaryTexts().take(2),
+        )
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -242,7 +247,7 @@ class WeatherViewModelTest {
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
 
-        assertEquals(Loadable.Unavailable(Reason.NO_DATA_YET), row(1))
+        assertEquals(Loadable.Unavailable(Reason.NO_DATA_YET), report.headline)
         assertEquals(0, report.dayCount)
     }
 
@@ -256,11 +261,13 @@ class WeatherViewModelTest {
         advanceUntilIdle()
 
         assertEquals(Loadable.Failed(FailKind.OTHER), state.year)
-        assertEquals(Loadable.Failed(FailKind.OTHER), row(0))
-        assertEquals(Loadable.Failed(FailKind.OTHER), row(1))
+        assertEquals(Loadable.Failed(FailKind.OTHER), report.headline)
         assertEquals(0, report.dayCount)
         assertEquals(Loadable.Failed(FailKind.OTHER), report.snapshot)
-        assertEquals(Loadable.Ready(4.0), row(3))
+        assertEquals(
+            listOf("This year's weather data could not be loaded.", "The 1961–1990 average for April is 4.00°C."),
+            summaryTexts().take(2),
+        )
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -274,9 +281,7 @@ class WeatherViewModelTest {
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
 
-        assertEquals(Loadable.Failed(FailKind.OTHER), row(3))
         assertEquals(Loadable.Failed(FailKind.OTHER), report.headline)
-        assertEquals(Loadable.Ready(10.0), row(1))
         assertNull((report.snapshot as Loadable.Ready).value.reference)
     }
 
@@ -289,10 +294,10 @@ class WeatherViewModelTest {
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
 
-        assertEquals(Loadable.Failed(FailKind.OTHER), row(2))
         assertEquals(Loadable.Failed(FailKind.OTHER), report.trend)
         assertNull((report.snapshot as Loadable.Ready).value.forecast)
-        assertEquals(Loadable.Ready(10.0), row(1))
+        assertEquals(10.0, monthValue!!, 1e-9)
+        assertEquals("The forecast could not be loaded.", summaryTexts().last())
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -322,7 +327,7 @@ class WeatherViewModelTest {
             "Weather service limit reached. Showing cached data where available.",
             message.await(),
         )
-        assertEquals(Loadable.Failed(FailKind.RATE_LIMITED), row(1))
+        assertEquals(Loadable.Failed(FailKind.RATE_LIMITED), report.headline)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -360,7 +365,7 @@ class WeatherViewModelTest {
             advanceUntilIdle()
 
             assertEquals(Loadable.Failed(FailKind.RATE_LIMITED), state.year)
-            assertEquals(Loadable.Ready(12.0), row(2))
+            assertEquals(12.0, forecastMean!!, 1e-9)
         }
     }
 
@@ -392,7 +397,8 @@ class WeatherViewModelTest {
         assertEquals(Loadable.Idle, state.forecast)
         assertEquals(Loadable.Idle, state.year)
         assertEquals(Loadable.Idle, state.reference)
-        report.rows.forEach { assertEquals(Loadable.Idle, it.value) }
+        assertEquals(Loadable.Idle, report.headline)
+        assertEquals(Loadable.Idle, report.trend)
         assertEquals(Loadable.Idle, report.snapshot)
         assertEquals(StatusPicture.INITIAL, report.picture)
         coVerify(exactly = 1) { geoCodeRepository.getGeoCode(any(), any()) }
@@ -408,7 +414,8 @@ class WeatherViewModelTest {
 
         assertEquals(SearchStatus.NotFound("Berlin"), state.search)
         assertNull(state.selectedPlace)
-        report.rows.forEach { assertEquals(Loadable.Unavailable(Reason.NOT_AVAILABLE), it.value) }
+        assertEquals(Loadable.Unavailable(Reason.NOT_AVAILABLE), report.headline)
+        assertEquals(Loadable.Unavailable(Reason.NOT_AVAILABLE), report.trend)
         assertEquals(Loadable.Unavailable(Reason.NOT_AVAILABLE), report.snapshot)
     }
 
@@ -441,7 +448,6 @@ class WeatherViewModelTest {
         assertEquals(Loadable.Loading, state.forecast)
         assertEquals(Loadable.Loading, state.year)
         assertEquals(Loadable.Loading, state.reference)
-        report.rows.forEach { assertEquals(Loadable.Loading, it.value) }
         assertEquals(Loadable.Loading, report.snapshot)
         assertEquals(Loadable.Loading, report.headline)
         assertEquals(Loadable.Loading, report.trend)
@@ -461,7 +467,7 @@ class WeatherViewModelTest {
         viewModel.selectPlace(GeoPlace("loc-2", "Hamburg", "Germany", null, 3.0, 4.0))
 
         assertEquals(Loadable.Loading, report.snapshot)
-        assertEquals(Loadable.Loading, row(1))
+        assertEquals(Loadable.Loading, report.headline)
         assertEquals("Hamburg", state.selectedPlace?.name)
     }
 
@@ -503,7 +509,7 @@ class WeatherViewModelTest {
         year.complete(CacheResult(yearSeries, false))
         forecast.complete(CacheResult(forecastSeries, false))
         advanceUntilIdle()
-        assertEquals(Loadable.Ready(12.0), row(2))
+        assertEquals(12.0, forecastMean!!, 1e-9)
         assertTrue(report.snapshot is Loadable.Ready)
     }
 
@@ -558,7 +564,7 @@ class WeatherViewModelTest {
 
         // Berlin's late answer must not replace Hamburg's data
         assertEquals("Hamburg", state.selectedPlace?.name)
-        assertEquals(Loadable.Ready(10.0), row(1))
+        assertEquals(10.0, monthValue!!, 1e-9)
         assertEquals(Loadable.Ready(yearSeries), state.year)
         // Berlin's canceled year request is neither a failure nor a result and is not counted:
         // Berlin's other two finished before the second search, plus Hamburg's three
@@ -625,12 +631,12 @@ class WeatherViewModelTest {
 
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
-        assertEquals(Loadable.Ready(4.0), row(3))
+        assertEquals(4.0, referenceValue!!, 1e-9)
 
         settings.setHistoricReference(HistoricReference.CURRENT)
         advanceUntilIdle()
 
-        assertEquals(Loadable.Ready(6.0), row(3))
+        assertEquals(6.0, referenceValue!!, 1e-9)
         assertEquals(6.0, (report.trend as Loadable.Ready).value.referenceMean!!, 1e-9)
         coVerify(exactly = 1) {
             weatherRepository.getReferenceClimate(data.id, 1.0, 2.0, HistoricReference.CURRENT, fixedNow)
@@ -656,8 +662,8 @@ class WeatherViewModelTest {
         settings.setHistoricReference(HistoricReference.CURRENT)
 
         assertEquals(Loadable.Loading, state.reference)
-        assertEquals(Loadable.Loading, row(3))
-        assertEquals(Loadable.Ready(10.0), row(1))
+        assertEquals(Loadable.Loading, report.headline)
+        assertTrue(state.year is Loadable.Ready)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -682,7 +688,7 @@ class WeatherViewModelTest {
         advanceUntilIdle()
 
         assertEquals(Loadable.Ready(forecastSeries), state.forecast)
-        assertEquals(Loadable.Ready(6.0), row(3))
+        assertEquals(6.0, referenceValue!!, 1e-9)
         coVerify(exactly = 1) { weatherRepository.getForecast(any(), any(), any(), any()) }
         coVerify(exactly = 1) { weatherRepository.getYearToDate(any(), any(), any(), any()) }
     }
@@ -708,7 +714,7 @@ class WeatherViewModelTest {
         classic.complete(CacheResult(monthlyClimate, false))
         advanceUntilIdle()
 
-        assertEquals(Loadable.Ready(6.0), row(3))
+        assertEquals(6.0, referenceValue!!, 1e-9)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -744,12 +750,12 @@ class WeatherViewModelTest {
 
         viewModel.fetchWeather("Berlin")
         advanceUntilIdle()
-        assertEquals(Loadable.Ready(12.0), row(2))
+        assertEquals(12.0, forecastMean!!, 1e-9)
 
         settings.setForecastDays(WeatherViewModel.FORECAST_DAYS_LONG)
         advanceUntilIdle()
 
-        assertEquals(Loadable.Ready(13.5), row(2))
+        assertEquals(13.5, forecastMean!!, 1e-9)
         assertEquals(14, (report.trend as Loadable.Ready).value.days)
         coVerify(exactly = 1) { weatherRepository.getForecast(data.id, 1.0, 2.0, fixedNow) }
     }
@@ -787,7 +793,7 @@ class WeatherViewModelTest {
             SearchStatus.Resolved(PlaceLabel("Hamburg, Germany", "3.00, 4.00", "Germany")),
             state.search,
         )
-        assertEquals(Loadable.Ready(10.0), row(1))
+        assertEquals(10.0, monthValue!!, 1e-9)
         coVerify(exactly = 1) { weatherRepository.getYearToDate("loc-2", 3.0, 4.0, fixedNow) }
     }
 

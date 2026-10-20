@@ -91,6 +91,23 @@ class MetricTest {
     }
 
     @Test
+    fun compact_givesATemperatureOneDecimalAndLeavesTheOthersAlone() {
+        assertEquals("12.3°C", Metric.TEMPERATURE.format(12.34, compact = true))
+        assertEquals("12.34°C", Metric.TEMPERATURE.format(12.34))
+        assertEquals("+4.0°C", Metric.TEMPERATURE.formatDelta(4.04, compact = true))
+        assertEquals("-1.3°C", Metric.TEMPERATURE.formatDelta(-1.3, compact = true))
+        assertEquals("5.3 h/day", Metric.SUNSHINE.format(5.26, compact = true))
+        assertEquals("42 mm", Metric.PRECIPITATION.format(42.4, compact = true))
+    }
+
+    @Test
+    fun compact_aTemperatureThatRoundsToZeroHasNoSign() {
+        assertEquals("0.0°C", Metric.TEMPERATURE.formatDelta(0.04, compact = true))
+        assertEquals("0.0°C", Metric.TEMPERATURE.formatDelta(-0.04, compact = true))
+        assertEquals("+0.1°C", Metric.TEMPERATURE.formatDelta(0.06, compact = true))
+    }
+
+    @Test
     fun formatPercent_isSignedAndWhole() {
         assertEquals("+85%", Metric.formatPercent(84.8))
         assertEquals("-30%", Metric.formatPercent(-30.2))

@@ -46,7 +46,7 @@ class WeatherReportTest {
         historic: HistoricReference = HistoricReference.CLASSIC,
     ) = buildReport(state, forecastDays, mode, historic)
 
-    private fun WeatherReport.values() = rows.map { it.value }
+    private fun WeatherReport.blocks() = (summary as Loadable.Ready).value
 
     // ---- states ----
 
@@ -54,7 +54,6 @@ class WeatherReportTest {
     fun idle_showsDashesAndThePromptToSearch() {
         val report = report(WeatherUiState(today = today))
 
-        report.values().forEach { assertEquals(Loadable.Idle, it) }
         assertEquals(Loadable.Idle, report.headline)
         assertEquals(Loadable.Idle, report.trend)
         assertEquals(Loadable.Idle, report.snapshot)
@@ -75,35 +74,35 @@ class WeatherReportTest {
 
         val report = report(loading)
 
-        report.values().forEach { assertEquals(Loadable.Loading, it) }
         assertEquals(Loadable.Loading, report.headline)
         assertEquals(Loadable.Loading, report.trend)
         assertEquals(Loadable.Loading, report.summary)
         assertEquals(Loadable.Loading, report.snapshot)
         assertEquals(StatusPicture.LOADING, report.picture)
-        assertFalse(report.rows.any { it.showWarning })
     }
 
     @Test
     fun loaded_comparesTheMonthSoFarWithTheSameDaysOfTheReference() {
         val report = report(loaded())
 
-        assertEquals(
-            listOf("Last 31 days", "This month so far", "Next 7 days (forecast)", "Historical (30y), same days"),
-            report.rows.map { it.label },
-        )
-        assertEquals(
-            listOf(10.0, 10.0, 12.0, 4.0).map { Loadable.Ready(it) },
-            report.values(),
-        )
         assertEquals(1, report.dayCount)
         val headline = (report.headline as Loadable.Ready).value
         assertEquals(6.0, headline.delta, 1e-9)
+        assertEquals(4.0, headline.reference!!, 1e-9)
+        assertEquals(12.0, (report.trend as Loadable.Ready).value.mean, 1e-9)
         assertEquals(Band.WARM, headline.band)
         assertEquals(StatusPicture.WARM, report.picture)
         assertEquals(8.0, (report.trend as Loadable.Ready).value.delta!!, 1e-9)
         assertEquals("1961–1990", report.referenceLabel)
         assertEquals(today, report.today)
+        assertEquals(
+            listOf(
+                "April so far: much warmer than the 1961–1990 average (+6.00°C, 10.00°C vs 4.00°C).",
+                "Next 7 days: about 8.0°C warmer than usual (12.0°C vs 4.0°C).",
+                "Only 1 day so far, so this can change quickly.",
+            ),
+            report.blocks().map { it.text },
+        )
         val snapshot = (report.snapshot as Loadable.Ready).value
         assertEquals(today, snapshot.today)
         assertEquals(forecast.start, snapshot.forecast!!.start)
@@ -129,11 +128,11 @@ class WeatherReportTest {
     }
 
     @Test
-    fun forecastDays_changeTheForecastRowAndTheTrend() {
+    fun forecastDays_changeTheOutlookAndTheTrend() {
         val long = report(loaded(), forecastDays = 14)
 
-        assertEquals("Next 14 days (forecast)", long.rows[2].label)
-        assertEquals(Loadable.Ready(13.5), long.rows[2].value)
+        assertTrue(long.blocks()[1].text.startsWith("Next 14 days"))
+        assertEquals(13.5, (long.trend as Loadable.Ready).value.mean, 1e-9)
         assertEquals(14, (long.trend as Loadable.Ready).value.days)
     }
 
@@ -155,10 +154,6 @@ class WeatherReportTest {
     fun referenceStillLoading_keepsTheComparisonAndTheTrendLoading() {
         val report = report(loaded(reference = Loadable.Loading))
 
-        assertEquals(Loadable.Ready(10.0), report.rows[0].value)
-        assertEquals(Loadable.Ready(10.0), report.rows[1].value)
-        assertEquals(Loadable.Ready(12.0), report.rows[2].value)
-        assertEquals(Loadable.Loading, report.rows[3].value)
         assertEquals(Loadable.Loading, report.headline)
         assertEquals(Loadable.Loading, report.trend)
         assertEquals(Loadable.Loading, report.summary)
@@ -166,50 +161,61 @@ class WeatherReportTest {
     }
 
     @Test
-    fun yearStillLoading_keepsTheHistoricRowLoadingSoItCannotFlipToAnotherPeriod() {
+    fun yearStillLoading_keepsTheComparisonLoadingSoItCannotFlipToAnotherPeriod() {
         val report = report(loaded(year = Loadable.Loading))
 
-        assertEquals(Loadable.Loading, report.rows[3].value)
         assertEquals(Loadable.Loading, report.headline)
-        assertEquals(Loadable.Ready(12.0), report.rows[2].value)
+        assertEquals(Loadable.Loading, report.summary)
+        assertEquals(12.0, (report.trend as Loadable.Ready).value.mean, 1e-9)
     }
 
     @Test
     fun failedReference_isShownWhereItIsMissingAndTheRestStays() {
         val report = report(loaded(reference = Loadable.Failed(FailKind.NETWORK)))
 
-        assertEquals(Loadable.Failed(FailKind.NETWORK), report.rows[3].value)
         assertEquals(Loadable.Failed(FailKind.NETWORK), report.headline)
-        assertEquals(Loadable.Ready(10.0), report.rows[1].value)
         assertEquals(StatusPicture.INITIAL, report.picture)
         // the outlook has no normal to compare with, but still its mean
         assertNull((report.trend as Loadable.Ready).value.delta)
         assertNull((report.snapshot as Loadable.Ready).value.reference)
-        val summary = (report.summary as Loadable.Ready).value.single()
-        assertTrue(summary.text.contains("reference is not available"))
+        assertTrue(report.blocks().first().text.contains("reference is not available"))
+        // the forecast itself is fine, so there is no word about it
+        assertTrue(report.blocks().none { it is SummaryBlock.Caveat })
     }
 
     @Test
     fun failedForecast_leavesTheRestAndTheSnapshotWithoutForecast() {
         val report = report(loaded(forecast = Loadable.Failed(FailKind.RATE_LIMITED)))
 
-        assertEquals(Loadable.Failed(FailKind.RATE_LIMITED), report.rows[2].value)
         assertEquals(Loadable.Failed(FailKind.RATE_LIMITED), report.trend)
         assertTrue(report.headline is Loadable.Ready)
         assertNull((report.snapshot as Loadable.Ready).value.forecast)
     }
 
     @Test
-    fun failedYear_failsItsRowsAndTheSnapshot() {
+    fun failedForecast_isSaidInTheSummary() {
+        val blocks = report(loaded(forecast = Loadable.Failed(FailKind.RATE_LIMITED))).blocks()
+
+        assertTrue(blocks.first() is SummaryBlock.Headline)
+        assertTrue(blocks.none { it.text.startsWith("Next") })
+        assertEquals(SummaryBlock.Caveat("The forecast could not be loaded."), blocks.last())
+    }
+
+    @Test
+    fun failedYear_failsTheComparisonAndTheSnapshot() {
         val report = report(loaded(year = Loadable.Failed(FailKind.OTHER)))
 
-        assertEquals(Loadable.Failed(FailKind.OTHER), report.rows[0].value)
-        assertEquals(Loadable.Failed(FailKind.OTHER), report.rows[1].value)
+        assertEquals(Loadable.Failed(FailKind.OTHER), report.headline)
         assertEquals(Loadable.Failed(FailKind.OTHER), report.snapshot)
         assertEquals(0, report.dayCount)
-        // without the year, the whole month's normal stands in for the same days
-        assertEquals(Loadable.Ready(4.0), report.rows[3].value)
-        assertEquals("Historical (30y) for this month", report.rows[3].label)
+        // it says what happened rather than to check back tomorrow, and the whole month's normal stands in
+        assertEquals(
+            listOf(
+                "This year's weather data could not be loaded.",
+                "The 1961–1990 average for April is 4.00°C.",
+            ),
+            report.blocks().take(2).map { it.text },
+        )
     }
 
     @Test
@@ -217,8 +223,10 @@ class WeatherReportTest {
         val na = Loadable.Unavailable(Reason.NOT_AVAILABLE)
         val report = report(WeatherUiState(today = today, forecast = na, year = na, reference = na))
 
-        report.values().forEach { assertEquals(na, it) }
+        assertEquals(na, report.headline)
+        assertEquals(na, report.trend)
         assertEquals(na, report.snapshot)
+        assertTrue(report.blocks().single().text.startsWith("Search for a place"))
         assertEquals(StatusPicture.INITIAL, report.picture)
     }
 
@@ -229,49 +237,43 @@ class WeatherReportTest {
         val firstOfApril = LocalDate.of(2026, 4, 1)
         val report = report(loaded(today = firstOfApril, year = Loadable.Ready(year(to = LocalDate.of(2026, 3, 31)))))
 
-        assertEquals(Loadable.Unavailable(Reason.NOT_AVAILABLE), report.rows[1].value)
-        assertFalse(report.rows[1].showWarning)
         assertEquals(0, report.dayCount)
-        assertEquals("Historical (30y) for this month", report.rows[3].label)
-        assertEquals(Loadable.Ready(4.0), report.rows[3].value)
-        assertEquals(Loadable.Ready(10.0), report.rows[0].value)
+        assertEquals(
+            listOf(
+                "No complete day of April yet, check back tomorrow.",
+                "The 1961–1990 average for April is 4.00°C.",
+            ),
+            report.blocks().take(2).map { it.text },
+        )
     }
 
     @Test
-    fun monthWithoutValues_saysNoDataYetAndOffersTheExplanation() {
+    fun monthWithoutValues_saysThereIsNoCompleteDayYet() {
         val report = report(loaded(year = Loadable.Ready(year { if (it.monthValue == 4) null else 10.0 })))
 
-        assertEquals(Loadable.Unavailable(Reason.NO_DATA_YET), report.rows[1].value)
-        assertTrue(report.rows[1].showWarning)
+        assertEquals("No complete day of April yet, check back tomorrow.", report.blocks().first().text)
         assertEquals(0, report.dayCount)
     }
 
     @Test
-    fun warning_isOfferedOnlyForFewDaysOfTheMonth() {
-        fun warningAfter(day: Int): Boolean {
+    fun caveat_isAddedOnlyForFewDaysOfTheMonth() {
+        fun caveatAfter(day: Int): Boolean {
             val now = LocalDate.of(2026, 4, day)
             val state = loaded(today = now, year = Loadable.Ready(year(to = now.minusDays(1))))
-            return report(state).rows[1].showWarning
+            return report(state).blocks().any { it is SummaryBlock.Caveat }
         }
 
-        assertTrue(warningAfter(2)) // 1 day
-        assertTrue(warningAfter(7)) // 6 days
-        assertFalse(warningAfter(8)) // 7 days
-        assertFalse(warningAfter(20))
+        assertTrue(caveatAfter(2)) // 1 day
+        assertTrue(caveatAfter(7)) // 6 days
+        assertFalse(caveatAfter(8)) // 7 days
+        assertFalse(caveatAfter(20))
     }
 
     @Test
-    fun warning_isNeverOfferedWhileLoadingOrAfterAnError() {
-        assertFalse(report(loaded(year = Loadable.Loading)).rows[1].showWarning)
-        assertFalse(report(loaded(year = Loadable.Failed(FailKind.OTHER))).rows[1].showWarning)
-        assertFalse(report(WeatherUiState(today = today)).rows[1].showWarning)
-    }
-
-    @Test
-    fun lastDaysRow_isNotAvailableWithoutAnyValue() {
-        val report = report(loaded(year = Loadable.Ready(year { null })))
-
-        assertEquals(Loadable.Unavailable(Reason.NOT_AVAILABLE), report.rows[0].value)
+    fun caveat_isNeverAddedWhileLoadingOrAfterAnError() {
+        assertEquals(Loadable.Loading, report(loaded(year = Loadable.Loading)).summary)
+        assertTrue(report(loaded(year = Loadable.Failed(FailKind.OTHER))).blocks().none { it is SummaryBlock.Caveat })
+        assertTrue(report(WeatherUiState(today = today)).blocks().none { it is SummaryBlock.Caveat })
     }
 
     // ---- metrics ----
@@ -290,7 +292,7 @@ class WeatherReportTest {
         val plain = report(loaded())
         val withExtras = report(loaded(year = Loadable.Ready(noisy)))
 
-        assertEquals(plain.values(), withExtras.values())
+        assertEquals(plain.summary, withExtras.summary)
         assertEquals(plain.headline, withExtras.headline)
     }
 
@@ -301,7 +303,7 @@ class WeatherReportTest {
 
         val report = report(loaded(forecast = Loadable.Ready(noTemperature)))
 
-        assertEquals(Loadable.Unavailable(Reason.NOT_AVAILABLE), report.rows[2].value)
+        assertEquals(Loadable.Unavailable(Reason.NOT_AVAILABLE), report.trend)
         // like any forecast without a value: a series of missing days
         assertFalse((report.snapshot as Loadable.Ready).value.forecast!!.hasValues())
     }

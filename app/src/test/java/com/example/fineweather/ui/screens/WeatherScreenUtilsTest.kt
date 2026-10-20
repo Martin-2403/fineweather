@@ -85,12 +85,14 @@ class WeatherScreenUtilsTest {
     @Test
     fun buildTrendCardValue_returnsWarmerCoolerOrSteadyAgainstTheNormal() {
         val warmer = buildTrendCardValue(outlook(1.5))
+        assertEquals("+1.5°C", warmer.text)
         assertEquals(R.drawable.up, warmer.icons?.resId)
         assertEquals(1, warmer.icons?.count)
         assertEquals(Color(0xFFE53935), warmer.icons?.tint)
         assertEquals("Forecast warmer than normal", warmer.icons?.contentDescription)
 
         val cooler = buildTrendCardValue(outlook(-2.4))
+        assertEquals("-2.4°C", cooler.text)
         assertEquals(R.drawable.down, cooler.icons?.resId)
         assertEquals(2, cooler.icons?.count)
         assertEquals(Color(0xFF1E88E5), cooler.icons?.tint)
@@ -100,7 +102,7 @@ class WeatherScreenUtilsTest {
         assertEquals(3, much.icons?.count)
 
         val steady = buildTrendCardValue(outlook(0.6))
-        assertEquals("", steady.text)
+        assertEquals("+0.6°C", steady.text)
         assertEquals(R.drawable.arrow_right, steady.icons?.resId)
         assertEquals(1, steady.icons?.count)
         assertEquals(Color(0xFF43A047), steady.icons?.tint)
@@ -126,26 +128,6 @@ class WeatherScreenUtilsTest {
         assertEquals(R.drawable.warm, resolveStatusImageRes(StatusPicture.WARM))
         assertEquals(R.drawable.cold, resolveStatusImageRes(StatusPicture.COLD))
         assertEquals(R.drawable.equal, resolveStatusImageRes(StatusPicture.EQUAL))
-    }
-
-    @Test
-    fun displayText_describesEveryState() {
-        assertEquals("12.30°C", Loadable.Ready(12.3).displayText(Metric.TEMPERATURE))
-        assertEquals("-", Loadable.Idle.displayText(Metric.TEMPERATURE))
-        assertEquals("N/A", Loadable.Unavailable(Reason.NOT_AVAILABLE).displayText(Metric.TEMPERATURE))
-        assertEquals("No data yet", Loadable.Unavailable(Reason.NO_DATA_YET).displayText(Metric.TEMPERATURE))
-        FailKind.entries.forEach { assertEquals("Error", Loadable.Failed(it).displayText(Metric.TEMPERATURE)) }
-    }
-
-    @Test
-    fun isPlaceholder_isTrueForEverythingButAValue() {
-        assertFalse(Loadable.Ready(1.0).isPlaceholder())
-        listOf(
-            Loadable.Idle,
-            Loadable.Loading,
-            Loadable.Unavailable(Reason.NO_DATA_YET),
-            Loadable.Failed(FailKind.OTHER),
-        ).forEach { assertTrue(it.isPlaceholder()) }
     }
 
     @Test

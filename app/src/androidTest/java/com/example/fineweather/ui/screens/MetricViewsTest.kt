@@ -1,7 +1,6 @@
 package com.example.fineweather.ui.screens
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CardColors
@@ -21,8 +20,6 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
-import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -56,7 +53,7 @@ import org.junit.Rule
 import org.junit.Test
 import java.time.LocalDate
 
-/** The metric switch and what the header, the Current view and the other views show for each metric. */
+/** The metric switch and what the header and the other views show for each metric. */
 class MetricViewsTest {
     @get:Rule
     val composeTestRule = createComposeRule()
@@ -118,22 +115,20 @@ class MetricViewsTest {
         composeTestRule.setContent { FineWeatherTheme { content() } }
     }
 
-    /** The header and the Current view as the screen puts them together for [report]. */
+    /** The header as the screen puts it together for [report]. */
     @Composable
     private fun ReportViews(report: WeatherReport) {
-        Column {
-            StatusHeaderCard(
-                imageRes = resolveStatusImageRes(report.picture),
-                summary = report.summary.toBlocks(),
-                statusCardValue = buildStatusCardValue(report.headline, isDarkCard()),
-                trendCardValue = buildTrendCardValue(report.trend, isDarkCard()),
-                shape = shape,
-                pictureLoading = report.picture == StatusPicture.LOADING,
-                summaryLoading = report.summary is Loadable.Loading,
-                metric = report.metric,
-            )
-            CurrentView(report.rows, shape, cardColors, onWarningClick = {}, metric = report.metric)
-        }
+        StatusHeaderCard(
+            imageRes = resolveStatusImageRes(report.picture),
+            summary = report.summary.toBlocks(),
+            statusCardValue = buildStatusCardValue(report.headline, isDarkCard()),
+            trendCardValue = buildTrendCardValue(report.trend, isDarkCard()),
+            trendLabel = "Next 7 days",
+            shape = shape,
+            pictureLoading = report.picture == StatusPicture.LOADING,
+            summaryLoading = report.summary is Loadable.Loading,
+            metric = report.metric,
+        )
     }
 
     // ---- the pill ----
@@ -180,49 +175,52 @@ class MetricViewsTest {
         composeTestRule.onAllNodesWithContentDescription("Temperature").assertCountEquals(0)
     }
 
-    // ---- header and Current view per metric ----
+    // ---- the header per metric ----
+
+    private fun assertShown(vararg texts: String) = texts.forEach { composeTestRule.onNodeWithText(it).assertIsDisplayed() }
 
     @Test
-    fun temperature_showsTheTemperatureHeaderAndRows() {
+    fun temperature_showsTheReportWithItsFiguresAndTheHeaderCells() {
         show { ReportViews(report(Metric.TEMPERATURE)) }
 
-        composeTestRule.onNodeWithText("Average temperatures").assertIsDisplayed()
-        composeTestRule.onNodeWithText("+6.00°C").assertIsDisplayed()
+        assertShown(
+            "April so far: much warmer than the 1961–1990 average (+6.00°C, 10.00°C vs 4.00°C).",
+            "Next 7 days: about 8.0°C warmer than usual (12.0°C vs 4.0°C).",
+            "Only 1 day so far, so this can change quickly.",
+            "+6.00°C",
+            "+8.0°C",
+        )
         composeTestRule.onNodeWithContentDescription("+++ warmer than average").assertIsDisplayed()
         composeTestRule.onNodeWithContentDescription("Forecast warmer than normal").assertIsDisplayed()
-        composeTestRule.onAllNodesWithText("10.00°C").onFirst().assertIsDisplayed()
-        composeTestRule.onNodeWithText("Last 31 days").assertIsDisplayed()
     }
 
     @Test
-    fun sunshine_showsHoursInTheRowsAndSunAndCloudInTheHeader() {
+    fun sunshine_showsHoursInTheReportAndSunAndCloudInTheHeader() {
         show { ReportViews(report(Metric.SUNSHINE)) }
 
-        composeTestRule.onNodeWithText("Average sunshine").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Average temperatures").assertDoesNotExist()
-        composeTestRule.onAllNodesWithText("5.0 h/day").onFirst().assertIsDisplayed()
-        composeTestRule.onNodeWithText("6.0 h/day").assertIsDisplayed()
-        composeTestRule.onNodeWithText("8.0 h/day").assertIsDisplayed()
-        composeTestRule.onNodeWithText("-1.0 h/day").assertIsDisplayed()
+        assertShown(
+            "April so far: clearly duller than the 1961–1990 average (-1.0 h/day, 5.0 h/day vs 6.0 h/day).",
+            "Next 7 days: about 2.0 h/day sunnier than usual (8.0 h/day vs 6.0 h/day).",
+            "-1.0 h/day",
+            // the narrow trend cell has no room for the unit
+            "+2.0",
+        )
         composeTestRule.onNodeWithContentDescription("-- duller than average").assertIsDisplayed()
-        composeTestRule.onNodeWithText("+2.0 h/day").assertIsDisplayed()
         composeTestRule.onNodeWithContentDescription("Forecast sunnier than normal").assertIsDisplayed()
-        composeTestRule.onNodeWithText("This month so far").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Next 7 days (forecast)").assertIsDisplayed()
     }
 
     @Test
-    fun rain_showsTotalsInTheRowsAndPercentInTheHeader() {
+    fun rain_showsTotalsInTheReportAndMillimetresInTheHeader() {
         show { ReportViews(report(Metric.PRECIPITATION)) }
 
-        composeTestRule.onNodeWithText("Rain totals").assertIsDisplayed()
-        // April 1 so far, the normal of that day, and the next 7 days
-        composeTestRule.onNodeWithText("6.0 mm").assertIsDisplayed()
-        composeTestRule.onNodeWithText("3.0 mm").assertIsDisplayed()
-        composeTestRule.onNodeWithText("28 mm").assertIsDisplayed()
-        composeTestRule.onNodeWithText("+100%").assertIsDisplayed()
+        // April 1 so far and the normal of that day, the next 7 days and their normal
+        assertShown(
+            "April so far: much wetter than the 1961–1990 average (+100%, 6.0 mm vs 3.0 mm).",
+            "Next 7 days: wetter than usual (28 mm vs 21 mm).",
+            "+3.0 mm",
+            "+7.0 mm",
+        )
         composeTestRule.onNodeWithContentDescription("+++ wetter than average").assertIsDisplayed()
-        composeTestRule.onNodeWithText("+33%").assertIsDisplayed()
         composeTestRule.onNodeWithContentDescription("Forecast wetter than normal").assertIsDisplayed()
     }
 
@@ -234,8 +232,8 @@ class MetricViewsTest {
         Metric.entries.forEach {
             metric = it
 
-            composeTestRule.onNodeWithText("Trend").assertIsDisplayed()
-            composeTestRule.onNodeWithText("Divergence").assertIsDisplayed()
+            composeTestRule.onNodeWithText("Next 7 days").assertIsDisplayed()
+            composeTestRule.onNodeWithText("So far").assertIsDisplayed()
             composeTestRule.onNodeWithContentDescription("Status illustration").assertIsDisplayed()
             composeTestRule.onNodeWithTag("statusSummary").assertIsDisplayed()
             // the picture follows the temperature (6 degrees warmer) even while sunshine is short
@@ -246,22 +244,19 @@ class MetricViewsTest {
     // ---- while the extras load ----
 
     @Test
-    fun sunshineWhileTheExtrasLoad_showsPlaceholdersOnlyWhereTheNormalIsNeeded() {
+    fun sunshineWhileTheExtrasLoad_showsPlaceholdersInsteadOfTheReport() {
         show { ReportViews(report(Metric.SUNSHINE, extras = Loadable.Loading)) }
 
-        // the normal row, plus the two header cells
-        composeTestRule.onAllNodesWithContentDescription("Loading value").assertCountEquals(1)
+        // the two header cells, and the report beside and beneath the picture
         composeTestRule.onAllNodesWithContentDescription("Loading").assertCountEquals(2)
         composeTestRule.onAllNodesWithContentDescription("Loading report").assertCountEquals(1)
-        composeTestRule.onNodeWithText("Average sunshine").assertIsDisplayed()
-        composeTestRule.onAllNodesWithText("5.0 h/day").onFirst().assertIsDisplayed()
-        composeTestRule.onNodeWithText("8.0 h/day").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("statusDetails").assertIsDisplayed()
         // the picture is the temperature's and needs no extras
         composeTestRule.onNodeWithContentDescription("Status illustration").assertIsDisplayed()
     }
 
     @Test
-    fun sunshineWhenTheExtrasFail_showsErrorsInsteadOfValues() {
+    fun sunshineWhenTheExtrasFail_saysTheReferenceIsMissingButKeepsTheOutlook() {
         show {
             ReportViews(
                 report(
@@ -271,9 +266,11 @@ class MetricViewsTest {
             )
         }
 
-        composeTestRule.onAllNodesWithContentDescription("Loading value").assertCountEquals(0)
-        composeTestRule.onNodeWithText("Error").assertIsDisplayed()
-        composeTestRule.onAllNodesWithText("5.0 h/day").onFirst().assertIsDisplayed()
+        composeTestRule.onAllNodesWithContentDescription("Loading report").assertCountEquals(0)
+        assertShown(
+            "The 1961–1990 reference is not available yet.",
+            "Next 7 days: forecast to average 8.0 h/day.",
+        )
     }
 
     // ---- Month and Year ----
@@ -306,9 +303,9 @@ class MetricViewsTest {
     /** The worst cells of each metric: a text and three icons, loading, and a dash. */
     private val headerCases: List<Pair<ValueWithIcons, ValueWithIcons>> =
         listOf(
-            cell("", 2) to cell("+1.43°C", 3), // temperature
+            cell("+4.0°C", 3) to cell("+1.43°C", 3), // temperature
             cell("-3.2 h/day", 3) to cell("-1.8 h/day", 3), // sunshine
-            cell("+100%", 3) to cell("+100%", 3), // rain
+            cell("+100 mm", 3) to cell("+100 mm", 3), // rain
             cell("", 1) to ValueWithIcons("-1.00°C", null),
             ValueWithIcons("", null, loading = true) to ValueWithIcons("", null, loading = true),
             ValueWithIcons("-", null, placeholder = true) to ValueWithIcons("-", null, placeholder = true),
@@ -329,6 +326,7 @@ class MetricViewsTest {
                             summary = listOf(SummaryBlock.Detail("A short sentence.")),
                             statusCardValue = headerCases[index].second,
                             trendCardValue = headerCases[index].first,
+                            trendLabel = "Next 14 days",
                             shape = shape,
                             metric = metric(index),
                         )
@@ -389,11 +387,11 @@ class MetricViewsTest {
     fun stackedCell_showsAllThreeIconsOfAWideTextWithinItsWidth() {
         show {
             Box(Modifier.width(144.dp).testTag("cell")) {
-                StatusTrendCell("Trend", ValueWithIcons("+100%", icons(3)), stacked = true)
+                StatusTrendCell("Trend", ValueWithIcons("+100 mm", icons(3)), stacked = true)
             }
         }
 
-        val text = composeTestRule.onNodeWithText("+100%").getUnclippedBoundsInRoot()
+        val text = composeTestRule.onNodeWithText("+100 mm").getUnclippedBoundsInRoot()
         val firstIcon = composeTestRule.onNodeWithContentDescription("icons").getUnclippedBoundsInRoot()
         val cell = composeTestRule.onNodeWithTag("cell").getUnclippedBoundsInRoot()
         // text and icons share one line, and nothing reaches beyond the cell

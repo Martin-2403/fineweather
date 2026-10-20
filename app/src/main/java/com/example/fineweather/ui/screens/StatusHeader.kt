@@ -49,6 +49,8 @@ internal fun StatusHeaderCard(
     summary: List<SummaryBlock>,
     statusCardValue: ValueWithIcons,
     trendCardValue: ValueWithIcons,
+    /** What the trend cell covers, as "Next 7 days"; the status cell is always the month so far. */
+    trendLabel: String,
     shape: RoundedCornerShape,
     pictureLoading: Boolean = false,
     summaryLoading: Boolean = false,
@@ -87,11 +89,13 @@ internal fun StatusHeaderCard(
                     ImageWithText(
                         imageRes = imageRes,
                         imageWidth = imageWidth,
-                        blocks = summary,
+                        blocks = summary.take(1),
                         pictureLoading = pictureLoading,
                         summaryLoading = summaryLoading,
                         metric = metric,
                     )
+                    // The verdict sits beside the picture; the rest has the whole width of the card.
+                    SummaryDetails(blocks = summary.drop(1), loading = summaryLoading, metric = metric)
                     DividerLine()
                     // The split lines up with the edge of the picture above.
                     Row(
@@ -101,14 +105,14 @@ internal fun StatusHeaderCard(
                                 .height(IntrinsicSize.Min),
                     ) {
                         StatusTrendCell(
-                            label = "Trend",
+                            label = trendLabel,
                             value = if (stacked) trendCardValue.withoutUnit(metric) else trendCardValue,
                             modifier = Modifier.width(imageWidth),
                             stacked = stacked,
                         )
                         VerticalDividerLine()
                         StatusTrendCell(
-                            label = "Divergence",
+                            label = "So far",
                             value = statusCardValue,
                             modifier = Modifier.weight(1f),
                             stacked = stacked,
@@ -152,6 +156,25 @@ private fun ImageWithText(
         } else {
             SummaryBlocks(blocks = blocks, modifier = textModifier, metric = metric)
         }
+    }
+}
+
+@Composable
+private fun SummaryDetails(
+    blocks: List<SummaryBlock>,
+    loading: Boolean,
+    metric: Metric,
+) {
+    if (!loading && blocks.isEmpty()) return
+    val modifier =
+        Modifier
+            .fillMaxWidth()
+            .padding(start = 12.dp, end = 12.dp, bottom = 10.dp, top = 10.dp)
+            .testTag("statusDetails")
+    if (loading) {
+        SkeletonBlock(description = null, modifier = modifier, fractions = listOf(1f, 0.6f))
+    } else {
+        SummaryBlocks(blocks = blocks, modifier = modifier, metric = metric)
     }
 }
 
