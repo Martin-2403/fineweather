@@ -45,15 +45,19 @@ interface ReferenceClimateDao {
         precipitationData: ByteArray,
     ): Int
 
-    /** Keeps the [keep] most recently used locations that are not favorites; favorites are never evicted. */
+    /**
+     * Keeps the [keep] most recently used locations that are not favorites, with all their rows (a location
+     * has one per reference period and is as recent as its latest row); favorites are never evicted.
+     */
     @Query(
         """
         DELETE FROM reference_climate
         WHERE locationId NOT IN (SELECT id FROM favorite_places)
-        AND rowid NOT IN (
-            SELECT rowid FROM reference_climate
+        AND locationId NOT IN (
+            SELECT locationId FROM reference_climate
             WHERE locationId NOT IN (SELECT id FROM favorite_places)
-            ORDER BY lastUsed DESC
+            GROUP BY locationId
+            ORDER BY MAX(lastUsed) DESC
             LIMIT :keep
         )
         """,

@@ -104,6 +104,35 @@ class ClimateCacheDaoTest {
     }
 
     @Test
+    fun reference_evictCountsALocationOnceWhateverItsReferencePeriods() = runBlocking {
+        referenceDao.insert(reference("loc-1", lastUsed = 1))
+        referenceDao.insert(reference("loc-2", lastUsed = 2))
+        referenceDao.insert(reference("loc-2", lastUsed = 3, referenceId = "1991_2020"))
+        referenceDao.insert(reference("loc-3", lastUsed = 4))
+
+        referenceDao.evictLeastRecentlyUsed(keep = 2)
+
+        // loc-2 has two rows but takes one slot, and both of them stay
+        assertNull(referenceDao.get("loc-1", "1961_1990"))
+        assertNotNull(referenceDao.get("loc-2", "1961_1990"))
+        assertNotNull(referenceDao.get("loc-2", "1991_2020"))
+        assertNotNull(referenceDao.get("loc-3", "1961_1990"))
+    }
+
+    @Test
+    fun reference_evictDropsAllRowsOfAnOldLocation() = runBlocking {
+        referenceDao.insert(reference("loc-1", lastUsed = 1))
+        referenceDao.insert(reference("loc-1", lastUsed = 2, referenceId = "1991_2020"))
+        referenceDao.insert(reference("loc-2", lastUsed = 3))
+
+        referenceDao.evictLeastRecentlyUsed(keep = 1)
+
+        assertNull(referenceDao.get("loc-1", "1961_1990"))
+        assertNull(referenceDao.get("loc-1", "1991_2020"))
+        assertNotNull(referenceDao.get("loc-2", "1961_1990"))
+    }
+
+    @Test
     fun reference_countAndClear() = runBlocking {
         referenceDao.insert(reference("loc-1", lastUsed = 1))
         referenceDao.insert(reference("loc-2", lastUsed = 2))
@@ -318,7 +347,8 @@ class ClimateCacheDaoTest {
         locationId: String,
         lastUsed: Long,
         data: ByteArray = byteArrayOf(0),
-    ) = ReferenceClimateEntity(locationId, "1961_1990", 1961, 1990, data, lastUsed)
+        referenceId: String = "1961_1990",
+    ) = ReferenceClimateEntity(locationId, referenceId, 1961, 1990, data, lastUsed)
 
     private fun yearSeries(
         locationId: String,
