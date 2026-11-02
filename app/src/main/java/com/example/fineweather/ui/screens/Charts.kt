@@ -131,7 +131,6 @@ internal fun DailyChart(
     modifier: Modifier = Modifier,
     height: Dp = DailyChartHeight,
     metric: Metric = Metric.TEMPERATURE,
-    dailyAverageExtension: List<Double?> = emptyList(),
 ) {
     val measurer = rememberTextMeasurer()
     val labelStyle = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp)
@@ -161,7 +160,6 @@ internal fun DailyChart(
                     dark,
                     lineColor,
                     forecastColor,
-                    dailyAverageExtension,
                 )
             }
         }
@@ -308,7 +306,6 @@ private fun DrawScope.drawAccumulatedDailyChart(
     dark: Boolean,
     lineColor: Color,
     forecastColor: Color,
-    averageExtension: List<Double?>,
 ) {
     val left = 44.dp.toPx()
     val right = 44.dp.toPx()
@@ -318,7 +315,7 @@ private fun DrawScope.drawAccumulatedDailyChart(
     val chartHeight = size.height - top - bottom
     val dailyValues = points.mapNotNull { it.observed ?: it.forecast }
     val cumulative = cumulativeDailyValues(points)
-    val averageCumulative = cumulativeAverageDailyValues(points, averageExtension)
+    val averageCumulative = cumulativeAverageDailyValues(points)
     val cumulativeValues = cumulative.filterNotNull() + averageCumulative.filterNotNull()
     if (dailyValues.isEmpty() || cumulativeValues.isEmpty()) return
 

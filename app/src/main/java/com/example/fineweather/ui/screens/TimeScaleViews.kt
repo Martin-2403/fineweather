@@ -165,20 +165,6 @@ internal fun MonthView(
         val points = remember(snapshot, window, forecastDays) { dayPoints(snapshot, window, forecastDays) }
         val summary = remember(snapshot, points) { snapshot.summarize(points) }
         val outlook = remember(snapshot, forecastDays) { snapshot.outlook(forecastDays) }
-        val dailyAverageExtension =
-            remember(snapshot, points, window, metric) {
-                val lastPoint = points.lastOrNull()
-                if (metric == Metric.TEMPERATURE || window != MonthWindow.THIS_MONTH ||
-                    snapshot.reference == null || lastPoint == null
-                ) {
-                    emptyList()
-                } else {
-                    val lastDate = lastPoint.date
-                    ((lastDate.dayOfMonth + 1)..lastDate.lengthOfMonth()).map { day ->
-                        snapshot.reference.dailyStats(lastDate.monthValue, day, halfWindow = 0)?.mean
-                    }
-                }
-            }
         if (summary.observedDays == 0) {
             Caption("No daily data available for this period yet.")
             return@ViewCard
@@ -188,7 +174,6 @@ internal fun MonthView(
             xLabels = remember(points, window) { dayAxisLabels(points.map { it.date }, window) },
             description = dailyChartDescription(summary, withForecast = points.any { it.forecast != null }),
             metric = metric,
-            dailyAverageExtension = dailyAverageExtension,
         )
         Spacer(Modifier.height(2.dp))
         Text(
@@ -258,6 +243,8 @@ internal fun dayAxisLabels(
             dates.indices.filter { it == 0 || (dates[it].dayOfMonth % 5 == 0 && dates.size - it > 2) }
                 .map { it to dates[it].dayOfMonth.toString() }
 
+        // The 30 observed days end at index 29; a label at the end of the forecast (index >= 34, i.e. at least
+        // 35 days) is added only when it is far enough from the one at 29 not to touch it.
         MonthWindow.LAST_30_DAYS ->
             (listOf(0, 7, 14, 21, 29) + listOfNotNull((dates.size - 1).takeIf { it >= 34 }))
                 .filter { it < dates.size }.map {

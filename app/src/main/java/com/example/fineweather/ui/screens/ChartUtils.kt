@@ -164,11 +164,7 @@ private fun amountUnit(metric: Metric): String = if (metric == Metric.SUNSHINE) 
 internal fun dailyBarColor(
     metric: Metric,
     dark: Boolean,
-): Color =
-    when (metric) {
-        Metric.PRECIPITATION -> arrowTint(metric, above = true, dark = dark)
-        else -> arrowTint(metric, above = true, dark = dark)
-    }
+): Color = arrowTint(metric, above = true, dark = dark)
 
 /** The color of a month's bar: the color of its side of the normal (a deviation of 0 counts as above). */
 internal fun anomalyBarColor(
