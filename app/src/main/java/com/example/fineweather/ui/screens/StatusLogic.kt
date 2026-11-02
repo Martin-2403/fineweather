@@ -239,10 +239,10 @@ internal fun SearchStatus.displayText(metric: Metric = Metric.TEMPERATURE): Stri
         is SearchStatus.Resolved -> "${label.name} (${label.coordinates})"
         is SearchStatus.NotFound -> "City not found"
         is SearchStatus.Failed ->
-            if (kind == FailKind.RATE_LIMITED) {
-                "Weather service limit reached. Try again in a minute."
-            } else {
-                "Could not reach the weather service. Check your connection and try again."
+            when (kind) {
+                FailKind.RATE_LIMITED -> "Weather service limit reached. Try again in a minute."
+                FailKind.NETWORK -> "Could not reach the weather service. Check your connection and try again."
+                FailKind.OTHER -> "The weather service is not available right now. Try again later."
             }
     }
 

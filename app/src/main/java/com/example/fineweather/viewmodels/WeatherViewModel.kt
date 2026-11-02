@@ -31,6 +31,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import com.google.gson.JsonParseException
+import com.google.gson.stream.MalformedJsonException
 import retrofit2.HttpException
 import java.io.IOException
 import java.time.LocalDate
@@ -434,18 +436,31 @@ class WeatherViewModel(
 }
 
 /**
- * Why a geocoding that threw could not answer, or null if the service answered and the place is just unknown
- * (an answer without results does not parse, so that ends up here too).
+ * Why a geocoding that threw could not answer, or null if the service answered and the place is just unknown.
+ * The outermost cause that says something decides: an answer that does not parse is one without results
+ * (the service sends none for an unknown place; Gson's MalformedJsonException is an IOException, too), and a
+ * rejected request (4xx) is no connectivity problem.
  */
 private fun Throwable.geocodeFailKind(): FailKind? {
-    val chain = generateSequence(this) { it.cause }.toList()
-    return when {
-        chain.any { it is RateLimitException } -> FailKind.RATE_LIMITED
-        chain.any { it is IOException } -> FailKind.NETWORK
-        chain.any { it is HttpException } -> FailKind.OTHER
-        else -> null
+    for (cause in generateSequence(this) { it.cause }) {
+        when {
+            cause is RateLimitException -> return FailKind.RATE_LIMITED
+            cause is JsonParseException || cause is MalformedJsonException -> return null
+            cause is HttpException ->
+                return when (cause.code()) {
+                    HTTP_TOO_MANY_REQUESTS -> FailKind.RATE_LIMITED
+                    in HTTP_CLIENT_ERRORS -> null
+                    else -> FailKind.OTHER
+                }
+
+            cause is IOException -> return FailKind.NETWORK
+        }
     }
+    return null
 }
+
+private const val HTTP_TOO_MANY_REQUESTS = 429
+private val HTTP_CLIENT_ERRORS = 400..499
 
 private enum class Slice(val label: String) {
     FORECAST("forecast"),

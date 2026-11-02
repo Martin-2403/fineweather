@@ -56,6 +56,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import com.google.gson.JsonSyntaxException
+import com.google.gson.stream.MalformedJsonException
 import okhttp3.ResponseBody.Companion.toResponseBody
 import retrofit2.HttpException
 import retrofit2.Response
@@ -490,6 +492,31 @@ class WeatherViewModelTest {
         advanceUntilIdle()
 
         coVerify(exactly = 1) { geoCodeRepository.getGeoCode("Berlin", "de") }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun fetchWeather_aRejectedGeoCodeRequestIsNotAConnectivityProblem() = runTest {
+        val http = HttpException(Response.error<Any>(404, "error".toResponseBody()))
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } throws Exception("Failed to fetch geocoding", http)
+
+        viewModel.fetchWeather("Berlin")
+        advanceUntilIdle()
+
+        assertEquals(SearchStatus.NotFound("Berlin"), state.search)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun fetchWeather_aGeoCodeAnswerThatDoesNotParseIsNotANetworkFailure() = runTest {
+        // MalformedJsonException is an IOException, but the service did answer
+        val parse = JsonSyntaxException(MalformedJsonException("not json"))
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } throws Exception("Failed to fetch geocoding", parse)
+
+        viewModel.fetchWeather("Berlin")
+        advanceUntilIdle()
+
+        assertEquals(SearchStatus.NotFound("Berlin"), state.search)
     }
 
     // ---- loading state ----

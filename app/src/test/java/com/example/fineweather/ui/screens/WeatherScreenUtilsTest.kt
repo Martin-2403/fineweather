@@ -154,6 +154,10 @@ class WeatherScreenUtilsTest {
             SearchStatus.Failed("Ulm", FailKind.NETWORK).displayText(),
         )
         assertEquals(
+            "The weather service is not available right now. Try again later.",
+            SearchStatus.Failed("Ulm", FailKind.OTHER).displayText(),
+        )
+        assertEquals(
             "Weather service limit reached. Try again in a minute.",
             SearchStatus.Failed("Ulm", FailKind.RATE_LIMITED).displayText(),
         )
