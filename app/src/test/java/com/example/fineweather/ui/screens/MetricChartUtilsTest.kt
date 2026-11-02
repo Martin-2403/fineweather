@@ -97,18 +97,6 @@ class MetricChartUtilsTest {
     }
 
     @Test
-    fun cumulativeAverageDailyValues_extendsTheLineToTheEndOfThePeriod() {
-        val points =
-            listOf(
-                DayPoint(LocalDate.of(2026, 10, 29), 2.0, null, null, 3.0),
-            )
-
-        val accumulated = cumulativeAverageDailyValues(points, listOf(4.0, 5.0))
-
-        assertEquals(listOf(4.0, 8.0, 12.0), accumulated.map { it!! })
-    }
-
-    @Test
     fun cumulativeAverageDailyValues_isEmptyWithoutAnyReference() {
         val points = listOf(DayPoint(LocalDate.of(2026, 10, 1), 2.0, null, null, null))
 

@@ -219,15 +219,12 @@ internal fun cumulativeDailyValues(points: List<DayPoint>): List<Double?> {
 }
 
 /**
- * Historical normal for the plotted dates and any extension, accumulated at an even daily pace.
+ * Historical normal for the plotted dates, accumulated at an even daily pace.
  * Single calendar-day normals are too noisy to be informative, so the line rises linearly to the
  * period's normal total; days without a reference count at the average pace.
  */
-internal fun cumulativeAverageDailyValues(
-    points: List<DayPoint>,
-    extension: List<Double?> = emptyList(),
-): List<Double?> {
-    val normals = points.map { it.referenceMean } + extension
+internal fun cumulativeAverageDailyValues(points: List<DayPoint>): List<Double?> {
+    val normals = points.map { it.referenceMean }
     val pace = normals.filterNotNull().takeIf { it.isNotEmpty() }?.average() ?: return normals.map { null }
     return normals.indices.map { index -> pace * (index + 1) }
 }
