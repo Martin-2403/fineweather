@@ -3,6 +3,7 @@ package com.example.fineweather.ui.screens
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
+import androidx.compose.ui.layout.positionOnScreen
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -14,6 +15,7 @@ import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.height
 import androidx.test.espresso.Espresso
+import androidx.test.platform.app.InstrumentationRegistry
 import com.example.fineweather.data.models.GeoPlace
 import com.example.fineweather.ui.theme.FineWeatherTheme
 import org.junit.Assert.assertEquals
@@ -94,6 +96,19 @@ class FavoritesPanelTest {
         assertTrue("panel is $panelHeight tall", panelHeight <= 40.dp + 64.dp * 8 + 2.dp)
 
         composeTestRule.onNodeWithText("City 10").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun sitsAtTheEndOfTheWindowNotUnderTheIconsOwnEdge() {
+        show(places = listOf(augsburg))
+
+        // A popup is a window of its own, so its bounds in the window start at zero: ask for the screen position.
+        val panel = composeTestRule.onNodeWithTag("favoritesPanel").fetchSemanticsNode()
+        val right = panel.layoutInfo.coordinates.positionOnScreen().x + panel.size.width
+        val density = InstrumentationRegistry.getInstrumentation().targetContext.resources.displayMetrics
+        val windowWidth = density.widthPixels
+        // The anchor's right edge is at 700 px, far from the window's.
+        assertEquals((windowWidth - 8 * density.density).toDouble(), right.toDouble(), 1.0)
     }
 
     @Test

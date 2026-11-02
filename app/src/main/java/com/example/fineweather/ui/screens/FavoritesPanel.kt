@@ -149,8 +149,21 @@ internal fun FavoritesPanel(
 }
 
 /**
- * Puts a popup right under [anchor] (window coordinates), its right edge flush with the anchor's and kept
- * inside the window, and reports where the anchor's center lies on the popup's top edge for scaling from it.
+ * The left edge of a panel [panelWidth] wide that sits at the end of the window, [edgeMargin] in from it
+ * (and at the start in right-to-left layouts), where the top bar's icons are. Never closer than
+ * [edgeMargin] to the left edge, even when the panel is wider than the window.
+ */
+internal fun panelLeft(
+    windowWidth: Int,
+    panelWidth: Int,
+    edgeMargin: Int,
+    rtl: Boolean,
+): Int = if (rtl) edgeMargin else (windowWidth - panelWidth - edgeMargin).coerceAtLeast(edgeMargin)
+
+/**
+ * Puts a popup right under [anchor] (window coordinates), at the end of the window like the top bar's
+ * icons (the favorites icon is not the last one, so lining up with it would leave the panel off to the
+ * side), and reports where the anchor's center lies on the popup's top edge for scaling from it.
  */
 private class AnchoredPanelPositionProvider(
     private val anchor: IntRect,
@@ -163,8 +176,7 @@ private class AnchoredPanelPositionProvider(
         layoutDirection: LayoutDirection,
         popupContentSize: IntSize,
     ): IntOffset {
-        val maxX = (windowSize.width - popupContentSize.width - edgeMarginPx).coerceAtLeast(edgeMarginPx)
-        val x = (anchor.right - popupContentSize.width).coerceIn(edgeMarginPx, maxX)
+        val x = panelLeft(windowSize.width, popupContentSize.width, edgeMarginPx, layoutDirection == LayoutDirection.Rtl)
         val y = anchor.bottom
         val originX =
             if (popupContentSize.width > 0) (anchor.center.x - x).toFloat() / popupContentSize.width else 1f
