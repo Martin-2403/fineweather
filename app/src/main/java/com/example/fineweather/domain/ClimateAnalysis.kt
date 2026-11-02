@@ -302,7 +302,7 @@ data class WindowSummary(
     val warmerDays: Int,
     val colderDays: Int,
     val metric: Metric = Metric.TEMPERATURE,
-    /** Sunshine totals over the observed and comparable days, in hours. */
+    /** Sunshine totals, in hours, over the days that have a normal (all observed days without any normal). */
     val observedTotal: Double? = null,
     val referenceTotal: Double? = null,
 ) {
@@ -322,7 +322,9 @@ fun summarize(
     val days = points.count { it.elapsed }
     val sunshineTotals =
         if (metric == Metric.SUNSHINE) {
-            observed.sumOf { it.observed!! } to comparable.takeIf { it.isNotEmpty() }?.sumOf { it.referenceMean!! }
+            // Both over the same days, so their difference is like-for-like; without a reference every observed day counts.
+            val summed = comparable.ifEmpty { observed }
+            summed.sumOf { it.observed!! } to comparable.takeIf { it.isNotEmpty() }?.sumOf { it.referenceMean!! }
         } else {
             null to null
         }

@@ -5,7 +5,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.Ignore
 import org.junit.Test
 import java.time.LocalDate
 import kotlin.math.sqrt
@@ -382,7 +381,6 @@ class MetricAnalysisTest {
         assertEquals(0, summary.colderDays)
     }
 
-    @Ignore("known issue: sunshine observedTotal sums every observed day, referenceTotal only the days with a reference")
     @Test
     fun summarize_sunshineTotalsCoverTheSameDays() {
         val first = LocalDate.of(2026, 10, 1)
@@ -396,6 +394,17 @@ class MetricAnalysisTest {
 
         assertEquals(4.0, summary.referenceTotal!!, 1e-9)
         assertEquals(5.0, summary.observedTotal!!, 1e-9)
+    }
+
+    @Test
+    fun summarize_sunshineWithoutAnyNormalTotalsEveryObservedDay() {
+        val first = LocalDate.of(2026, 10, 1)
+        val points = listOf(DayPoint(first, 5.0, null, null, null), DayPoint(first.plusDays(1), 6.0, null, null, null))
+
+        val summary = summarize(points, sun)
+
+        assertEquals(11.0, summary.observedTotal!!, 1e-9)
+        assertNull(summary.referenceTotal)
     }
 
     @Test
