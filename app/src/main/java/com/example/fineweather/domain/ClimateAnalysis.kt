@@ -202,7 +202,8 @@ data class DayPoint(
  * The days of the month of yesterday, or the 30 days ending yesterday followed by the forecast days.
  * Forecast values are attached by date to the days from today on, for at most [forecastDays] days from the
  * first forecast day that is not before today. The forecast starts today in the place's time zone, which can
- * be a day before or after the device's today: a day before is left out, a day after leaves today empty.
+ * be a day before or after the device's today: a day before is left out, a day after leaves today empty. The days
+ * end with the forecast, so a forecast that starts before today gives one day fewer than [forecastDays].
  */
 fun dayPoints(
     snapshot: ClimateSnapshot,
@@ -212,7 +213,8 @@ fun dayPoints(
     val yesterday = snapshot.today.minusDays(1)
     val forecast = snapshot.forecast
     val forecastStart = forecast?.start?.let { maxOf(it, snapshot.today) }
-    val forecastEnd = forecastStart?.plusDays((forecastDays - 1).toLong())
+    // Never past the last forecast day, which a forecast starting before today reaches a day early.
+    val forecastEnd = forecastStart?.plusDays((forecastDays - 1).toLong())?.let { minOf(it, forecast.end) }
     val dates =
         when (window) {
             MonthWindow.THIS_MONTH -> {

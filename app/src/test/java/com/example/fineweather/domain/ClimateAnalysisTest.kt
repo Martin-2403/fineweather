@@ -2,6 +2,7 @@ package com.example.fineweather.domain
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -335,6 +336,25 @@ class ForecastDataTest {
 
         assertEquals(7, outlook.days)
         assertEquals(8.0, outlook.mean, 1e-6)
+    }
+
+    @Test
+    fun dayPoints_aForecastStartingYesterdayEndsWithTheForecastInsteadOfAnEmptyPoint() {
+        val behind = forecast(start = today.minusDays(1)) // 14 days: Oct 13..26
+
+        val last30 = dayPoints(snapshot(behind), MonthWindow.LAST_30_DAYS, forecastDays = 14)
+
+        assertEquals(30 + 13, last30.size)
+        assertEquals(LocalDate.of(2026, 10, 26), last30.last().date)
+        assertEquals(13, last30.count { it.forecast != null })
+        assertNotNull(last30.last().forecast)
+    }
+
+    @Test
+    fun outlook_aForecastStartingYesterdayCountsTheDaysItAverages() {
+        val behind = forecast(start = today.minusDays(1))
+
+        assertEquals(13, snapshot(behind).outlook(14)!!.days)
     }
 
     @Test
