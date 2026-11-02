@@ -33,7 +33,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -782,10 +784,12 @@ private fun EarthStatusPhotoCard(
 
 private val TrendValueColumnWidth = 84.dp
 private val TrendIconsColumnWidth = 68.dp
+private const val LABEL_SHRINK_STEP = 0.93f
+private const val MIN_LABEL_SHRINK = 0.7f
 
 /**
  * One table row: label, value text and icons. The value and icon columns have fixed widths, so
- * they line up across rows; the label takes the remaining space and wraps if it must.
+ * they line up across rows; the label takes the remaining space and shrinks if it must.
  */
 @Composable
 internal fun StatusTrendRow(
@@ -797,11 +801,19 @@ internal fun StatusTrendRow(
         modifier = modifier.padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // One line whatever the font size: a label that does not fit shrinks, keeping its line height, so the
+        // row (and the header) stays as tall as with a short label.
+        val style = MaterialTheme.typography.bodyLarge
+        var shrink by remember(label) { mutableFloatStateOf(1f) }
         Text(
             text = label,
             fontFamily = nunitoSansFamily,
-            style = MaterialTheme.typography.bodyLarge,
+            style = style.copy(fontSize = style.fontSize * shrink, lineHeight = style.lineHeight),
             fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis,
+            onTextLayout = { if (it.didOverflowWidth && shrink > MIN_LABEL_SHRINK) shrink *= LABEL_SHRINK_STEP },
             modifier = Modifier.weight(1f),
         )
         Box(
