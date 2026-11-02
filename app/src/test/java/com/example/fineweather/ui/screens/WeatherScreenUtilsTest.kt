@@ -164,6 +164,17 @@ class WeatherScreenUtilsTest {
     }
 
     @Test
+    fun needsSearchRestore_onlyForSavedTextThatWasNeverSearched() {
+        assertTrue(needsSearchRestore("Berlin", SearchStatus.Idle, hasPlace = false))
+        assertFalse(needsSearchRestore("", SearchStatus.Idle, hasPlace = false))
+        assertFalse(needsSearchRestore("  ", SearchStatus.Idle, hasPlace = false))
+        assertFalse(needsSearchRestore("Berlin", SearchStatus.Searching("Berlin"), hasPlace = false))
+        assertFalse(needsSearchRestore("Berlin", SearchStatus.NotFound("Berlin"), hasPlace = false))
+        assertFalse(needsSearchRestore("Berlin", SearchStatus.Idle, hasPlace = true))
+        assertFalse(needsSearchRestore("Berlin", SearchStatus.Resolved(PlaceLabel("Berlin", "1.00, 2.00")), hasPlace = true))
+    }
+
+    @Test
     fun summary_hasNoBlocksWhileLoadingAndTheBlocksWhenReady() {
         assertEquals(Loadable.Loading.toBlocks(), emptyList<SummaryBlock>())
         val blocks = listOf<SummaryBlock>(SummaryBlock.Detail("text"))

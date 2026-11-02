@@ -123,6 +123,18 @@ fun WeatherScreen(
         }
     }
 
+    // After process death the saved text is back but nothing is loaded: search for it once.
+    LaunchedEffect(Unit) {
+        if (needsSearchRestore(location, state.search, selectedPlace != null)) {
+            viewModel.fetchWeather(location)
+        }
+    }
+
+    // The saved flag outlives the matches it was about, which the ViewModel does not keep.
+    LaunchedEffect(alternatives.isEmpty()) {
+        if (alternatives.isEmpty()) showAlternatives = false
+    }
+
     Column(
         modifier =
             modifier
@@ -264,7 +276,7 @@ fun WeatherScreen(
             onRemove = { place -> viewModel.removeFavorite(place.id) },
         )
     }
-    if (showAlternatives) {
+    if (showAlternatives && alternatives.isNotEmpty()) {
         PlacesSheet(
             title = "Other matches",
             places = alternatives,

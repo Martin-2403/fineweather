@@ -220,6 +220,16 @@ internal fun resolveStatusImageRes(
             }
     }
 
+/**
+ * Whether the search field holds text that was never searched in this process: the field is saved across
+ * process death, the loaded data is not, so it shows e.g. "Berlin" with an idle status and no place.
+ */
+internal fun needsSearchRestore(
+    location: String,
+    search: SearchStatus,
+    hasPlace: Boolean,
+): Boolean = location.isNotBlank() && search == SearchStatus.Idle && !hasPlace
+
 internal fun SearchStatus.displayText(metric: Metric = Metric.TEMPERATURE): String =
     when (this) {
         SearchStatus.Idle -> "Enter a location to see ${metric.overview}"
