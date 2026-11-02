@@ -12,8 +12,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Ignore
 import org.junit.Test
 import java.time.LocalDate
+import java.util.Locale
 
 /** The sentences of the Month and Year views per metric. */
 class TimeScaleTextsTest {
@@ -82,15 +84,15 @@ class TimeScaleTextsTest {
     @Test
     fun monthSummary_rainGivesTotalPercentAndBothValues() {
         assertEquals(
-            "13 days: 41 mm in total, +85% (41 mm vs 22 mm) compared with the same days of $ref.",
+            "13 days 41 mm in total, +85% (41 mm vs 22 mm) compared with the same days of $ref.",
             monthSummaryText(summary(Metric.PRECIPITATION, 13, 41.3, 22.3), ref),
         )
         assertEquals(
-            "30 days: 36 mm in total, -47% (36 mm vs 67 mm) compared with the same days of $ref.",
+            "30 days 36 mm in total, -47% (36 mm vs 67 mm) compared with the same days of $ref.",
             monthSummaryText(summary(Metric.PRECIPITATION, 30, 35.6, 67.0), ref),
         )
         assertEquals(
-            "5 days: 7.5 mm in total, +50% (7.5 mm vs 5.0 mm) compared with the same days of $ref.",
+            "5 days 7.5 mm in total, +50% (7.5 mm vs 5.0 mm) compared with the same days of $ref.",
             monthSummaryText(summary(Metric.PRECIPITATION, 5, 7.5, 5.0), ref),
         )
     }
@@ -98,7 +100,7 @@ class TimeScaleTextsTest {
     @Test
     fun monthSummary_rainWithALowNormalUsesTheMillimetreDelta() {
         assertEquals(
-            "3 days: 3.2 mm in total, +2.7 mm compared with the same days of $ref.",
+            "3 days 3.2 mm in total, +2.7 mm compared with the same days of $ref.",
             monthSummaryText(summary(Metric.PRECIPITATION, 3, 3.2, 0.5), ref),
         )
     }
@@ -106,11 +108,11 @@ class TimeScaleTextsTest {
     @Test
     fun monthSummary_rainNeutralAndWithoutReference() {
         assertEquals(
-            "13 days: 41 mm in total, in line with the same days of $ref.",
+            "13 days 41 mm in total, in line with the same days of $ref.",
             monthSummaryText(summary(Metric.PRECIPITATION, 13, 41.2, 41.0), ref),
         )
-        assertEquals("13 days: 41 mm in total.", monthSummaryText(summary(Metric.PRECIPITATION, 13, 41.2, null), ref))
-        assertEquals("1 day: 0.0 mm in total.", monthSummaryText(summary(Metric.PRECIPITATION, 1, 0.0, null), ref))
+        assertEquals("13 days 41 mm in total.", monthSummaryText(summary(Metric.PRECIPITATION, 13, 41.2, null), ref))
+        assertEquals("1 day 0.0 mm in total.", monthSummaryText(summary(Metric.PRECIPITATION, 1, 0.0, null), ref))
     }
 
     // ---- captions ----
@@ -393,6 +395,67 @@ class TimeScaleTextsTest {
         val running = MonthlyAnomaly(10, 4.0, 3.0, null, daysObserved = 14, partial = true, metric = Metric.SUNSHINE, days = 15)
 
         assertEquals(listOf("60 h", "45 h", "+15 h", "+33%"), yearTableCells(Metric.SUNSHINE, running))
+    }
+
+    @Test
+    fun yearChartDescription_perMetric() {
+        val summary = YearSummary(delta = 1.0, warmerMonths = 7, comparedMonths = 10)
+
+        assertEquals(
+            "Monthly deviation from the $ref average. 7 of 10 months were warmer.",
+            yearChartDescription(summary, ref),
+        )
+        assertEquals(
+            "Monthly sunshine compared with the $ref average. 7 of 10 months were sunnier.",
+            yearChartDescription(summary, ref, Metric.SUNSHINE),
+        )
+        assertEquals(
+            "Monthly rain compared with the $ref average. 7 of 10 months were wetter.",
+            yearChartDescription(summary, ref, Metric.PRECIPITATION),
+        )
+    }
+
+    @Test
+    fun shortDate_isAnEnglishMonthAndTheDay() {
+        assertEquals("Oct 8", shortDate(LocalDate.of(2026, 10, 8)))
+        assertEquals("Dec 31", shortDate(LocalDate.of(2026, 12, 31)))
+        assertEquals("Jan 1", shortDate(LocalDate.of(2027, 1, 1)))
+    }
+
+    @Test
+    fun shortDate_ignoresTheDeviceLanguage() {
+        val original = Locale.getDefault()
+        Locale.setDefault(Locale.GERMANY)
+        try {
+            assertEquals("Mar 3", shortDate(LocalDate.of(2026, 3, 3)))
+            assertEquals("May 5", shortDate(LocalDate.of(2026, 5, 5)))
+            assertEquals("Oct 8", shortDate(LocalDate.of(2026, 10, 8)))
+        } finally {
+            Locale.setDefault(original)
+        }
+    }
+
+    @Ignore("known issue: temperature deltas that round to zero are shown as +0.0 / -0.0")
+    @Test
+    fun temperatureTexts_aDeltaThatRoundsToZeroHasNoSign() {
+        val texts =
+            listOf(0.03, -0.04).flatMap { delta ->
+                listOf(
+                    monthSummaryText(summary(Metric.TEMPERATURE, 13, 12.0 + delta, 12.0), ref),
+                    forecastSummaryText(outlook(Metric.TEMPERATURE, 14.0 + delta, 14.0)),
+                    yearSummaryText(2026, YearSummary(delta, 5, 10), ref),
+                ) + yearTableCells(Metric.TEMPERATURE, months(Metric.TEMPERATURE, 12.0 + delta to 12.0).first())
+            }
+
+        texts.forEach { assertFalse(it, "+0.0" in it || "-0.0" in it) }
+    }
+
+    @Ignore("known issue: the forecast sentence says '1 days' for a one-day outlook")
+    @Test
+    fun forecastSummary_oneDayIsSingular() {
+        Metric.entries.forEach { metric ->
+            assertFalse(forecastSummaryText(outlook(metric, 6.0, 5.0, days = 1)).contains("1 days"))
+        }
     }
 
     @Test

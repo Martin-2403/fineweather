@@ -843,6 +843,48 @@ class WeatherViewModelTest {
         assertEquals(fullFavorites, viewModel.favorites.value)
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun toggleFavorite_removesAPlaceThatIsAlreadyAFavorite() = runTest {
+        val selected = GeoPlace("loc-1", "Berlin", "Germany", null, 1.0, 2.0)
+        stubSearch(data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1", "Germany"))
+        viewModel.selectPlace(selected)
+        advanceUntilIdle()
+
+        viewModel.toggleFavorite()
+        advanceUntilIdle()
+        assertEquals(listOf(selected), viewModel.favorites.value)
+
+        viewModel.toggleFavorite()
+        advanceUntilIdle()
+        assertTrue(viewModel.favorites.value.isEmpty())
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun removeFavorite_dropsOnlyThatPlace() = runTest {
+        val berlin = GeoPlace("loc-1", "Berlin", "Germany", null, 1.0, 2.0)
+        val hamburg = GeoPlace("loc-2", "Hamburg", "Germany", null, 3.0, 4.0)
+        viewModel = newViewModel(favorites = FakeFavoriteRepository(listOf(berlin, hamburg)))
+        advanceUntilIdle()
+        assertEquals(listOf(berlin, hamburg), viewModel.favorites.value)
+
+        viewModel.removeFavorite("loc-1")
+        advanceUntilIdle()
+
+        assertEquals(listOf(hamburg), viewModel.favorites.value)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun setForecastDays_isStoredInTheSettings() = runTest {
+        viewModel.setForecastDays(WeatherViewModel.FORECAST_DAYS_LONG)
+        advanceUntilIdle()
+
+        assertEquals(WeatherViewModel.FORECAST_DAYS_LONG, viewModel.forecastDays.value)
+        assertEquals(WeatherViewModel.FORECAST_DAYS_LONG, settingsRepository.forecastDays.first())
+    }
+
     // ---- superseded searches (the main dispatcher is a standard one here, so a canceled job
     // runs its handlers only after the new search has changed the state) ----
 

@@ -106,7 +106,7 @@ private fun Caption(
 }
 
 /** What a view says while it has no snapshot to draw and is not loading one. */
-private fun emptyText(
+internal fun emptyText(
     failed: Boolean,
     prompt: String,
 ): String = if (failed) "Error" else prompt
@@ -249,7 +249,7 @@ private fun ChartLegend(
     }
 }
 
-private fun dayAxisLabels(
+internal fun dayAxisLabels(
     dates: List<LocalDate>,
     window: MonthWindow,
 ): List<Pair<Int, String>> =
