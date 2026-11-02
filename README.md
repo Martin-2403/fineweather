@@ -6,15 +6,17 @@ FineWeather is an Android app that compares recent, forecast, and historic tempe
 
 ## Features
 - Search by city or place with geocoding, localized results, and alternate-match resolution for ambiguous names
-- Average temperatures for the last 31 days, current month so far, and next 7 or 14 days
-- Historical monthly baseline for the current month (1961-1990 or current 30-year normal)
-- Divergence (this month vs. the historical baseline) and Trend (forecast vs. this month) comparisons, plus a warning when current-month data is limited
-- Favorites for saving places locally and reopening them from a dedicated tab
+- Average temperatures for the current month so far and the next 7 or 14 days
+- Historical baseline (1961-1990 or current 30-year normal), always compared for the **same calendar days**, so a half-finished month is never measured against a whole one
+- Two cells that show how far from normal it is: **So far** (this month up to yesterday vs. the baseline) and **Next 7/14 days** (the forecast vs. normal for those same days), plus a caveat when current-month data is limited
+- A plain-language report with the figures: the verdict next to the status illustration, the outlook and caveats (few days of data, a forecast that could not be loaded) beneath it
+- Two views: **Month** (daily chart over the typical range with the forecast as a dashed line, for the month or the last 30 days) and **Year** (every month of the year so far against the baseline)
+- Favorites for saving places locally (star next to the search bar) and reopening them from the list icon in the header; "Not your city?" switches between places with the same name
 - Settings for forecast length, historic reference, search language, and divergence method
-- Local caching for geocode and weather data, with settings stored in DataStore
+- Local caching: the 30-year baseline is stored once per place (least recently used places are evicted, favorites are kept), the current year's daily values and the 14-day forecast refresh once a day; settings live in DataStore. Data is complete up to yesterday
 
 ## Data sources
-- Open-Meteo Forecast API, Archive API, and Geocoding API (no API key required)
+- Open-Meteo Forecast API, Archive API, and Geocoding API (no API key required). Weather data by [Open-Meteo.com](https://open-meteo.com/), licensed under CC BY 4.0; the free API is for non-commercial use.
 
 ## Tech stack
 - Kotlin + Jetpack Compose (Material 3)
@@ -48,10 +50,11 @@ FineWeather is an Android app that compares recent, forecast, and historic tempe
 ## Project structure
 - `app/src/main/java/com/example/fineweather/ui` Compose UI and screens
 - `app/src/main/java/com/example/fineweather/viewmodels` UI state and business logic
+- `app/src/main/java/com/example/fineweather/domain` pure climate logic (reference normals, comparisons, summary text), no Android dependencies
 - `app/src/main/java/com/example/fineweather/data` repositories, models, and Room entities
 - `app/src/main/java/com/example/fineweather/api` Open-Meteo Retrofit services
 - `app/src/main/java/com/example/fineweather/utils` shared helpers used across layers
 
 ## Credits
-- Illustrations generated with AI
+- Illustrations generated with AI, inspired by the "This is Fine" meme by K.C. Green ([Gunshow #648](https://gunshowcomic.com/648))
 - Development: hand-written from the start of the project (March 2025); agentic coding tools (Claude Code) used from mid-2026 onward for responsiveness fixes, the CI/release pipeline, test fixes, and cleanup

@@ -20,7 +20,7 @@ class FineWeatherDataTest {
         data.forecastTimePeriod = 20
         data.historicTimePeriod = 30
 
-        val entity = data.toEntity(locationId = 1)
+        val entity = data.toEntity()
 
         assertEquals("loc-1", entity.id)
         assertEquals("Berlin", entity.locationName)

@@ -1,0 +1,415 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 13,
+    "identityHash": "fbd4f7e475fe8755beb709c0695a70be",
+    "entities": [
+      {
+        "tableName": "weather_history",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `date` TEXT NOT NULL, `locationName` TEXT NOT NULL, `country` TEXT, `latitude` REAL NOT NULL, `longitude` REAL NOT NULL, `currentAverage` REAL, `currentMonthAverage` REAL, `forecastAverage7` REAL, `forecastAverage14` REAL, `forecastDate7` TEXT, `forecastDate14` TEXT, `historicMonthlyAverageClassic` REAL, `historicMonthlyAverageCurrent` REAL, `historicMonthlyStdDevClassic` REAL, `historicMonthlyStdDevCurrent` REAL, `historicMonthClassic` TEXT, `historicMonthCurrent` TEXT, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "date",
+            "columnName": "date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "locationName",
+            "columnName": "locationName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "country",
+            "columnName": "country",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "latitude",
+            "columnName": "latitude",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "longitude",
+            "columnName": "longitude",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currentAverage",
+            "columnName": "currentAverage",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "currentMonthAverage",
+            "columnName": "currentMonthAverage",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "forecastAverage7",
+            "columnName": "forecastAverage7",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "forecastAverage14",
+            "columnName": "forecastAverage14",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "forecastDate7",
+            "columnName": "forecastDate7",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "forecastDate14",
+            "columnName": "forecastDate14",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "historicMonthlyAverageClassic",
+            "columnName": "historicMonthlyAverageClassic",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "historicMonthlyAverageCurrent",
+            "columnName": "historicMonthlyAverageCurrent",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "historicMonthlyStdDevClassic",
+            "columnName": "historicMonthlyStdDevClassic",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "historicMonthlyStdDevCurrent",
+            "columnName": "historicMonthlyStdDevCurrent",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "historicMonthClassic",
+            "columnName": "historicMonthClassic",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "historicMonthCurrent",
+            "columnName": "historicMonthCurrent",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "geocode_cache_entries",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`query` TEXT NOT NULL, `locationId` TEXT NOT NULL, `rank` INTEGER NOT NULL, `name` TEXT NOT NULL, `country` TEXT, `admin1` TEXT, `latitude` REAL NOT NULL, `longitude` REAL NOT NULL, PRIMARY KEY(`query`, `locationId`))",
+        "fields": [
+          {
+            "fieldPath": "query",
+            "columnName": "query",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "locationId",
+            "columnName": "locationId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rank",
+            "columnName": "rank",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "country",
+            "columnName": "country",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "admin1",
+            "columnName": "admin1",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "latitude",
+            "columnName": "latitude",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "longitude",
+            "columnName": "longitude",
+            "affinity": "REAL",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "query",
+            "locationId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_geocode_cache_entries_query",
+            "unique": false,
+            "columnNames": [
+              "query"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_geocode_cache_entries_query` ON `${TABLE_NAME}` (`query`)"
+          },
+          {
+            "name": "index_geocode_cache_entries_query_rank",
+            "unique": false,
+            "columnNames": [
+              "query",
+              "rank"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_geocode_cache_entries_query_rank` ON `${TABLE_NAME}` (`query`, `rank`)"
+          }
+        ]
+      },
+      {
+        "tableName": "favorite_places",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `country` TEXT, `admin1` TEXT, `latitude` REAL NOT NULL, `longitude` REAL NOT NULL, `addedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "country",
+            "columnName": "country",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "admin1",
+            "columnName": "admin1",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "latitude",
+            "columnName": "latitude",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "longitude",
+            "columnName": "longitude",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "addedAt",
+            "columnName": "addedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "reference_climate",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`locationId` TEXT NOT NULL, `referenceId` TEXT NOT NULL, `firstYear` INTEGER NOT NULL, `lastYear` INTEGER NOT NULL, `data` BLOB NOT NULL, `lastUsed` INTEGER NOT NULL, `sunshineData` BLOB, `precipitationData` BLOB, PRIMARY KEY(`locationId`, `referenceId`))",
+        "fields": [
+          {
+            "fieldPath": "locationId",
+            "columnName": "locationId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "referenceId",
+            "columnName": "referenceId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "firstYear",
+            "columnName": "firstYear",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastYear",
+            "columnName": "lastYear",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "data",
+            "columnName": "data",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastUsed",
+            "columnName": "lastUsed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sunshineData",
+            "columnName": "sunshineData",
+            "affinity": "BLOB"
+          },
+          {
+            "fieldPath": "precipitationData",
+            "columnName": "precipitationData",
+            "affinity": "BLOB"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "locationId",
+            "referenceId"
+          ]
+        }
+      },
+      {
+        "tableName": "year_series",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`locationId` TEXT NOT NULL, `startDate` TEXT NOT NULL, `endDate` TEXT NOT NULL, `data` BLOB NOT NULL, `fetchedDate` TEXT NOT NULL, `sunshineData` BLOB, `precipitationData` BLOB, PRIMARY KEY(`locationId`))",
+        "fields": [
+          {
+            "fieldPath": "locationId",
+            "columnName": "locationId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startDate",
+            "columnName": "startDate",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endDate",
+            "columnName": "endDate",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "data",
+            "columnName": "data",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fetchedDate",
+            "columnName": "fetchedDate",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sunshineData",
+            "columnName": "sunshineData",
+            "affinity": "BLOB"
+          },
+          {
+            "fieldPath": "precipitationData",
+            "columnName": "precipitationData",
+            "affinity": "BLOB"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "locationId"
+          ]
+        }
+      },
+      {
+        "tableName": "forecast_series",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`locationId` TEXT NOT NULL, `startDate` TEXT NOT NULL, `endDate` TEXT NOT NULL, `data` BLOB NOT NULL, `fetchedDate` TEXT NOT NULL, `sunshineData` BLOB, `precipitationData` BLOB, PRIMARY KEY(`locationId`))",
+        "fields": [
+          {
+            "fieldPath": "locationId",
+            "columnName": "locationId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startDate",
+            "columnName": "startDate",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endDate",
+            "columnName": "endDate",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "data",
+            "columnName": "data",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fetchedDate",
+            "columnName": "fetchedDate",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sunshineData",
+            "columnName": "sunshineData",
+            "affinity": "BLOB"
+          },
+          {
+            "fieldPath": "precipitationData",
+            "columnName": "precipitationData",
+            "affinity": "BLOB"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "locationId"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'fbd4f7e475fe8755beb709c0695a70be')"
+    ]
+  }
+}

@@ -4,9 +4,9 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 object OpenMeteoRetrofitClients {
-    private val BASE_URL_FORECAST = "https://api.open-meteo.com/v1/"
-    private val BASE_URL_ARCHIVE = "https://archive-api.open-meteo.com/v1/"
-    private val BASE_URL_GEOCODING = "https://geocoding-api.open-meteo.com/v1/"
+    private const val BASE_URL_FORECAST = "https://api.open-meteo.com/v1/"
+    private const val BASE_URL_ARCHIVE = "https://archive-api.open-meteo.com/v1/"
+    private const val BASE_URL_GEOCODING = "https://geocoding-api.open-meteo.com/v1/"
 
     object RetrofitFactory {
         fun create(baseUrl: String): Retrofit =

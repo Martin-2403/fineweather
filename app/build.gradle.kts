@@ -9,6 +9,10 @@ plugins {
     id("jacoco")
 }
 
+base {
+    archivesName = "fw"
+}
+
 android {
     namespace = "com.example.fineweather"
     compileSdk = 36
@@ -17,8 +21,8 @@ android {
         applicationId = "com.example.fineweather"
         minSdk = 27
         targetSdk = 36
-        versionCode = 3
-        versionName = "1.3.0"
+        versionCode = 4
+        versionName = "1.4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -50,6 +54,14 @@ android {
     testOptions {
         unitTests.isIncludeAndroidResources = true
     }
+    // Room's exported schemas feed MigrationTestHelper in the instrumented tests.
+    sourceSets {
+        getByName("androidTest").assets.srcDir("$projectDir/schemas")
+    }
+}
+
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 kotlin {
@@ -86,12 +98,25 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
 
     androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.room.testing)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)
 
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+}
+
+// room-testing (MigrationTestHelper) needs kotlinx-serialization 1.8.x, while the app resolves 1.7.3
+// (via the androidx lifecycle/activity libraries); mixing them crashes with an AbstractMethodError.
+// Scoped to the androidTest configurations. Remove it once the app itself resolves
+// kotlinx-serialization 1.8+ (newer androidx/compose BOM) and the migration tests still pass.
+configurations.matching { it.name.contains("AndroidTest") }.configureEach {
+    resolutionStrategy.eachDependency {
+        if (requested.group == "org.jetbrains.kotlinx" && requested.name.startsWith("kotlinx-serialization-")) {
+            useVersion("1.8.1")
+        }
+    }
 }
 
 tasks.register<JacocoReport>("jacocoTestReport") {
@@ -121,8 +146,8 @@ tasks.register<JacocoReport>("jacocoTestReport") {
             "**/*_Impl*.*",
             "**/*_Factory*.*",
             "**/*_MembersInjector*.*",
-            "**/*\$Lambda\$*.*",
-            "**/*\$inlined\$*.*",
+            "**/*\$Lambda$*.*",
+            "**/*\$inlined$*.*",
             "**/*\$Companion*.*",
         )
 

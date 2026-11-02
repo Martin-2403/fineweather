@@ -8,10 +8,19 @@ import com.example.fineweather.data.models.GeocodingResult
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import okhttp3.ResponseBody.Companion.toResponseBody
+import retrofit2.HttpException
+import retrofit2.Response
+import java.io.IOException
 
 class GeoCodeRepositoryTest {
 
@@ -162,5 +171,45 @@ class GeoCodeRepositoryTest {
         val thrown = runCatching { repository.getGeoCode("Rome", "en") }.exceptionOrNull()
 
         assertTrue(thrown is Exception)
+    }
+
+    @Test
+    fun getGeoCode_keepsTheCauseOfANetworkFailure() = runTest {
+        coEvery { api.getGeoCoding(any(), any(), any(), any()) } throws IOException("offline")
+
+        val thrown = runCatching { repository.getGeoCode("Rome", "en") }.exceptionOrNull()
+
+        assertTrue("was $thrown", thrown?.cause is IOException)
+    }
+
+    @Test
+    fun getGeoCode_aTooManyRequestsResponseIsARateLimit() = runTest {
+        val http = HttpException(Response.error<GeoCodingResponse>(429, "error".toResponseBody()))
+        coEvery { api.getGeoCoding(any(), any(), any(), any()) } throws http
+
+        val thrown = runCatching { repository.getGeoCode("Rome", "en") }.exceptionOrNull()
+
+        assertTrue("was $thrown", thrown is RateLimitException)
+        assertEquals(http, thrown?.cause)
+    }
+
+    @Test
+    fun getGeoCode_cancellationIsNotWrappedInAnotherException() = runTest {
+        val gate = CompletableDeferred<GeoCodingResponse>()
+        coEvery { api.getGeoCoding(any(), any(), any(), any()) } coAnswers { gate.await() }
+        var caught: Throwable? = null
+
+        val search = launch {
+            try {
+                repository.getGeoCode("Berlin", "en")
+            } catch (e: Throwable) {
+                caught = e
+            }
+        }
+        runCurrent()
+        search.cancel()
+        advanceUntilIdle()
+
+        assertTrue("was $caught", caught is CancellationException)
     }
 }

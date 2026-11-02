@@ -13,3 +13,8 @@ fun getCurrentMonthString(now: LocalDate = LocalDate.now()): String =
 
 fun getCurrentMonthName(now: LocalDate = LocalDate.now()): String =
     now.month.getDisplayName(TextStyle.FULL, Locale.getDefault())
+
+fun formatCoordinates(
+    latitude: Double,
+    longitude: Double,
+): String = String.format(Locale.US, "%.2f, %.2f", latitude, longitude)

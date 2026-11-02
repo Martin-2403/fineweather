@@ -17,3 +17,4 @@ local.properties
 /.idea/deviceManager.xml
 /.idea/androidTestResultsUserPreferences.xml
 /.idea/studiobot.xml
+.idea/copilotDiffState.xml

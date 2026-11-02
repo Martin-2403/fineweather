@@ -1,0 +1,403 @@
+package com.example.fineweather.domain
+
+import java.time.LocalDate
+import java.time.YearMonth
+
+/**
+ * An observed period compared with the same calendar days of the reference years. The three values are
+ * in the period unit of [metric]: a daily mean, or for rain the total over the days [fromDay]..[toDay].
+ */
+data class PeriodComparison(
+    val observedMean: Double,
+    val referenceMean: Double?,
+    val referenceStdDev: Double?,
+    val daysObserved: Int,
+    val fromDay: Int,
+    val toDay: Int,
+    val metric: Metric = Metric.TEMPERATURE,
+)
+
+/** The percent of [reference] that [delta] is, if metric adds up and there is a reference. */
+private fun Metric.percent(
+    delta: Double?,
+    reference: Double?,
+): Double? = if (delta == null || reference == null) null else percentOfNormal(delta, reference)
+
+/**
+ * Month-to-date up to yesterday (the last complete day), compared with the same days of the
+ * reference. Null on the first day of a month, when no day of the month is complete yet.
+ */
+fun monthToDate(
+    series: DailySeries,
+    climate: ReferenceClimate?,
+    today: LocalDate,
+    metric: Metric = Metric.TEMPERATURE,
+): PeriodComparison? {
+    if (today.dayOfMonth == 1) return null
+    val yesterday = today.minusDays(1)
+    val first = yesterday.withDayOfMonth(1)
+    val observed = series.mean(first, yesterday) ?: return null
+    val toDay = yesterday.dayOfMonth
+    return PeriodComparison(
+        observedMean = metric.periodValue(observed, toDay),
+        referenceMean = climate?.windowMean(yesterday.monthValue, 1, toDay)?.let { metric.periodValue(it, toDay) },
+        referenceStdDev = climate?.windowStdDev(yesterday.monthValue, 1, toDay)?.let { metric.periodValue(it, toDay) },
+        daysObserved = series.count(first, yesterday),
+        fromDay = 1,
+        toDay = toDay,
+        metric = metric,
+    )
+}
+
+/**
+ * One month of the Year view. The three values are in the period unit of [metric]: a daily mean, or for
+ * rain the total over the days compared (the month so far while it is [partial], else the whole month).
+ */
+data class MonthlyAnomaly(
+    val month: Int,
+    val observedMean: Double?,
+    val referenceMean: Double?,
+    val referenceStdDev: Double?,
+    val daysObserved: Int,
+    /** True while the month is still running, i.e. only the first days are compared. */
+    val partial: Boolean,
+    val metric: Metric = Metric.TEMPERATURE,
+    /** The calendar days compared: the whole month, or the days so far while [partial]. */
+    val days: Int = daysObserved,
+    /** The calendar days of the whole month. */
+    val monthDays: Int = days,
+    /** The normal over the whole month, in the unit of [referenceMean]; the same as it unless the month is [partial]. */
+    val referenceMonthMean: Double? = referenceMean,
+) {
+    val delta: Double? get() = if (observedMean != null && referenceMean != null) observedMean - referenceMean else null
+
+    /** [delta] as a percent of the normal; only for metrics that add up. */
+    val deltaPercent: Double? get() = metric.percent(delta, referenceMean)
+
+    /** The observed amount over the compared days: hours of sunshine, mm of rain; null for temperature. */
+    val observedTotal: Double? get() = total(observedMean, days)
+
+    /** The normal amount over the compared days, see [observedTotal]. */
+    val referenceTotal: Double? get() = total(referenceMean, days)
+
+    /** The normal amount over the whole month, also while it is [partial], see [observedTotal]. */
+    val referenceMonthTotal: Double? get() = total(referenceMonthMean, monthDays)
+
+    val totalDelta: Double?
+        get() {
+            val observed = observedTotal ?: return null
+            val reference = referenceTotal ?: return null
+            return observed - reference
+        }
+
+    /**
+     * [totalDelta] as a percent of [referenceTotal]: for rain [deltaPercent], for sunshine only on a normal
+     * of at least [MIN_NORMAL_SUNSHINE_HOURS] (a few hours of polar-winter sun would give huge percents).
+     */
+    val totalPercent: Double?
+        get() =
+            when (metric) {
+                Metric.PRECIPITATION -> deltaPercent
+                Metric.SUNSHINE -> {
+                    val reference = referenceTotal
+                    val delta = totalDelta
+                    if (delta != null && reference != null && reference >= MIN_NORMAL_SUNSHINE_HOURS) delta / reference * 100.0 else null
+                }
+                Metric.TEMPERATURE -> null
+            }
+
+    private fun total(
+        value: Double?,
+        over: Int,
+    ): Double? =
+        when {
+            metric == Metric.TEMPERATURE -> null
+            metric.aggregation == Aggregation.TOTAL -> value
+            else -> value?.times(over)
+        }
+}
+
+/** Smallest normal sunshine total, in hours, that a month's sunshine is given a percent against. */
+const val MIN_NORMAL_SUNSHINE_HOURS = 1.0
+
+/**
+ * January up to the month of yesterday. Finished months use the full-month reference, the
+ * running month only the same days of the reference.
+ */
+fun yearToDate(
+    series: DailySeries,
+    climate: ReferenceClimate?,
+    today: LocalDate,
+    metric: Metric = Metric.TEMPERATURE,
+): List<MonthlyAnomaly> {
+    val yesterday = today.minusDays(1)
+    val year = yesterday.year
+    return (1..yesterday.monthValue).map { month ->
+        val yearMonth = YearMonth.of(year, month)
+        val length = yearMonth.lengthOfMonth()
+        val running = month == yesterday.monthValue && yesterday.dayOfMonth < length
+        val toDay = if (running) yesterday.dayOfMonth else length
+        val to = yearMonth.atDay(toDay)
+        MonthlyAnomaly(
+            month = month,
+            observedMean = series.mean(yearMonth.atDay(1), to)?.let { metric.periodValue(it, toDay) },
+            referenceMean = climate?.windowMean(month, 1, toDay)?.let { metric.periodValue(it, toDay) },
+            referenceStdDev = climate?.windowStdDev(month, 1, toDay)?.let { metric.periodValue(it, toDay) },
+            daysObserved = series.count(yearMonth.atDay(1), to),
+            partial = running,
+            metric = metric,
+            days = toDay,
+            monthDays = length,
+            referenceMonthMean = climate?.windowMean(month, 1, length)?.let { metric.periodValue(it, length) },
+        )
+    }
+}
+
+/**
+ * The months after yesterday's, carrying only their normal over the whole month, so the rest of the year can be
+ * shown ahead of time. Empty for temperature, which has no total to show, and without a reference.
+ */
+fun upcomingMonths(
+    climate: ReferenceClimate?,
+    today: LocalDate,
+    metric: Metric = Metric.TEMPERATURE,
+): List<MonthlyAnomaly> {
+    if (climate == null || metric == Metric.TEMPERATURE) return emptyList()
+    val yesterday = today.minusDays(1)
+    return (yesterday.monthValue + 1..12).map { month ->
+        val length = YearMonth.of(yesterday.year, month).lengthOfMonth()
+        MonthlyAnomaly(
+            month = month,
+            observedMean = null,
+            referenceMean = null,
+            referenceStdDev = null,
+            daysObserved = 0,
+            partial = false,
+            metric = metric,
+            days = 0,
+            monthDays = length,
+            referenceMonthMean = climate.windowMean(month, 1, length)?.let { metric.periodValue(it, length) },
+        )
+    }
+}
+
+enum class MonthWindow { THIS_MONTH, LAST_30_DAYS }
+
+/**
+ * One day of the Month view, in the daily unit of the metric. [band] is the smoothed normal (±3 days) the
+ * chart draws, never below the metric's lower bound; [referenceMean] is the exact same-calendar-day mean,
+ * so period averages agree with the summary of the month so far (as long as no day is missing).
+ */
+data class DayPoint(
+    val date: LocalDate,
+    val observed: Double?,
+    val forecast: Double?,
+    val band: DailyStats?,
+    val referenceMean: Double?,
+    /** Whether the day is over (up to yesterday), with or without a value. */
+    val elapsed: Boolean = observed != null,
+)
+
+/**
+ * The days of the month of yesterday, or the 30 days ending yesterday followed by the forecast days.
+ * Forecast values are attached by date to the days from today on, for at most [forecastDays] days from the
+ * first forecast day that is not before today. The forecast starts today in the place's time zone, which can
+ * be a day before or after the device's today: a day before is left out, a day after leaves today empty. The days
+ * end with the forecast, so a forecast that starts before today gives one day fewer than [forecastDays].
+ */
+fun dayPoints(
+    snapshot: ClimateSnapshot,
+    window: MonthWindow,
+    forecastDays: Int = 0,
+): List<DayPoint> {
+    val yesterday = snapshot.today.minusDays(1)
+    val forecast = snapshot.forecast
+    val forecastStart = forecast?.start?.let { maxOf(it, snapshot.today) }
+    // Never past the last forecast day, which a forecast starting before today reaches a day early.
+    val forecastEnd = forecastStart?.plusDays((forecastDays - 1).toLong())?.let { minOf(it, forecast.end) }
+    val dates =
+        when (window) {
+            MonthWindow.THIS_MONTH -> {
+                val first = yesterday.withDayOfMonth(1)
+                (0 until yesterday.lengthOfMonth()).map { first.plusDays(it.toLong()) }
+            }
+
+            MonthWindow.LAST_30_DAYS -> {
+                val observed = (29 downTo 0).map { yesterday.minusDays(it.toLong()) }
+                val ahead =
+                    if (forecastEnd == null || !forecastEnd.isAfter(yesterday)) {
+                        emptyList()
+                    } else {
+                        generateSequence(yesterday.plusDays(1)) { it.plusDays(1) }
+                            .takeWhile { !it.isAfter(forecastEnd) }
+                            .toList()
+                    }
+                observed + ahead
+            }
+        }
+    return dates.map { date ->
+        val inForecast =
+            forecast != null && forecastStart != null && forecastEnd != null &&
+                !date.isBefore(forecastStart) && !date.isAfter(forecastEnd)
+        DayPoint(
+            date = date,
+            observed = if (date.isAfter(yesterday)) null else snapshot.series.valueOrNull(date),
+            forecast = if (inForecast) forecast.valueOrNull(date) else null,
+            band = snapshot.reference?.dailyStats(date.monthValue, date.dayOfMonth)?.copy(floor = snapshot.metric.lowerBound),
+            referenceMean = snapshot.reference?.dailyStats(date.monthValue, date.dayOfMonth, halfWindow = 0)?.mean,
+            elapsed = !date.isAfter(yesterday),
+        )
+    }
+}
+
+/**
+ * The next [days] of the forecast compared with the normal of exactly those calendar days. [mean] and
+ * [referenceMean] are in the period unit of [metric]: a daily mean, or for rain the total over [days].
+ */
+data class ForecastOutlook(
+    val days: Int,
+    val mean: Double,
+    val referenceMean: Double?,
+    val metric: Metric = Metric.TEMPERATURE,
+) {
+    val delta: Double? get() = referenceMean?.let { mean - it }
+
+    /** [delta] as a percent of the normal; only for metrics that add up. */
+    val deltaPercent: Double? get() = metric.percent(delta, referenceMean)
+}
+
+/**
+ * The outlook over the first [days] days of [forecast] that are not before [today] (default: the forecast's own
+ * start); the forecast starts today in the place's time zone, which can be a day before the device's today.
+ */
+fun forecastOutlook(
+    forecast: DailySeries?,
+    reference: ReferenceClimate?,
+    days: Int,
+    metric: Metric = Metric.TEMPERATURE,
+    today: LocalDate? = null,
+): ForecastOutlook? {
+    if (forecast == null || days <= 0) return null
+    val first = if (today == null) forecast.start else maxOf(forecast.start, today)
+    val values = forecast.days(first, first.plusDays(days - 1L))
+    if (values.isEmpty()) return null
+    val referenceMeans =
+        reference?.let { climate ->
+            values.mapNotNull { (date, _) -> climate.dailyStats(date.monthValue, date.dayOfMonth, halfWindow = 0)?.mean }
+        }
+    return ForecastOutlook(
+        days = values.size,
+        mean = metric.periodValue(values.map { it.second }.average(), values.size),
+        referenceMean = referenceMeans?.takeIf { it.isNotEmpty() }?.average()?.let { metric.periodValue(it, values.size) },
+        metric = metric,
+    )
+}
+
+/**
+ * [observedMean] and [referenceMean] are in the period unit of [metric]; for rain the totals over the days
+ * of the window that are over. "Warmer" and "colder" days mean above and below the normal for any metric.
+ */
+data class WindowSummary(
+    val observedDays: Int,
+    val observedMean: Double?,
+    val referenceMean: Double?,
+    val warmerDays: Int,
+    val colderDays: Int,
+    val metric: Metric = Metric.TEMPERATURE,
+    /** Sunshine totals, in hours, over the days that have a normal (all observed days without any normal). */
+    val observedTotal: Double? = null,
+    val referenceTotal: Double? = null,
+    /** The days the sunshine totals add up; fewer than [observedDays] while some observed days lack a normal. */
+    val totalDays: Int = observedDays,
+) {
+    val delta: Double? get() = if (observedMean != null && referenceMean != null) observedMean - referenceMean else null
+
+    /** [delta] as a percent of the normal; only for metrics that add up. */
+    val deltaPercent: Double? get() = metric.percent(delta, referenceMean)
+}
+
+/** Compares the observed days with the reference for exactly the same days. */
+fun summarize(
+    points: List<DayPoint>,
+    metric: Metric = Metric.TEMPERATURE,
+): WindowSummary {
+    val observed = points.filter { it.observed != null }
+    val comparable = observed.filter { it.referenceMean != null }
+    val days = points.count { it.elapsed }
+    // Sunshine totals cover the same days, so their difference is like-for-like; without a reference every observed day counts.
+    val totalled = if (metric == Metric.SUNSHINE) comparable.ifEmpty { observed } else observed
+    val sunshineTotals =
+        if (metric == Metric.SUNSHINE) {
+            totalled.sumOf { it.observed!! } to comparable.takeIf { it.isNotEmpty() }?.sumOf { it.referenceMean!! }
+        } else {
+            null to null
+        }
+    return WindowSummary(
+        observedDays = observed.size,
+        observedMean = observed.map { it.observed!! }.takeIf { it.isNotEmpty() }?.average()?.let { metric.periodValue(it, days) },
+        referenceMean = comparable.map { it.referenceMean!! }.takeIf { it.isNotEmpty() }?.average()?.let { metric.periodValue(it, days) },
+        warmerDays = observed.count { it.band != null && it.observed!! > it.band.mean },
+        colderDays = observed.count { it.band != null && it.observed!! < it.band.mean },
+        metric = metric,
+        observedTotal = sunshineTotals.first,
+        referenceTotal = sunshineTotals.second,
+        totalDays = totalled.size,
+    )
+}
+
+data class YearSummary(
+    /**
+     * Day-weighted mean of the monthly deviations, or for rain their sum (the year's surplus in mm);
+     * null if nothing is comparable.
+     */
+    val delta: Double?,
+    /** Months above their normal; for sunshine and rain these are the sunnier and wetter ones. */
+    val warmerMonths: Int,
+    val comparedMonths: Int,
+    /** For rain, [delta] as a percent of the normal of the compared months. */
+    val deltaPercent: Double? = null,
+    /** The year's surplus in hours of sunshine or mm of rain, summed over the compared months; null for temperature. */
+    val totalDelta: Double? = null,
+)
+
+fun summarizeYear(months: List<MonthlyAnomaly>): YearSummary {
+    val comparable = months.filter { it.delta != null && it.daysObserved > 0 }
+    val totalDays = comparable.sumOf { it.daysObserved }
+    val adds = comparable.any { it.metric.aggregation == Aggregation.TOTAL }
+    val delta =
+        when {
+            totalDays == 0 -> null
+            adds -> comparable.sumOf { it.delta!! }
+            else -> comparable.sumOf { it.delta!! * it.daysObserved } / totalDays
+        }
+    return YearSummary(
+        delta = delta,
+        warmerMonths = comparable.count { it.delta!! > 0 },
+        comparedMonths = comparable.size,
+        deltaPercent =
+            if (adds && delta != null) {
+                comparable.first().metric.percent(delta, comparable.sumOf { it.referenceMean!! })
+            } else {
+                null
+            },
+        totalDelta = comparable.mapNotNull { it.totalDelta }.takeIf { it.isNotEmpty() }?.sum(),
+    )
+}
+
+/*
+ * The analyses of a snapshot, always in its own metric. Prefer these over the functions above wherever a
+ * snapshot is at hand, so the metric cannot be forgotten (their default is temperature).
+ */
+
+fun ClimateSnapshot.monthToDate(): PeriodComparison? = monthToDate(series, reference, today, metric)
+
+/** The months of the year up to yesterday, see [yearToDate]. */
+fun ClimateSnapshot.months(): List<MonthlyAnomaly> = yearToDate(series, reference, today, metric)
+
+/** The rest of the year after yesterday's month, see [upcomingMonths]. */
+fun ClimateSnapshot.upcomingMonths(): List<MonthlyAnomaly> = upcomingMonths(reference, today, metric)
+
+/** The next [days] of the forecast, see [forecastOutlook]. */
+fun ClimateSnapshot.outlook(days: Int): ForecastOutlook? = forecastOutlook(forecast, reference, days, metric, today)
+
+fun ClimateSnapshot.summarize(points: List<DayPoint>): WindowSummary = summarize(points, metric)

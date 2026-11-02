@@ -1,0 +1,84 @@
+package com.example.fineweather.data.local.dao
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import com.example.fineweather.data.local.entities.ReferenceClimateEntity
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface ReferenceClimateDao {
+    @Query("SELECT * FROM reference_climate WHERE locationId = :locationId AND referenceId = :referenceId")
+    suspend fun get(
+        locationId: String,
+        referenceId: String,
+    ): ReferenceClimateEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(entity: ReferenceClimateEntity)
+
+    @Query("UPDATE reference_climate SET lastUsed = :now WHERE locationId = :locationId AND referenceId = :referenceId")
+    suspend fun touch(
+        locationId: String,
+        referenceId: String,
+        now: Long,
+    )
+
+    /**
+     * Stores the sunshine and precipitation blobs on the row of exactly this reference period.
+     * Returns the number of rows updated, 0 if the row is missing or covers other years.
+     */
+    @Query(
+        """
+        UPDATE reference_climate SET sunshineData = :sunshineData, precipitationData = :precipitationData
+        WHERE locationId = :locationId AND referenceId = :referenceId
+        AND firstYear = :firstYear AND lastYear = :lastYear
+        """,
+    )
+    suspend fun updateExtras(
+        locationId: String,
+        referenceId: String,
+        firstYear: Int,
+        lastYear: Int,
+        sunshineData: ByteArray,
+        precipitationData: ByteArray,
+    ): Int
+
+    /**
+     * Keeps the [keep] most recently used locations that are not favorites, with all their rows (a location
+     * has one per reference period and is as recent as its latest row); favorites are never evicted.
+     */
+    @Query(
+        """
+        DELETE FROM reference_climate
+        WHERE locationId NOT IN (SELECT id FROM favorite_places)
+        AND locationId NOT IN (
+            SELECT locationId FROM reference_climate
+            WHERE locationId NOT IN (SELECT id FROM favorite_places)
+            GROUP BY locationId
+            ORDER BY MAX(lastUsed) DESC
+            LIMIT :keep
+        )
+        """,
+    )
+    suspend fun evictLeastRecentlyUsed(keep: Int)
+
+    @Query("SELECT COUNT(*) FROM reference_climate")
+    fun observeCount(): Flow<Int>
+
+    /** The locations with a row in any of the weather caches (reference, current year, forecast), each once. */
+    @Query(
+        """
+        SELECT COUNT(*) FROM (
+            SELECT locationId FROM reference_climate
+            UNION SELECT locationId FROM year_series
+            UNION SELECT locationId FROM forecast_series
+        )
+        """,
+    )
+    fun observeCachedLocationCount(): Flow<Int>
+
+    @Query("DELETE FROM reference_climate")
+    suspend fun clearAll()
+}

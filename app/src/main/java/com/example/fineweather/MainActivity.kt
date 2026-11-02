@@ -22,6 +22,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -51,6 +52,8 @@ import com.example.fineweather.data.repositories.RoomFavoriteRepository
 import com.example.fineweather.data.repositories.SettingsDefaults
 import com.example.fineweather.data.repositories.SettingsRepository
 import com.example.fineweather.data.repositories.WeatherRepository
+import com.example.fineweather.ui.screens.LoadingConfig
+import com.example.fineweather.ui.screens.LocalLoadingConfig
 import com.example.fineweather.ui.screens.SettingsScreen
 import com.example.fineweather.ui.screens.WeatherScreen
 import com.example.fineweather.ui.theme.FineWeatherTheme
@@ -68,11 +71,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            FineWeatherTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    WeatherApp()
+            CompositionLocalProvider(LocalLoadingConfig provides LoadingConfig(delayMs = 150, animated = true)) {
+                FineWeatherTheme {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        WeatherApp()
+                    }
                 }
             }
         }
@@ -91,6 +96,9 @@ fun WeatherApp() {
                 openMeteoWeatherApi = OpenMeteoRetrofitClients.forecastApi,
                 openMeteoArchiveApi = OpenMeteoRetrofitClients.archiveApi,
                 weatherDao = db.weatherDao(),
+                referenceClimateDao = db.referenceClimateDao(),
+                yearSeriesDao = db.yearSeriesDao(),
+                forecastSeriesDao = db.forecastSeriesDao(),
             )
         }
     val geoCodeRepository =
@@ -110,7 +118,13 @@ fun WeatherApp() {
         }
     val cacheRepository: CacheRepository =
         remember {
-            RoomCacheRepository(db.weatherDao(), db.geoCodeDao())
+            RoomCacheRepository(
+                db.weatherDao(),
+                db.geoCodeDao(),
+                db.referenceClimateDao(),
+                db.yearSeriesDao(),
+                db.forecastSeriesDao()
+            )
         }
 
     val weatherViewModel: WeatherViewModel =
@@ -142,14 +156,12 @@ fun WeatherApp() {
     val cacheStats by settingsViewModel.cacheStats.collectAsState(initial = CacheStats())
     val hasSeenInfo by settingsViewModel.hasSeenInfo.collectAsState(initial = null)
     var showInfo by rememberSaveable { mutableStateOf(false) }
+    var showFavorites by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
+    // Only the first run opens the overlay by itself; it never closes it, which the dismiss button does.
     LaunchedEffect(hasSeenInfo) {
-        if (hasSeenInfo == false) {
-            showInfo = true
-        } else if (hasSeenInfo == true) {
-            showInfo = false
-        }
+        if (hasSeenInfo == false) showInfo = true
     }
 
     Scaffold(
@@ -158,23 +170,43 @@ fun WeatherApp() {
                 AppScreen.WEATHER ->
                     CompactTopBar(
                         title = "FineWeather",
-                        actionIconRes = R.drawable.settings,
-                        actionContentDescription = "Open settings",
-                        actionTestTag = "settingsButton",
-                        onAction = { currentScreen = AppScreen.SETTINGS },
-                        secondaryActionIconRes = R.drawable.info,
-                        secondaryActionContentDescription = "Open info",
-                        secondaryActionTestTag = "infoButton",
-                        onSecondaryAction = { showInfo = true },
+                        actions =
+                            listOf(
+                                TopBarAction(
+                                    R.drawable.info,
+                                    "Open info",
+                                    "infoButton"
+                                ) { showInfo = true },
+                                TopBarAction(
+                                    R.drawable.favorites_list,
+                                    "Open favorites",
+                                    "favoritesButton"
+                                ) {
+                                    showFavorites = true
+                                },
+                                TopBarAction(
+                                    R.drawable.settings,
+                                    "Open settings",
+                                    "settingsButton"
+                                ) {
+                                    currentScreen = AppScreen.SETTINGS
+                                },
+                            ),
                     )
 
                 AppScreen.SETTINGS ->
                     CompactTopBar(
                         title = "Settings",
-                        actionIconRes = R.drawable.search,
-                        actionContentDescription = "Back to weather",
-                        actionTestTag = "backToWeatherButton",
-                        onAction = { currentScreen = AppScreen.WEATHER },
+                        actions =
+                            listOf(
+                                TopBarAction(
+                                    R.drawable.close,
+                                    "Close settings",
+                                    "backToWeatherButton"
+                                ) {
+                                    currentScreen = AppScreen.WEATHER
+                                },
+                            ),
                     )
             }
         },
@@ -199,6 +231,8 @@ fun WeatherApp() {
                         showInfo = false
                         settingsViewModel.setHasSeenInfo(true)
                     },
+                    showFavorites = showFavorites,
+                    onDismissFavorites = { showFavorites = false },
                     modifier = Modifier.padding(top = innerPadding.calculateTopPadding()),
                 )
 
@@ -225,17 +259,17 @@ private enum class AppScreen {
     SETTINGS,
 }
 
+private class TopBarAction(
+    val iconRes: Int,
+    val contentDescription: String,
+    val testTag: String,
+    val onClick: () -> Unit,
+)
+
 @Composable
 private fun CompactTopBar(
     title: String,
-    actionIconRes: Int,
-    actionContentDescription: String,
-    actionTestTag: String,
-    onAction: () -> Unit,
-    secondaryActionIconRes: Int? = null,
-    secondaryActionContentDescription: String? = null,
-    secondaryActionTestTag: String? = null,
-    onSecondaryAction: (() -> Unit)? = null,
+    actions: List<TopBarAction>,
 ) {
     Surface(tonalElevation = 2.dp) {
         Row(
@@ -253,30 +287,16 @@ private fun CompactTopBar(
                 style = MaterialTheme.typography.titleMedium,
             )
             Spacer(modifier = Modifier.weight(1f))
-            if (secondaryActionIconRes != null && onSecondaryAction != null) {
+            actions.forEach { action ->
                 IconButton(
-                    onClick = onSecondaryAction,
-                    modifier =
-                        if (secondaryActionTestTag != null) {
-                            Modifier.testTag(secondaryActionTestTag)
-                        } else {
-                            Modifier
-                        },
+                    onClick = action.onClick,
+                    modifier = Modifier.testTag(action.testTag),
                 ) {
                     Icon(
-                        painter = painterResource(id = secondaryActionIconRes),
-                        contentDescription = secondaryActionContentDescription,
+                        painter = painterResource(id = action.iconRes),
+                        contentDescription = action.contentDescription,
                     )
                 }
-            }
-            IconButton(
-                onClick = onAction,
-                modifier = Modifier.testTag(actionTestTag),
-            ) {
-                Icon(
-                    painter = painterResource(id = actionIconRes),
-                    contentDescription = actionContentDescription,
-                )
             }
         }
     }

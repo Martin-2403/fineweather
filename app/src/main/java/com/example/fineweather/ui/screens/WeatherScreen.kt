@@ -4,11 +4,10 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,27 +18,24 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardColors
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedButton
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -49,10 +45,18 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.text.style.TextOverflow
+import com.example.fineweather.viewmodels.PlaceLabel
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.widthIn
@@ -63,78 +67,58 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.ImeAction
 import com.example.fineweather.R
 import com.example.fineweather.nunitoSansFamily
-import com.example.fineweather.data.models.GeoPlace
-import com.example.fineweather.data.models.TemperatureComparisonMode
-import com.example.fineweather.ui.models.IconStack
+import com.example.fineweather.domain.Metric
 import com.example.fineweather.ui.models.ValueWithIcons
-import com.example.fineweather.ui.theme.HazyBlue
-import com.example.fineweather.ui.theme.LightTeal
 import com.example.fineweather.ui.theme.SoftMist
-import com.example.fineweather.ui.theme.TealInk
+import com.example.fineweather.viewmodels.Loadable
+import com.example.fineweather.viewmodels.SearchStatus
+import com.example.fineweather.viewmodels.StatusPicture
 import com.example.fineweather.viewmodels.WeatherViewModel
-import java.util.Locale
-import kotlin.math.abs
+import com.example.fineweather.viewmodels.valueOrNull
 
 @Composable
 fun WeatherScreen(
     viewModel: WeatherViewModel,
     showInfo: Boolean,
     onDismissInfo: () -> Unit,
+    showFavorites: Boolean,
+    onDismissFavorites: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var location by rememberSaveable { mutableStateOf("") }
-    var showCurrentMonthWarning by rememberSaveable { mutableStateOf(false) }
-    var selectedTab by rememberSaveable { mutableStateOf(WeatherTab.SEARCH) }
-    val status by viewModel.status.collectAsState(initial = "Enter a location to see temperature averages")
-    val resultForecast by viewModel.resultForecastAverage.collectAsState(initial = "")
-    val resultCurrent by viewModel.resultCurrentAverage.collectAsState(initial = "")
-    val resultHistoric by viewModel.resultHistoricAverage.collectAsState(initial = "")
-    val resultCurrentMonth by viewModel.resultCurrentMonthAverage.collectAsState(initial = "")
-    val historicMonthlyStdDev by viewModel.historicMonthlyStdDev.collectAsState(initial = null)
-    val temperatureComparisonMode by viewModel.temperatureComparisonMode.collectAsState(
-        initial = TemperatureComparisonMode.ABSOLUTE_DELTA,
-    )
+    var showAlternatives by rememberSaveable { mutableStateOf(false) }
+    // Whether a search was issued for the text: only then is it worth searching again after process death.
+    var searchedBefore by rememberSaveable { mutableStateOf(false) }
+    var timeScale by rememberSaveable { mutableStateOf(TimeScale.MONTH) }
+    val state by viewModel.state.collectAsState()
+    val report by viewModel.report.collectAsState()
     val forecastDays by viewModel.forecastDays.collectAsState(
         initial = WeatherViewModel.FORECAST_DAYS_SHORT,
     )
-    val currentMonthDayCount by viewModel.currentMonthDayCount.collectAsState(initial = 0)
     val apiCallCount by viewModel.apiCallCount.collectAsState(initial = 0)
     val cacheHitCount by viewModel.cacheHitCount.collectAsState(initial = 0)
-    val resolvedLocation by viewModel.resolvedLocationName.collectAsState(initial = "")
-    val places by viewModel.places.collectAsState(initial = emptyList())
     val favorites by viewModel.favorites.collectAsState(initial = emptyList())
-    val selectedPlace by viewModel.selectedPlace.collectAsState(initial = null)
+    val selectedPlace = state.selectedPlace
+    val placeLabel = (state.search as? SearchStatus.Resolved)?.label
+    val resolvedLocation = selectedPlace?.name.orEmpty()
     val isFavoriteSelected = favorites.any { it.id == selectedPlace?.id }
-    val statusCardValue = buildStatusCardValue(
-        currentMonth = resultCurrentMonth,
-        historic = resultHistoric,
-        historicMonthlyStdDev = historicMonthlyStdDev,
-        mode = temperatureComparisonMode,
-    )
-    val trendCardValue = buildTrendCardValue(resultForecast, resultCurrentMonth)
-    val statusImageRes = resolveStatusImageRes(
-        currentMonth = resultCurrentMonth,
-        historic = resultHistoric,
-        historicMonthlyStdDev = historicMonthlyStdDev,
-        mode = temperatureComparisonMode,
-        status = status,
-    )
+    // Other matches of the last search; only meaningful while the shown place came from that search.
+    val alternatives =
+        if (state.places.any { it.id == selectedPlace?.id }) {
+            state.places.filter { it.id != selectedPlace?.id }
+        } else {
+            emptyList()
+        }
+    val darkCard = isDarkCard()
+    val statusCardValue = buildStatusCardValue(report.headline, darkCard)
+    val trendCardValue = buildTrendCardValue(report.trend, darkCard)
     val cardShape = RoundedCornerShape(12.dp)
     val cardColors = CardDefaults.elevatedCardColors(
         containerColor = MaterialTheme.colorScheme.surfaceVariant,
         contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    val showCurrentMonthWarningIcon =
-        currentMonthDayCount in 0..6
-                && resultCurrentMonth !== "-"
-                && resultCurrentMonth !== "N/A"
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
-    val isDarkTheme = isSystemInDarkTheme()
-    val segmentedSelectedContainer = LightTeal
-    val segmentedSelectedContent = HazyBlue
-    val segmentedUnselectedContainer = SoftMist
-    val segmentedUnselectedContent = TealInk
 
 
     LaunchedEffect(resolvedLocation) {
@@ -143,199 +127,135 @@ fun WeatherScreen(
         }
     }
 
+    // After process death the saved text is back but nothing is loaded: search for it once.
+    LaunchedEffect(Unit) {
+        if (needsSearchRestore(location, state.search, selectedPlace != null, searchedBefore)) {
+            viewModel.fetchWeather(location)
+        }
+    }
+
+    // The saved flag outlives the matches it was about, which the ViewModel does not keep.
+    LaunchedEffect(alternatives.isEmpty()) {
+        if (alternatives.isEmpty()) showAlternatives = false
+    }
+
     Column(
         modifier =
             modifier
                 .fillMaxSize(),
         verticalArrangement = Arrangement.Top,
         horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
+    ) {
         Column(
             modifier = Modifier.verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Top,
         ) {
-            StatusHeaderCard(
-                imageRes = statusImageRes,
-                statusCardValue = statusCardValue,
-                trendCardValue = trendCardValue,
+            Card(
                 shape = cardShape,
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                WeatherTab.entries.forEachIndexed { index, tab ->
-                    SegmentedButton(
-                        selected = selectedTab == tab,
-                        onClick = { selectedTab = tab },
-                        shape = SegmentedButtonDefaults.itemShape(index, WeatherTab.entries.size),
-                        icon = {},
-                        contentPadding = SegmentedButtonDefaults.ContentPadding,
-                        colors = SegmentedButtonDefaults.colors(
-                            activeContainerColor = segmentedSelectedContainer,
-                            activeContentColor = segmentedSelectedContent,
-                            inactiveContainerColor = segmentedUnselectedContainer,
-                            inactiveContentColor = segmentedUnselectedContent,
+                colors = cardColors,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .border(
+                            1.dp,
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f),
+                            cardShape,
                         ),
-                        border = BorderStroke(
-                            width = 1.dp,
-                            color = if (isDarkTheme) HazyBlue else MaterialTheme.colorScheme.primary.copy(
-                                alpha = 0.3f
-                            ),
-                        ),
-                    ) {
-                        Text(
-                            text = tab.label,
-                            fontFamily = nunitoSansFamily,
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            when (selectedTab) {
-                WeatherTab.SEARCH -> {
-                    Card(
-                        shape = cardShape,
-                        colors = cardColors,
+            ) {
+                Column {
+                    SearchBar(
+                        location = location,
+                        onLocationChange = { location = it },
+                        onSearch = {
+                            focusManager.clearFocus()
+                            keyboardController?.hide()
+                            searchedBefore = location.isNotBlank()
+                            viewModel.fetchWeather(location)
+                        },
+                        onClear = {
+                            keyboardController?.hide()
+                            location = ""
+                            searchedBefore = false
+                            viewModel.fetchWeather("")
+                        },
+                        isFavorite = isFavoriteSelected,
+                        canFavorite = selectedPlace != null,
+                        onToggleFavorite = { viewModel.toggleFavorite() },
+                        showOutline = false,
+                    )
+                    Box(
                         modifier =
                             Modifier
                                 .fillMaxWidth()
-                                .border(
-                                    1.dp,
+                                .height(1.dp)
+                                .background(
                                     MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f),
-                                    cardShape,
                                 ),
-                    ) {
-                        Column(
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            SearchBar(
-                                location = location,
-                                onLocationChange = { location = it },
-                                onSearch = {
-                                    focusManager.clearFocus()
-                                    keyboardController?.hide()
-                                    selectedTab = WeatherTab.SEARCH
-                                    viewModel.fetchWeather(location)
-                                },
-                                onClear = {
-                                    keyboardController?.hide()
-                                    location = ""
-                                    selectedTab = WeatherTab.SEARCH
-                                    viewModel.fetchWeather("")
-                                },
-                                isFavorite = isFavoriteSelected,
-                                canFavorite = selectedPlace != null,
-                                onToggleFavorite = { viewModel.toggleFavorite() },
-                            )
-                            StatusDisplay(status)
-                            DividerLine()
-                            Text(
-                                "Average temperatures",
-                                fontFamily = nunitoSansFamily,
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            val temperatureRows =
-                                listOf(
-                                    TemperatureRowData("Last 31 days", resultCurrent, false),
-                                    TemperatureRowData(
-                                        "This month so far",
-                                        resultCurrentMonth,
-                                        showCurrentMonthWarningIcon,
-                                    ),
-                                    TemperatureRowData(
-                                        "Next $forecastDays days (forecast)",
-                                        resultForecast,
-                                        false,
-                                    ),
-                                    TemperatureRowData(
-                                        "Historical (30y) for this month",
-                                        resultHistoric,
-                                        false,
-                                    ),
-                                )
-                            temperatureRows.forEachIndexed { index, row ->
-                                TemperatureRow(
-                                    label = row.label,
-                                    value = row.value,
-                                    showWarning = row.showWarning,
-                                    onWarningClick = if (row.showWarning) {
-                                        { showCurrentMonthWarning = true }
-                                    } else null,
-                                )
-                                if (index != temperatureRows.lastIndex) {
-                                    Box(
-                                        modifier =
-                                            Modifier
-                                                .fillMaxWidth()
-                                                .height(1.dp)
-                                                .background(
-                                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                                                        alpha = 0.15f
-                                                    ),
-                                                ),
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                WeatherTab.FAVORITE -> {
-                    if (favorites.isEmpty()) {
-                        EmptySectionCard(
-                            title = "Favorites",
-                            message = "No favorites yet. Tap the star next to the search bar to save one.",
-                            shape = cardShape,
-                            colors = cardColors,
-                        )
-                    } else {
-                        PlacesCard(
-                            title = "Favorites",
-                            places = favorites,
-                            onPlaceClick = { place ->
-                                selectedTab = WeatherTab.SEARCH
-                                viewModel.selectPlace(place)
-                            },
-                            onPlaceRemove = { place -> viewModel.removeFavorite(place.id) },
-                            shape = cardShape,
-                            colors = cardColors,
-                        )
-                    }
-                }
-
-                WeatherTab.HOMONYMS -> {
-                    if (places.isEmpty()) {
-                        EmptySectionCard(
-                            title = "Homonyms",
-                            message = "Search to see alternate matches here.",
-                            shape = cardShape,
-                            colors = cardColors,
-                        )
-                    } else {
-                        PlacesCard(
-                            title = "Homonyms",
-                            places = places,
-                            onPlaceClick = { place ->
-                                selectedTab = WeatherTab.SEARCH
-                                viewModel.selectPlace(place)
-                            },
-                            shape = cardShape,
-                            colors = cardColors,
-                        )
-                    }
+                    )
+                    LocationStatus(
+                        status = state.search.displayText(report.metric),
+                        label = placeLabel,
+                        onShowAlternatives = if (alternatives.isNotEmpty()) ({
+                            showAlternatives = true
+                        }) else null,
+                    )
                 }
             }
+
+            MetricPills(selected = report.metric, onSelect = viewModel::selectMetric)
+
+            StatusHeaderCard(
+                imageRes = resolveStatusImageRes(report.picture, report.metric),
+                summary = report.summary.toBlocks(),
+                statusCardValue = statusCardValue,
+                trendCardValue = trendCardValue,
+                trendLabel = "Forecast of $forecastDays days",
+                shape = cardShape,
+                pictureLoading = report.picture == StatusPicture.LOADING,
+                summaryLoading = report.summary is Loadable.Loading,
+                metric = report.metric,
+            )
+
+            CardTabs(
+                labels = TimeScale.entries.map { it.label },
+                selectedIndex = timeScale.ordinal,
+                onSelect = { timeScale = TimeScale.entries[it] },
+                shape = cardShape,
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                modifier = Modifier.padding(top = 8.dp),
+                tagPrefix = "timeScale",
+            )
+
+            // The tab bar sits flush on the card, so the card's top edge doubles as its baseline.
+            val attachedShape =
+                cardShape.copy(topStart = CornerSize(0.dp), topEnd = CornerSize(0.dp))
+
+            when (timeScale) {
+                TimeScale.MONTH ->
+                    MonthView(
+                        snapshot = report.snapshot.valueOrNull(),
+                        forecastDays = forecastDays,
+                        referenceLabel = report.referenceLabel,
+                        shape = attachedShape,
+                        colors = cardColors,
+                        loading = report.snapshot is Loadable.Loading,
+                        failed = report.snapshot is Loadable.Failed,
+                        metric = report.metric,
+                    )
+
+                TimeScale.YEAR ->
+                    YearView(
+                        snapshot = report.snapshot.valueOrNull(),
+                        referenceLabel = report.referenceLabel,
+                        shape = attachedShape,
+                        colors = cardColors,
+                        loading = report.snapshot is Loadable.Loading,
+                        failed = report.snapshot is Loadable.Failed,
+                        metric = report.metric,
+                    )
+            }
+
 
             Spacer(modifier = Modifier.weight(1f))
 
@@ -347,36 +267,36 @@ fun WeatherScreen(
             )
         }
     }
-    if (showCurrentMonthWarning) {
-        AlertDialog(
-            onDismissRequest = { showCurrentMonthWarning = false },
-            title = {
-                Text(
-                    text = "Limited data so far",
-                    fontFamily = nunitoSansFamily,
-                    fontWeight = FontWeight.SemiBold,
-                )
+    if (showFavorites) {
+        PlacesSheet(
+            title = "Favorites",
+            places = favorites,
+            emptyMessage = "No favorites yet. Tap the star next to the search bar to save a place.",
+            onSelect = { place ->
+                onDismissFavorites()
+                // Not left to the effect above: picking the shown place again leaves its keys unchanged.
+                location = place.name
+                searchedBefore = true
+                viewModel.selectPlace(place)
             },
-            text = {
-                Text(
-                    text =
-                        if (currentMonthDayCount == 0) {
-                            "This month has no data yet. Check back soon for a more stable average."
-                        } else {
-                            "This month's average is based on $currentMonthDayCount days of data. " +
-                                    "Values can shift as more data arrives."
-                        },
-                    fontFamily = nunitoSansFamily,
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { showCurrentMonthWarning = false }) {
-                    Text("OK", fontFamily = nunitoSansFamily)
-                }
-            },
+            onDismiss = onDismissFavorites,
+            onRemove = { place -> viewModel.removeFavorite(place.id) },
         )
     }
-
+    if (showAlternatives && alternatives.isNotEmpty()) {
+        PlacesSheet(
+            title = "Other matches",
+            places = alternatives,
+            emptyMessage = "No other matches for this search.",
+            onSelect = { place ->
+                showAlternatives = false
+                location = place.name
+                searchedBefore = true
+                viewModel.selectPlace(place)
+            },
+            onDismiss = { showAlternatives = false },
+        )
+    }
     if (showInfo) {
         InfoOverlay(
             onDismiss = onDismissInfo,
@@ -393,11 +313,12 @@ internal fun SearchBar(
     isFavorite: Boolean,
     canFavorite: Boolean,
     onToggleFavorite: () -> Unit,
+    showOutline: Boolean = true,
 ) {
     OutlinedTextField(
         value = location,
         onValueChange = onLocationChange,
-        label = {
+        placeholder = {
             Text(
                 "City or place",
                 fontFamily = nunitoSansFamily,
@@ -406,7 +327,18 @@ internal fun SearchBar(
         singleLine = true,
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
         keyboardActions = KeyboardActions(onSearch = { onSearch() }),
-        shape = RoundedCornerShape(12.dp),
+        shape = if (showOutline) RoundedCornerShape(12.dp) else RoundedCornerShape(0.dp),
+        colors =
+            if (showOutline) {
+                OutlinedTextFieldDefaults.colors()
+            } else {
+                OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent,
+                    disabledBorderColor = Color.Transparent,
+                    errorBorderColor = Color.Transparent,
+                )
+            },
         leadingIcon = {
             IconButton(
                 onClick = onToggleFavorite,
@@ -432,363 +364,171 @@ internal fun SearchBar(
                 )
             }
         },
-        trailingIcon = {
-            IconButton(
-                onClick = onClear,
-                modifier = Modifier.testTag("clearButton"),
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.delete_24),
-                    contentDescription = "Clear search",
-                )
-            }
-        },
+        trailingIcon = { SearchActions(onClear = onClear, onSearch = onSearch) },
         modifier =
             Modifier
                 .fillMaxWidth()
                 .testTag("searchField"),
     )
-    Row {
-        val isDarkTheme = isSystemInDarkTheme()
-
-        ElevatedButton(
-            onClick = onSearch,
-            colors = ButtonDefaults.elevatedButtonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-            ),
-            elevation = ButtonDefaults.buttonElevation(
-                defaultElevation = if (isDarkTheme) 16.dp else 12.dp,
-                pressedElevation = if (isDarkTheme) 20.dp else 14.dp,
-
-                ),
-            border = BorderStroke(
-                width = 1.dp,
-                color = if (isDarkTheme) HazyBlue else MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
-            ),
-            modifier = Modifier
-                .weight(2f),
-        ) {
-            Text(
-                "Search",
-                fontFamily = nunitoSansFamily,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Bold
-            )
-        }
-    }
 }
 
-private data class TemperatureRowData(
-    val label: String,
-    val value: String,
-    val showWarning: Boolean,
-)
-
+/** One pill inside the search field: delete on the left half, search on the right half. */
 @Composable
-private fun TemperatureRow(
-    label: String,
-    value: String,
-    showWarning: Boolean = false,
-    onWarningClick: (() -> Unit)? = null,
+private fun SearchActions(
+    onClear: () -> Unit,
+    onSearch: () -> Unit,
 ) {
-    val isPlaceholder = isPlaceholderValue(value)
+    val shape = RoundedCornerShape(50)
+    val outline = MaterialTheme.colorScheme.outline
     Row(
         modifier =
             Modifier
-                .fillMaxWidth(),
+                .padding(end = 10.dp)
+                .height(38.dp)
+                .clip(shape)
+                .border(1.dp, outline, shape),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            modifier = Modifier.weight(1f),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = label,
-                fontFamily = nunitoSansFamily,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (showWarning && onWarningClick != null) {
-                Spacer(modifier = Modifier.width(6.dp))
-                Icon(
-                    painter = painterResource(R.drawable.warning),
-                    contentDescription = "Limited forecast data",
-                    tint = WarningIconTint,
-                    modifier =
-                        Modifier
-                            .size(16.dp)
-                            .clickable { onWarningClick() },
-                )
-            }
-        }
-        Text(
-            text = value,
-            fontFamily = nunitoSansFamily,
-            textAlign = TextAlign.End,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = if (isPlaceholder) FontWeight.Normal else FontWeight.SemiBold,
-            color = valueColor(value),
-        )
-    }
-}
-
-@Composable
-private fun valueColor(value: String): Color {
-    return if (isPlaceholderValue(value)) {
-        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-    } else {
-        MaterialTheme.colorScheme.onSurface
-    }
-}
-
-private fun isPlaceholderValue(value: String): Boolean {
-    val trimmed = value.trim()
-    return trimmed.isEmpty() ||
-            trimmed == "-" ||
-            trimmed.equals("N/A", ignoreCase = true) ||
-            trimmed.equals("Fetching...", ignoreCase = true) ||
-            trimmed.equals("Error", ignoreCase = true) ||
-            trimmed.equals("Loading...", ignoreCase = true) ||
-            trimmed.equals("No data yet", ignoreCase = true)
-}
-
-private enum class WeatherTab(val label: String) {
-    SEARCH("Search"),
-    FAVORITE("Favorites"),
-    HOMONYMS("Homonyms"),
-    //HISTORY("History"),
-}
-
-@Composable
-private fun StatusDisplay(status: String) {
-    Column(
-        modifier =
-            Modifier
-                .fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Text(
-            text = status,
-            modifier = Modifier.fillMaxWidth(),
-            fontFamily = nunitoSansFamily,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
-private fun EmptySectionCard(
-    title: String,
-    message: String,
-    shape: RoundedCornerShape,
-    colors: CardColors,
-) {
-    Card(
-        shape = shape,
-        colors = colors,
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .border(
-                    1.dp,
-                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f),
-                    shape,
-                ),
-    ) {
-        Column(
+        Box(
             modifier =
                 Modifier
-                    .fillMaxWidth()
-                    .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+                    .width(46.dp)
+                    .fillMaxHeight()
+                    .clickable(role = Role.Button, onClick = onClear)
+                    .testTag("clearButton"),
+            contentAlignment = Alignment.Center,
         ) {
-            Text(
-                text = title,
-                fontFamily = nunitoSansFamily,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = message,
-                fontFamily = nunitoSansFamily,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            Icon(
+                painter = painterResource(id = R.drawable.delete_24),
+                contentDescription = "Clear search",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
             )
         }
-    }
-}
-
-@Composable
-private fun PlacesCard(
-    title: String,
-    places: List<GeoPlace>,
-    onPlaceClick: (GeoPlace) -> Unit,
-    onPlaceRemove: ((GeoPlace) -> Unit)? = null,
-    shape: RoundedCornerShape,
-    colors: CardColors,
-) {
-    Card(
-        shape = shape,
-        colors = colors,
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .border(
-                    1.dp,
-                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f),
-                    shape,
-                ),
-    ) {
-        Column(
+        Box(
             modifier =
                 Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Text(
-                text = title,
-                fontFamily = nunitoSansFamily,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-            DividerLine()
-            places.forEachIndexed { index, place ->
-                PlaceListItem(
-                    place = place,
-                    onClick = { onPlaceClick(place) },
-                    onRemove = onPlaceRemove?.let { remove -> { remove(place) } },
-                )
-                if (index != places.lastIndex) {
-                    DividerLine()
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PlaceListItem(
-    place: GeoPlace,
-    onClick: () -> Unit,
-    onRemove: (() -> Unit)? = null,
-) {
-    val subtitle = place.displaySubtitle()
-    Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (onRemove != null) {
-            IconButton(
-                onClick = onRemove,
-                modifier = Modifier.testTag("removeFavoriteButton"),
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.delete_24),
-                    contentDescription = "Remove favorite",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-            Spacer(modifier = Modifier.width(4.dp))
-        }
-        Column(
-            modifier =
-                Modifier
-                    .weight(1f)
-                    .clickable { onClick() },
-        ) {
-            Text(
-                text = place.displayName(),
-                fontFamily = nunitoSansFamily,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
-            if (subtitle.isNotBlank()) {
-                Text(
-                    text = subtitle,
-                    fontFamily = nunitoSansFamily,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        Icon(
-            painter = painterResource(id = R.drawable.search),
-            contentDescription = "Select place",
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier
-                .size(18.dp)
-                .clickable { onClick() },
+                    .width(1.dp)
+                    .fillMaxHeight()
+                    .background(outline),
         )
+        Box(
+            modifier =
+                Modifier
+                    .width(50.dp)
+                    .fillMaxHeight()
+                    .background(MaterialTheme.colorScheme.primary)
+                    .clickable(role = Role.Button, onClick = onSearch)
+                    .testTag("searchButton"),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(id = R.drawable.search),
+                contentDescription = "Search",
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(20.dp),
+            )
+        }
     }
 }
 
+/** The metric switch: a slim row above the view tabs. */
 @Composable
-private fun EarthStatus(
-    imageRes: Int,
+internal fun MetricPills(
+    selected: Metric,
+    onSelect: (Metric) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Image(
-        painter = painterResource(imageRes),
-        contentDescription = "Status illustration",
-        contentScale = ContentScale.Fit,
-        modifier = modifier,
-    )
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(38.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CompactToggle(
+            labels = Metric.entries.map { it.label },
+            selectedIndex = selected.ordinal,
+            onSelect = { onSelect(Metric.entries[it]) },
+            tagPrefix = "metric",
+            contentDescriptions = Metric.entries.map { it.pillDescription },
+            fillWidth = true,
+        )
+    }
 }
 
+/**
+ * Place name on the first line (shortened when too long), the coordinates on the second.
+ * [onShowAlternatives] adds a "Not your city?" link after the coordinates when the search had
+ * other matches.
+ */
 @Composable
-private fun StatusHeaderCard(
-    imageRes: Int,
-    statusCardValue: ValueWithIcons,
-    trendCardValue: ValueWithIcons,
-    shape: RoundedCornerShape,
+internal fun LocationStatus(
+    status: String,
+    label: PlaceLabel?,
+    onShowAlternatives: (() -> Unit)? = null,
 ) {
-    Card(
-        shape = shape,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        ),
-        modifier =
-            Modifier
-                .widthIn(max = 480.dp)
-                .fillMaxWidth()
-                .border(
-                    1.dp,
-                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
-                    shape,
-                ),
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            EarthStatus(
-                imageRes = imageRes,
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-            )
-            DividerLine()
-            Row(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .height(IntrinsicSize.Min),
-            ) {
-                StatusTrendCell(
-                    label = "Divergence",
-                    value = statusCardValue,
-                    modifier = Modifier.weight(3f),
+    val color = MaterialTheme.colorScheme.onSurfaceVariant
+    val style = MaterialTheme.typography.bodyMedium
+    if (label == null) {
+        Text(
+            text = status,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .testTag("locationStatus"),
+            fontFamily = nunitoSansFamily,
+            style = style,
+            color = color,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    } else {
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .testTag("locationStatus"),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (label.locationDetails.isNotBlank()) {
+                Text(
+                    text = label.locationDetails,
+                    modifier = Modifier.weight(1f),
+                    fontFamily = nunitoSansFamily,
+                    style = style,
+                    color = color,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
-                VerticalDividerLine()
-                StatusTrendCell(
-                    label = "Trend",
-                    value = trendCardValue,
-                    modifier = Modifier.weight(2f),
+                Spacer(Modifier.width(8.dp))
+            } else {
+                Spacer(Modifier.weight(1f))
+            }
+            Text(
+                text = "(${label.coordinates})",
+                fontFamily = nunitoSansFamily,
+                style = style,
+                color = color.copy(alpha = 0.8f),
+                maxLines = 1,
+                softWrap = false,
+            )
+            if (onShowAlternatives != null) {
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = "Not your city?",
+                    modifier =
+                        Modifier
+                            .clickable(role = Role.Button, onClick = onShowAlternatives)
+                            .padding(vertical = 6.dp)
+                            .testTag("alternativesLink"),
+                    fontFamily = nunitoSansFamily,
+                    style = style,
+                    color = MaterialTheme.colorScheme.primary,
+                    textDecoration = TextDecoration.Underline,
+                    maxLines = 1,
+                    softWrap = false,
                 )
             }
         }
@@ -796,7 +536,7 @@ private fun StatusHeaderCard(
 }
 
 @Composable
-private fun InfoOverlay(
+internal fun InfoOverlay(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -822,17 +562,37 @@ private fun InfoOverlay(
                     .widthIn(max = 480.dp)
                     .fillMaxWidth()
             ) {
+                val scrollState = rememberScrollState()
                 Column(
-                    modifier = Modifier.padding(16.dp)
-                        .verticalScroll(rememberScrollState()),
+                    modifier = Modifier
+                        .verticalScrollbar(scrollState, MaterialTheme.colorScheme.onSurfaceVariant)
+                        .padding(16.dp)
+                        .verticalScroll(scrollState),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Text(
-                        text = "Welcome to FineWeather",
-                        fontFamily = nunitoSansFamily,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "Welcome to FineWeather",
+                            fontFamily = nunitoSansFamily,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.weight(1f),
+                        )
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .testTag("infoCloseButton"),
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.close),
+                                contentDescription = "Close",
+                            )
+                        }
+                    }
                     EarthStatusStack()
                     Text(
                         text = "FineWeather compares recent temperature averages with historic averages and the forecast average so you can watch climate changes in real time. \n\nFeatures:",
@@ -845,7 +605,7 @@ private fun InfoOverlay(
                             Text(text = "\u2022")
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                text = "Search a city or place to see the temperature averages of the last 31 days, this month so far, and the forecast average temperature.",
+                                text = "Search a city or place to see how this month so far (up to yesterday) and the coming days compare with the climate average of the place.",
                                 fontFamily = nunitoSansFamily,
                                 style = MaterialTheme.typography.bodyMedium,
                             )
@@ -855,8 +615,20 @@ private fun InfoOverlay(
                             Text(text = "\u2022")
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                text = "The divergence is calculated by comparing this month to the 30 year baseline, " +
-                                        "and Trend compares the forecast average to this months average.",
+                                text = "Both rows show how far from normal it is, compared with the 30 year baseline: This month so far is this month up to yesterday " +
+                                        "against exactly the same days, and Forecast of 7 days (or 14) is the forecast against the normal of those days. " +
+                                        "A short report around the picture sums it up, with the figures it is based on.",
+                                fontFamily = nunitoSansFamily,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Row {
+                            Text(text = "\u2022")
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "Below the report, switch between Month (a daily chart against the typical range, " +
+                                        "for this month or the last 30 days, with the forecast as a dashed line) and Year (every month of the year so far compared with the climate average).",
                                 fontFamily = nunitoSansFamily,
                                 style = MaterialTheme.typography.bodyMedium,
                             )
@@ -876,7 +648,8 @@ private fun InfoOverlay(
                             Text(text = "\u2022")
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                text = "Use favorites (star icon) to pin places and look them up in the favorites tab. Click homonyms to switch between places with the same or a similar name.",
+                                text = "Tap the star next to the search bar to save a place, and open your saved places with the list icon at the top. " +
+                                        "If a search finds several places with the same name, tap \"Not your city?\" to switch.",
                                 fontFamily = nunitoSansFamily,
                                 style = MaterialTheme.typography.bodyMedium,
                             )
@@ -887,12 +660,24 @@ private fun InfoOverlay(
                             Text(text = "\u2022")
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                text = "Settings lets you change the forecast range and historic reference. Furthermore the search language can be changed there.",
+                                text = "Settings lets you change the forecast range and historic reference. Furthermore the search language can be changed there, and the cache can be cleared.",
                                 fontFamily = nunitoSansFamily,
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                         }
                     }
+                    val uriHandler = LocalUriHandler.current
+                    Text(
+                        text = "Weather and climate data by Open-Meteo.com (CC BY 4.0)",
+                        fontFamily = nunitoSansFamily,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        textDecoration = TextDecoration.Underline,
+                        modifier =
+                            Modifier
+                                .testTag("openMeteoCredit")
+                                .clickable { uriHandler.openUri("https://open-meteo.com/") },
+                    )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.End,
@@ -997,38 +782,63 @@ private fun EarthStatusPhotoCard(
     }
 }
 
+private val TrendValueColumnWidth = 84.dp
+private val TrendIconsColumnWidth = 68.dp
+private const val LABEL_SHRINK_STEP = 0.93f
+private const val MIN_LABEL_SHRINK = 0.7f
+
+/**
+ * One table row: label, value text and icons. The value and icon columns have fixed widths, so
+ * they line up across rows; the label takes the remaining space and shrinks if it must.
+ */
 @Composable
-private fun StatusTrendCell(
+internal fun StatusTrendRow(
     label: String,
     value: ValueWithIcons,
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier.padding(10.dp),
+        modifier = modifier.padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // One line whatever the font size: a label that does not fit shrinks, keeping its line height, so the
+        // row (and the header) stays as tall as with a short label.
+        val style = MaterialTheme.typography.bodyLarge
+        var shrink by remember(label) { mutableFloatStateOf(1f) }
         Text(
             text = label,
             fontFamily = nunitoSansFamily,
-            style = MaterialTheme.typography.bodyLarge,
+            style = style.copy(fontSize = style.fontSize * shrink, lineHeight = style.lineHeight),
             fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis,
+            onTextLayout = { if (it.didOverflowWidth && shrink > MIN_LABEL_SHRINK) shrink *= LABEL_SHRINK_STEP },
+            modifier = Modifier.weight(1f),
         )
-        Spacer(Modifier.weight(1f))
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        Box(
+            modifier = Modifier.widthIn(min = TrendValueColumnWidth),
+            contentAlignment = Alignment.CenterEnd,
         ) {
-            if (value.text.isNotBlank()) {
+            if (value.loading) {
+                LoadingSpinner(size = 20.dp)
+            } else if (value.text.isNotBlank()) {
                 Text(
                     text = value.text,
                     fontFamily = nunitoSansFamily,
                     style = MaterialTheme.typography.bodyLarge,
-                    color = valueColor(value.text),
+                    color = valueColor(value.placeholder),
                     textAlign = TextAlign.End,
+                    softWrap = false,
                 )
             }
+        }
+        Box(
+            modifier = Modifier.width(TrendIconsColumnWidth).padding(start = 8.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
             val icons = value.icons
-            if (icons != null) {
+            if (icons != null && !value.loading) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(2.dp),
@@ -1048,7 +858,16 @@ private fun StatusTrendCell(
 }
 
 @Composable
-private fun DividerLine() {
+private fun valueColor(placeholder: Boolean): Color {
+    return if (placeholder) {
+        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+}
+
+@Composable
+internal fun DividerLine() {
     Box(
         modifier =
             Modifier
@@ -1058,179 +877,4 @@ private fun DividerLine() {
     )
 }
 
-@Composable
-private fun VerticalDividerLine() {
-    Box(
-        modifier =
-            Modifier
-                .fillMaxHeight()
-                .width(1.dp)
-                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)),
-    )
-}
-
-private val WarmIconTint = Color(0xFFE53935)
-private val CoolIconTint = Color(0xFF1E88E5)
-private val NeutralIconTint = Color(0xFF43A047)
-private val WarningIconTint = Color(0xFFE18D10)
-
-private fun anomalyIconCount(absZScore: Double): Int {
-    return when {
-        absZScore < 0.5 -> 0
-        absZScore < 1.5 -> 1
-        absZScore < 2.5 -> 2
-        else -> 3
-    }
-}
-
-internal fun buildStatusCardValue(
-    currentMonth: String,
-    historic: String,
-    historicMonthlyStdDev: Double?,
-    mode: TemperatureComparisonMode,
-): ValueWithIcons {
-    val currentValue = parseTemperature(currentMonth)
-    val historicValue = parseTemperature(historic)
-    if (currentValue == null || historicValue == null) {
-        return ValueWithIcons("-", null)
-    }
-    val delta = currentValue - historicValue
-    val sign = if (delta > 0) "+" else if (delta < 0) "-" else ""
-    val useNormalized =
-        mode == TemperatureComparisonMode.NORMALIZED_ANOMALY &&
-                historicMonthlyStdDev != null &&
-                historicMonthlyStdDev > 0.0
-    val absScore =
-        if (useNormalized) {
-            abs(delta / historicMonthlyStdDev)
-        } else {
-            abs(delta)
-        }
-    val valueText = "$sign${String.format(Locale.US, "%.2f", abs(delta))}°C"
-    val count =
-        if (useNormalized) {
-            anomalyIconCount(absScore)
-        } else {
-            when {
-                absScore < 1.0 -> 0
-                absScore < 2.0 -> 1
-                absScore < 3.0 -> 2
-                else -> 3
-            }
-        }
-    if (count == 0) {
-        return ValueWithIcons(valueText, null)
-    }
-    val classLabel =
-        when (count) {
-            1 -> if (delta > 0) "+" else "-"
-            2 -> if (delta > 0) "++" else "--"
-            else -> if (delta > 0) "+++" else "---"
-        }
-    val (resId, tint, description) =
-        if (delta > 0) {
-            Triple(R.drawable.fire, WarmIconTint, "$classLabel warmer than average")
-        } else {
-            Triple(R.drawable.frost, CoolIconTint, "$classLabel colder than average")
-        }
-    return ValueWithIcons(
-        valueText,
-        IconStack(resId = resId, count = count, tint = tint, contentDescription = description),
-    )
-}
-
-internal fun buildTrendCardValue(
-    forecast: String,
-    currentMonth: String,
-): ValueWithIcons {
-    val forecastValue = parseTemperature(forecast)
-    val currentMonthValue = parseTemperature(currentMonth)
-    if (forecastValue == null || currentMonthValue == null) {
-        return ValueWithIcons("-", null)
-    }
-    val delta = forecastValue - currentMonthValue
-    val absDelta = abs(delta)
-    if (absDelta < 0.25) {
-        return ValueWithIcons(
-            text = "",
-            icons =
-                IconStack(
-                    resId = R.drawable.arrow_right,
-                    count = 1,
-                    tint = NeutralIconTint,
-                    contentDescription = "Trend steady",
-                ),
-        )
-    }
-    val count =
-        when {
-            absDelta > 2.25 -> 3
-            absDelta > 1.25 -> 2
-            else -> 1
-        }
-    val (resId, tint, description) =
-        if (delta > 0) {
-            Triple(R.drawable.up, WarmIconTint, "Trending warmer")
-        } else {
-            Triple(R.drawable.down, CoolIconTint, "Trending cooler")
-        }
-    return ValueWithIcons(
-        text = "",
-        icons = IconStack(
-            resId = resId,
-            count = count,
-            tint = tint,
-            contentDescription = description
-        ),
-    )
-}
-
-internal fun parseTemperature(value: String): Double? {
-    val match = Regex("[-+]?\\d+(?:\\.\\d+)?").find(value) ?: return null
-    return match.value.toDoubleOrNull()
-}
-
-internal fun resolveStatusImageRes(
-    currentMonth: String,
-    historic: String,
-    historicMonthlyStdDev: Double?,
-    mode: TemperatureComparisonMode,
-    status: String,
-): Int {
-    val currentValue = parseTemperature(currentMonth)
-    val historicValue = parseTemperature(historic)
-    val isInitial =
-        currentValue == null &&
-                historicValue == null &&
-                status.startsWith("Enter a city", ignoreCase = true)
-
-    if (isInitial) {
-        return R.drawable.initial
-    }
-    if (currentValue == null || historicValue == null) {
-        return R.drawable.initial
-    }
-    val delta =
-        if (mode == TemperatureComparisonMode.NORMALIZED_ANOMALY &&
-            historicMonthlyStdDev != null &&
-            historicMonthlyStdDev > 0.0
-        ) {
-            (currentValue - historicValue) / historicMonthlyStdDev
-        } else {
-            currentValue - historicValue
-        }
-    val neutralThreshold =
-        if (mode == TemperatureComparisonMode.NORMALIZED_ANOMALY &&
-            historicMonthlyStdDev != null &&
-            historicMonthlyStdDev > 0.0
-        ) {
-            0.5
-        } else {
-            1.0
-        }
-    return when {
-        delta > neutralThreshold -> R.drawable.warm
-        delta < -neutralThreshold -> R.drawable.cold
-        else -> R.drawable.equal
-    }
-}
+internal val WarningIconTint = Color(0xFFE18D10)

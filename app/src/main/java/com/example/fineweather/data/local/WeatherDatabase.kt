@@ -7,21 +7,37 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.fineweather.data.local.dao.FavoriteDao
+import com.example.fineweather.data.local.dao.ForecastSeriesDao
 import com.example.fineweather.data.local.dao.GeoCodeDao
+import com.example.fineweather.data.local.dao.ReferenceClimateDao
 import com.example.fineweather.data.local.dao.WeatherDao
+import com.example.fineweather.data.local.dao.YearSeriesDao
 import com.example.fineweather.data.local.entities.FavoritePlaceEntity
+import com.example.fineweather.data.local.entities.ForecastSeriesEntity
 import com.example.fineweather.data.local.entities.GeoCodeCacheEntity
+import com.example.fineweather.data.local.entities.ReferenceClimateEntity
 import com.example.fineweather.data.local.entities.WeatherEntity
+import com.example.fineweather.data.local.entities.YearSeriesEntity
 
 @Database(
-    entities = [WeatherEntity::class, GeoCodeCacheEntity::class, FavoritePlaceEntity::class],
-    version = 10,
-    exportSchema = false
+    entities = [
+        WeatherEntity::class,
+        GeoCodeCacheEntity::class,
+        FavoritePlaceEntity::class,
+        ReferenceClimateEntity::class,
+        YearSeriesEntity::class,
+        ForecastSeriesEntity::class,
+    ],
+    version = 13,
+    exportSchema = true
 )
 abstract class WeatherDatabase : RoomDatabase() {
     abstract fun weatherDao(): WeatherDao
     abstract fun geoCodeDao(): GeoCodeDao
     abstract fun favoriteDao(): FavoriteDao
+    abstract fun referenceClimateDao(): ReferenceClimateDao
+    abstract fun yearSeriesDao(): YearSeriesDao
+    abstract fun forecastSeriesDao(): ForecastSeriesDao
 
     companion object {
         @Suppress("ktlint:standard:property-naming")
@@ -39,6 +55,9 @@ abstract class WeatherDatabase : RoomDatabase() {
                         .addMigrations(MIGRATION_7_8)
                         .addMigrations(MIGRATION_8_9)
                         .addMigrations(MIGRATION_9_10)
+                        .addMigrations(MIGRATION_10_11)
+                        .addMigrations(MIGRATION_11_12)
+                        .addMigrations(MIGRATION_12_13)
                         .fallbackToDestructiveMigration(false)
                         .build()
                 INSTANCE = instance
@@ -100,5 +119,65 @@ private val MIGRATION_9_10 =
                 ADD COLUMN `historicMonthCurrent` TEXT
                 """.trimIndent(),
             )
+        }
+    }
+
+private val MIGRATION_10_11 =
+    object : Migration(10, 11) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `reference_climate` (
+                    `locationId` TEXT NOT NULL,
+                    `referenceId` TEXT NOT NULL,
+                    `firstYear` INTEGER NOT NULL,
+                    `lastYear` INTEGER NOT NULL,
+                    `data` BLOB NOT NULL,
+                    `lastUsed` INTEGER NOT NULL,
+                    PRIMARY KEY(`locationId`, `referenceId`)
+                )
+                """.trimIndent(),
+            )
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `year_series` (
+                    `locationId` TEXT NOT NULL,
+                    `startDate` TEXT NOT NULL,
+                    `endDate` TEXT NOT NULL,
+                    `data` BLOB NOT NULL,
+                    `fetchedDate` TEXT NOT NULL,
+                    PRIMARY KEY(`locationId`)
+                )
+                """.trimIndent(),
+            )
+        }
+    }
+
+private val MIGRATION_11_12 =
+    object : Migration(11, 12) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `forecast_series` (
+                    `locationId` TEXT NOT NULL,
+                    `startDate` TEXT NOT NULL,
+                    `endDate` TEXT NOT NULL,
+                    `data` BLOB NOT NULL,
+                    `fetchedDate` TEXT NOT NULL,
+                    PRIMARY KEY(`locationId`)
+                )
+                """.trimIndent(),
+            )
+        }
+    }
+
+/** Sunshine and precipitation blobs next to the temperature ones; null on rows from before. */
+internal val MIGRATION_12_13 =
+    object : Migration(12, 13) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            listOf("year_series", "forecast_series", "reference_climate").forEach { table ->
+                db.execSQL("ALTER TABLE `$table` ADD COLUMN `sunshineData` BLOB")
+                db.execSQL("ALTER TABLE `$table` ADD COLUMN `precipitationData` BLOB")
+            }
         }
     }

@@ -50,7 +50,6 @@ class SettingsViewModelTest {
         assertEquals(HistoricReference.CURRENT, viewModel.historicReference.value)
     }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun setForecastDays_rejectsInvalidValues() = runTest {
         val repository = FakeSettingsRepository()

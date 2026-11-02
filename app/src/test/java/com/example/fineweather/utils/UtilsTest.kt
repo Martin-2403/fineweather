@@ -28,4 +28,23 @@ class UtilsTest {
             Locale.setDefault(original)
         }
     }
+
+    @Test
+    fun getCurrentMonthName_followsANonEnglishDefaultLocale() {
+        val original = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.GERMANY)
+            assertEquals("März", getCurrentMonthName(LocalDate.of(2026, 3, 10)))
+            Locale.setDefault(Locale.FRANCE)
+            assertEquals("mars", getCurrentMonthName(LocalDate.of(2026, 3, 10)))
+        } finally {
+            Locale.setDefault(original)
+        }
+    }
+
+    @Test
+    fun formatCoordinates_usesTwoDecimalsWithDotSeparator() {
+        assertEquals("48.37, 10.90", formatCoordinates(48.37154, 10.89851))
+        assertEquals("-33.87, 151.21", formatCoordinates(-33.8688, 151.2093))
+    }
 }

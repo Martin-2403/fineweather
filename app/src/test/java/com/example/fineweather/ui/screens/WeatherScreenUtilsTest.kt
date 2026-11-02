@@ -3,19 +3,32 @@ package com.example.fineweather.ui.screens
 import androidx.compose.ui.graphics.Color
 import com.example.fineweather.R
 import com.example.fineweather.data.models.TemperatureComparisonMode
+import com.example.fineweather.domain.Assessment
+import com.example.fineweather.domain.ForecastOutlook
+import com.example.fineweather.domain.Metric
+import com.example.fineweather.domain.SummaryBlock
+import com.example.fineweather.viewmodels.FailKind
+import com.example.fineweather.viewmodels.Loadable
+import com.example.fineweather.viewmodels.PlaceLabel
+import com.example.fineweather.viewmodels.Reason
+import com.example.fineweather.viewmodels.SearchStatus
+import com.example.fineweather.viewmodels.StatusPicture
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class WeatherScreenUtilsTest {
 
+    private fun divergence(
+        delta: Double,
+        stdDev: Double? = null,
+        mode: TemperatureComparisonMode = TemperatureComparisonMode.ABSOLUTE_DELTA,
+    ) = Loadable.Ready(Assessment(delta, stdDev, mode))
+
     @Test
     fun buildStatusCardValue_returnsFireForPositiveDelta() {
-        val value = buildStatusCardValue(
-            "12.00°C",
-            "10.00°C",
-            historicMonthlyStdDev = null,
-            mode = TemperatureComparisonMode.ABSOLUTE_DELTA,
-        )
+        val value = buildStatusCardValue(divergence(2.0))
         assertEquals("+2.00°C", value.text)
         assertEquals(R.drawable.fire, value.icons?.resId)
         assertEquals(2, value.icons?.count)
@@ -24,12 +37,7 @@ class WeatherScreenUtilsTest {
 
     @Test
     fun buildStatusCardValue_returnsSnowForNegativeDelta() {
-        val value = buildStatusCardValue(
-            "8.00°C",
-            "10.00°C",
-            historicMonthlyStdDev = null,
-            mode = TemperatureComparisonMode.ABSOLUTE_DELTA,
-        )
+        val value = buildStatusCardValue(divergence(-2.0))
         assertEquals("-2.00°C", value.text)
         assertEquals(R.drawable.frost, value.icons?.resId)
         assertEquals(2, value.icons?.count)
@@ -38,92 +46,149 @@ class WeatherScreenUtilsTest {
 
     @Test
     fun buildStatusCardValue_returnsApproxZeroWhenClose() {
-        val value = buildStatusCardValue(
-            "10.30°C",
-            "10.00°C",
-            historicMonthlyStdDev = null,
-            mode = TemperatureComparisonMode.ABSOLUTE_DELTA,
-        )
+        val value = buildStatusCardValue(divergence(0.3))
         assertEquals("+0.30°C", value.text)
         assertEquals(null, value.icons)
+        assertFalse(value.placeholder)
     }
 
     @Test
     fun buildStatusCardValue_usesAnomalyBandsForIcons() {
-        val value = buildStatusCardValue(
-            "11.36°C",
-            "10.00°C",
-            historicMonthlyStdDev = 0.8,
-            mode = TemperatureComparisonMode.NORMALIZED_ANOMALY,
-        )
+        val value =
+            buildStatusCardValue(divergence(1.36, stdDev = 0.8, mode = TemperatureComparisonMode.NORMALIZED_ANOMALY))
         assertEquals("+1.36°C", value.text)
         assertEquals(R.drawable.fire, value.icons?.resId)
         assertEquals(2, value.icons?.count)
     }
 
     @Test
-    fun buildTrendCardValue_returnsUpDownOrDash() {
-        val up = buildTrendCardValue("11.00°C", "10.00°C")
-        assertEquals(R.drawable.up, up.icons?.resId)
-        assertEquals(1, up.icons?.count)
-        assertEquals(Color(0xFFE53935), up.icons?.tint)
+    fun buildStatusCardValue_isAPlaceholderWithoutAnAssessment() {
+        listOf(
+            Loadable.Idle,
+            Loadable.Unavailable(Reason.NOT_AVAILABLE),
+            Loadable.Failed(FailKind.NETWORK),
+        ).forEach { state ->
+            val value = buildStatusCardValue(state)
+            assertEquals("-", value.text)
+            assertEquals(null, value.icons)
+            assertTrue(value.placeholder)
+        }
+        val loading = buildStatusCardValue(Loadable.Loading)
+        assertEquals("", loading.text)
+        assertTrue(loading.loading)
+        assertFalse(buildStatusCardValue(Loadable.Idle).loading)
+    }
 
-        val down = buildTrendCardValue("9.00°C", "10.00°C")
-        assertEquals(R.drawable.down, down.icons?.resId)
-        assertEquals(1, down.icons?.count)
-        assertEquals(Color(0xFF1E88E5), down.icons?.tint)
+    private fun outlook(delta: Double?) =
+        Loadable.Ready(ForecastOutlook(days = 7, mean = 10.0 + (delta ?: 0.0), referenceMean = delta?.let { 10.0 }))
 
-        val flat = buildTrendCardValue("10.10°C", "10.00°C")
-        assertEquals("", flat.text)
-        assertEquals(R.drawable.arrow_right, flat.icons?.resId)
-        assertEquals(1, flat.icons?.count)
-        assertEquals(Color(0xFF43A047), flat.icons?.tint)
+    @Test
+    fun buildTrendCardValue_returnsWarmerCoolerOrSteadyAgainstTheNormal() {
+        val warmer = buildTrendCardValue(outlook(1.5))
+        assertEquals("+1.5°C", warmer.text)
+        assertEquals(R.drawable.up, warmer.icons?.resId)
+        assertEquals(1, warmer.icons?.count)
+        assertEquals(Color(0xFFE53935), warmer.icons?.tint)
+        assertEquals("Forecast warmer than normal", warmer.icons?.contentDescription)
+
+        val cooler = buildTrendCardValue(outlook(-2.4))
+        assertEquals("-2.4°C", cooler.text)
+        assertEquals(R.drawable.down, cooler.icons?.resId)
+        assertEquals(2, cooler.icons?.count)
+        assertEquals(Color(0xFF1E88E5), cooler.icons?.tint)
+        assertEquals("Forecast cooler than normal", cooler.icons?.contentDescription)
+
+        val much = buildTrendCardValue(outlook(3.5))
+        assertEquals(3, much.icons?.count)
+
+        val steady = buildTrendCardValue(outlook(0.6))
+        assertEquals("+0.6°C", steady.text)
+        assertEquals(R.drawable.arrow_right, steady.icons?.resId)
+        assertEquals(1, steady.icons?.count)
+        assertEquals(Color(0xFF43A047), steady.icons?.tint)
+        assertEquals("Forecast near normal", steady.icons?.contentDescription)
     }
 
     @Test
-    fun resolveStatusImageRes_returnsInitialWhenMissingData() {
-        val res =
-            resolveStatusImageRes(
-                "-",
-                "-",
-                historicMonthlyStdDev = null,
-                mode = TemperatureComparisonMode.ABSOLUTE_DELTA,
-                status = "Enter a city to see temperature averages",
-            )
-        assertEquals(R.drawable.initial, res)
+    fun buildTrendCardValue_returnsDashWithoutAnOutlookOrReference() {
+        assertEquals("-", buildTrendCardValue(Loadable.Idle).text)
+        assertEquals("-", buildTrendCardValue(Loadable.Failed(FailKind.OTHER)).text)
+        assertEquals("-", buildTrendCardValue(outlook(null)).text)
+        assertEquals(null, buildTrendCardValue(Loadable.Idle).icons)
+        val loading = buildTrendCardValue(Loadable.Loading)
+        assertEquals("", loading.text)
+        assertTrue(loading.loading)
+        assertFalse(buildTrendCardValue(Loadable.Idle).loading)
     }
 
     @Test
-    fun resolveStatusImageRes_returnsWarmColdOrEqual() {
+    fun resolveStatusImageRes_picksThePictureOfTheReport() {
+        assertEquals(R.drawable.initial, resolveStatusImageRes(StatusPicture.INITIAL))
+        assertEquals(R.drawable.initial, resolveStatusImageRes(StatusPicture.LOADING))
+        assertEquals(R.drawable.warm, resolveStatusImageRes(StatusPicture.WARM))
+        assertEquals(R.drawable.cold, resolveStatusImageRes(StatusPicture.COLD))
+        assertEquals(R.drawable.equal, resolveStatusImageRes(StatusPicture.EQUAL))
+    }
+
+    @Test
+    fun resolveStatusImageRes_picksTheIllustrationOfTheMetric() {
+        assertEquals(R.drawable.sunny, resolveStatusImageRes(StatusPicture.WARM, Metric.SUNSHINE))
+        assertEquals(R.drawable.dark, resolveStatusImageRes(StatusPicture.COLD, Metric.SUNSHINE))
+        assertEquals(R.drawable.wet, resolveStatusImageRes(StatusPicture.WARM, Metric.PRECIPITATION))
+        assertEquals(R.drawable.dry, resolveStatusImageRes(StatusPicture.COLD, Metric.PRECIPITATION))
+        // near normal and not yet known look the same for every metric
+        Metric.entries.forEach {
+            assertEquals(R.drawable.equal, resolveStatusImageRes(StatusPicture.EQUAL, it))
+            assertEquals(R.drawable.initial, resolveStatusImageRes(StatusPicture.INITIAL, it))
+            assertEquals(R.drawable.initial, resolveStatusImageRes(StatusPicture.LOADING, it))
+        }
+    }
+
+    @Test
+    fun searchStatus_isShownAsTheOneLineStatus() {
+        assertEquals("Enter a location to see temperature averages", SearchStatus.Idle.displayText())
+        assertEquals("Searching for Ulm...", SearchStatus.Searching("Ulm").displayText())
+        assertEquals("City not found", SearchStatus.NotFound("Ulm").displayText())
         assertEquals(
-            R.drawable.warm,
-            resolveStatusImageRes(
-                "12.00°C",
-                "10.00°C",
-                historicMonthlyStdDev = null,
-                mode = TemperatureComparisonMode.ABSOLUTE_DELTA,
-                status = "Searching...",
-            ),
+            "Could not reach the weather service. Check your connection and try again.",
+            SearchStatus.Failed("Ulm", FailKind.NETWORK).displayText(),
         )
         assertEquals(
-            R.drawable.cold,
-            resolveStatusImageRes(
-                "8.00°C",
-                "10.00°C",
-                historicMonthlyStdDev = null,
-                mode = TemperatureComparisonMode.ABSOLUTE_DELTA,
-                status = "Searching...",
-            ),
+            "The weather service is not available right now. Try again later.",
+            SearchStatus.Failed("Ulm", FailKind.OTHER).displayText(),
         )
         assertEquals(
-            R.drawable.equal,
-            resolveStatusImageRes(
-                "10.00°C",
-                "10.00°C",
-                historicMonthlyStdDev = null,
-                mode = TemperatureComparisonMode.ABSOLUTE_DELTA,
-                status = "Searching...",
-            ),
+            "Weather service limit reached. Try again in a minute.",
+            SearchStatus.Failed("Ulm", FailKind.RATE_LIMITED).displayText(),
         )
+        assertEquals(
+            "Ulm, Germany (48.40, 9.99)",
+            SearchStatus.Resolved(PlaceLabel("Ulm, Germany", "48.40, 9.99")).displayText(),
+        )
+    }
+
+    @Test
+    fun needsSearchRestore_onlyForSavedTextThatWasSearched() {
+        val resolved = SearchStatus.Resolved(PlaceLabel("Berlin", "1.00, 2.00"))
+        assertTrue(needsSearchRestore("Berlin", SearchStatus.Idle, hasPlace = false, searchedBefore = true))
+        assertFalse(needsSearchRestore("", SearchStatus.Idle, hasPlace = false, searchedBefore = true))
+        assertFalse(needsSearchRestore("  ", SearchStatus.Idle, hasPlace = false, searchedBefore = true))
+        assertFalse(needsSearchRestore("Berlin", SearchStatus.Searching("Berlin"), hasPlace = false, searchedBefore = true))
+        assertFalse(needsSearchRestore("Berlin", SearchStatus.NotFound("Berlin"), hasPlace = false, searchedBefore = true))
+        assertFalse(needsSearchRestore("Berlin", SearchStatus.Idle, hasPlace = true, searchedBefore = true))
+        assertFalse(needsSearchRestore("Berlin", resolved, hasPlace = true, searchedBefore = true))
+    }
+
+    @Test
+    fun needsSearchRestore_textThatWasOnlyTypedIsNeverSearched() {
+        // half-typed text after a rotation, or typed after clearing the field
+        assertFalse(needsSearchRestore("Ber", SearchStatus.Idle, hasPlace = false, searchedBefore = false))
+    }
+
+    @Test
+    fun summary_hasNoBlocksWhileLoadingAndTheBlocksWhenReady() {
+        assertEquals(Loadable.Loading.toBlocks(), emptyList<SummaryBlock>())
+        val blocks = listOf<SummaryBlock>(SummaryBlock.Detail("text"))
+        assertEquals(blocks, Loadable.Ready(blocks).toBlocks())
     }
 }
