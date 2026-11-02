@@ -43,6 +43,35 @@ class ReferenceClimateTest {
     }
 
     @Test
+    fun monthStdDev_isTheSampleStdDevOfTheYearlyMonthMeans() {
+        val climate = syntheticReference { date -> if (date.year % 2 == 0) 10.0 else 20.0 }
+
+        assertEquals(5.0855, climate.monthStdDev(6)!!, 1e-3)
+    }
+
+    @Test
+    fun monthStdDev_isZeroWhenEveryYearAgrees() {
+        assertEquals(0.0, syntheticReference().monthStdDev(10)!!, 1e-9)
+    }
+
+    @Test
+    fun monthMeanAndStdDev_areNullForAMonthWithoutData() {
+        val climate = syntheticReference { date -> if (date.monthValue == 3) null else 5.0 }
+
+        assertNull(climate.monthMean(3))
+        assertNull(climate.monthStdDev(3))
+        assertEquals(5.0, climate.monthMean(4)!!, 1e-9)
+    }
+
+    @Test
+    fun monthMean_februaryCountsTheLeapDayOfTheLeapYears() {
+        val climate = syntheticReference { date -> date.dayOfMonth.toDouble() }
+
+        // 7 leap years (mean 15.0) and 23 others (mean 14.5) between 1961 and 1990
+        assertEquals((7 * 15.0 + 23 * 14.5) / 30, climate.monthMean(2)!!, 1e-9)
+    }
+
+    @Test
     fun windowEnd_isClampedToMonthLength() {
         val climate = syntheticReference()
 

@@ -2,7 +2,9 @@ package com.example.fineweather.domain
 
 import com.example.fineweather.data.models.TemperatureComparisonMode
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Ignore
 import org.junit.Test
 
 class SummaryBuilderTest {
@@ -69,7 +71,7 @@ class SummaryBuilderTest {
         val headline = buildSummary(input()).first() as SummaryBlock.Headline
 
         assertEquals(
-            "October so far: clearly warmer than the 1961–1990 average (+2.00°C, 13.00°C vs 11.00°C).",
+            "October: So far it is clearly warmer than the 1961–1990 average (+2.00°C, 13.00°C vs 11.00°C).",
             headline.text,
         )
         assertEquals(Band.WARM, headline.band)
@@ -80,7 +82,7 @@ class SummaryBuilderTest {
         val headline = buildSummary(input(monthToDate = 6.0)).first() as SummaryBlock.Headline
 
         assertEquals(
-            "October so far: much colder than the 1961–1990 average (-5.00°C, 6.00°C vs 11.00°C).",
+            "October: So far it is much colder than the 1961–1990 average (-5.00°C, 6.00°C vs 11.00°C).",
             headline.text,
         )
         assertEquals(Band.COLD, headline.band)
@@ -91,7 +93,7 @@ class SummaryBuilderTest {
         val headline = buildSummary(input(monthToDate = 11.4)).first() as SummaryBlock.Headline
 
         assertEquals(
-            "October so far: close to the 1961–1990 average (+0.40°C, 11.40°C vs 11.00°C).",
+            "October: So far it is close to the 1961–1990 average (+0.40°C, 11.40°C vs 11.00°C).",
             headline.text,
         )
         assertEquals(Band.NEUTRAL, headline.band)
@@ -115,6 +117,15 @@ class SummaryBuilderTest {
         assertEquals("Next 7 days: about as warm as usual (10.4°C vs 10.0°C).", steady)
         assertEquals("Next 7 days: about 4.0°C warmer than usual (14.0°C vs 10.0°C).", warmer)
         assertEquals("Next 7 days: about 2.5°C cooler than usual (7.5°C vs 10.0°C).", cooler)
+    }
+
+    @Ignore("known issue: the outlook sentence says 'Next 1 days' for a one-day outlook")
+    @Test
+    fun outlook_oneDayIsSingular() {
+        val oneDay = ForecastOutlook(days = 1, mean = 14.0, referenceMean = 10.0)
+
+        assertFalse(buildSummary(input(outlook = oneDay)).last().text.contains("1 days"))
+        assertFalse(buildSummary(input(outlook = oneDay.copy(referenceMean = null))).last().text.contains("1 days"))
     }
 
     @Test

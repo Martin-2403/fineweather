@@ -5,6 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Ignore
 import org.junit.Test
 import java.time.LocalDate
 import kotlin.math.sqrt
@@ -176,6 +177,59 @@ class MetricAnalysisTest {
     }
 
     @Test
+    fun upcomingMonths_shrinkToNothingOnTheLastDayOfTheYear() {
+        assertEquals(listOf(12), upcomingMonths(constant(2.0), LocalDate.of(2026, 11, 30), rain).map { it.month })
+        assertTrue(upcomingMonths(constant(2.0), LocalDate.of(2026, 12, 31), rain).isEmpty())
+    }
+
+    @Test
+    fun upcomingMonths_afterTheSwitchToTheNewYearUseThatYearsMonthLengths() {
+        val upcoming = upcomingMonths(constant(2.0), LocalDate.of(2028, 1, 2), rain)
+
+        assertEquals((2..12).toList(), upcoming.map { it.month })
+        assertEquals(29, upcoming.first().monthDays)
+        assertEquals(58.0, upcoming.first().referenceMonthTotal!!, 1e-9)
+    }
+
+    @Test
+    fun yearToDate_onTheLastDayOfTheYearTheDecemberIsStillRunning() {
+        val series = seriesOf(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 30)) { 3.0 }
+
+        val months = yearToDate(series, constant(2.0), LocalDate.of(2026, 12, 31), rain)
+
+        assertEquals((1..12).toList(), months.map { it.month })
+        assertTrue(months.last().partial)
+        assertEquals(30, months.last().daysObserved)
+        assertEquals(31, months.last().monthDays)
+        assertEquals(90.0, months.last().observedMean!!, 1e-9)
+    }
+
+    @Test
+    fun yearToDate_onNewYearsDayShowsTheFinishedPreviousYear() {
+        val series = seriesOf(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31)) { 3.0 }
+
+        val months = yearToDate(series, constant(2.0), LocalDate.of(2027, 1, 1), rain)
+
+        assertEquals((1..12).toList(), months.map { it.month })
+        assertFalse(months.last().partial)
+        assertEquals(31, months.last().daysObserved)
+        assertEquals(93.0, months.last().observedMean!!, 1e-9)
+        assertEquals(62.0, months.last().referenceMean!!, 1e-9)
+    }
+
+    @Test
+    fun yearToDate_theDayAfterNewYearsDayStartsTheNewYear() {
+        val series = seriesOf(LocalDate.of(2027, 1, 1), LocalDate.of(2027, 1, 1)) { 3.0 }
+
+        val months = yearToDate(series, constant(2.0), LocalDate.of(2027, 1, 2), rain)
+
+        assertEquals(listOf(1), months.map { it.month })
+        assertTrue(months.single().partial)
+        assertEquals(1, months.single().daysObserved)
+        assertEquals(3.0, months.single().observedMean!!, 1e-9)
+    }
+
+    @Test
     fun upcomingMonths_areEmptyForTemperatureWithoutAReferenceAndAtTheEndOfTheYear() {
         assertTrue(upcomingMonths(constant(5.0), today).isEmpty())
         assertTrue(upcomingMonths(null, today, rain).isEmpty())
@@ -196,6 +250,27 @@ class MetricAnalysisTest {
 
         // under an hour of normal sunshine there is no percent
         assertNull(MonthlyAnomaly(1, 0.1, 0.02, null, 31, false, sun).totalPercent)
+    }
+
+    @Test
+    fun monthlyAnomaly_sunshinePercentStartsAtTheMinimumNormalTotal() {
+        fun anomaly(referenceHours: Double) =
+            MonthlyAnomaly(1, 2.0, referenceHours, null, daysObserved = 1, partial = false, metric = sun)
+
+        assertNull(anomaly(MIN_NORMAL_SUNSHINE_HOURS - 0.01).totalPercent)
+        assertEquals(100.0, anomaly(MIN_NORMAL_SUNSHINE_HOURS).totalPercent!!, 1e-9)
+        assertEquals((2.0 - 1.01) / 1.01 * 100, anomaly(MIN_NORMAL_SUNSHINE_HOURS + 0.01).totalPercent!!, 1e-9)
+    }
+
+    @Test
+    fun monthlyAnomaly_sunshineMinimumJudgesTheTotalOverTheDaysNotTheDailyMean() {
+        // 31 days of 0.03 h are 0.93 h, 31 days of 0.033 h are 1.02 h
+        assertNull(MonthlyAnomaly(1, 0.1, 0.03, null, 31, false, sun).totalPercent)
+        assertEquals(
+            (0.1 - 0.033) / 0.033 * 100,
+            MonthlyAnomaly(1, 0.1, 0.033, null, 31, false, sun).totalPercent!!,
+            1e-9,
+        )
     }
 
     @Test
@@ -305,6 +380,22 @@ class MetricAnalysisTest {
         // days above and below the normal
         assertEquals(11, summary.warmerDays)
         assertEquals(0, summary.colderDays)
+    }
+
+    @Ignore("known issue: sunshine observedTotal sums every observed day, referenceTotal only the days with a reference")
+    @Test
+    fun summarize_sunshineTotalsCoverTheSameDays() {
+        val first = LocalDate.of(2026, 10, 1)
+        val points =
+            listOf(
+                DayPoint(first, 5.0, null, null, referenceMean = 4.0),
+                DayPoint(first.plusDays(1), 6.0, null, null, referenceMean = null),
+            )
+
+        val summary = summarize(points, sun)
+
+        assertEquals(4.0, summary.referenceTotal!!, 1e-9)
+        assertEquals(5.0, summary.observedTotal!!, 1e-9)
     }
 
     @Test
@@ -434,7 +525,7 @@ class MetricAnalysisTest {
                     TemperatureComparisonMode.ABSOLUTE_DELTA, outlook, month.daysObserved, snapshot.metric,
                 ),
             )
-        assertEquals("October so far: clearly wetter than the 1961–1990 average (+50%, 39 mm vs 26 mm).", text[0].text)
+        assertEquals("October: So far it is clearly wetter than the 1961–1990 average (+50%, 39 mm vs 26 mm).", text[0].text)
         assertEquals("Next 7 days: wetter than usual (21 mm vs 14 mm).", text[1].text)
     }
 

@@ -102,6 +102,46 @@ class DailySeriesTest {
     }
 
     @Test
+    fun fromApi_aDateListedTwiceKeepsTheLastValueButNeverALaterMissingOne() {
+        val day = start.toString()
+
+        val replaced = DailySeries.fromApi(start, start, listOf(day, day), listOf(1.0, 2.0))
+        val kept = DailySeries.fromApi(start, start, listOf(day, day), listOf(1.0, null))
+
+        assertEquals(1, replaced.size)
+        assertEquals(2.0, replaced.valueOrNull(start)!!, 0.0)
+        assertEquals(1.0, kept.valueOrNull(start)!!, 0.0)
+    }
+
+    @Test
+    fun fromApi_unparseableDatesAreSkippedAndDoNotShiftTheOthers() {
+        val series =
+            DailySeries.fromApi(
+                start,
+                start.plusDays(2),
+                listOf(start.toString(), "not-a-date", "", start.plusDays(2).toString()),
+                listOf(1.0, 2.0, 3.0, 4.0),
+            )
+
+        assertEquals(3, series.size)
+        assertEquals(1.0, series.valueOrNull(start)!!, 0.0)
+        assertNull(series.valueOrNull(start.plusDays(1)))
+        assertEquals(4.0, series.valueOrNull(start.plusDays(2))!!, 0.0)
+        assertEquals(2, series.count(start, series.end))
+    }
+
+    @Test
+    fun fromApi_anEndBeforeTheStartGivesAnEmptySeries() {
+        val series = DailySeries.fromApi(start, start.minusDays(3), listOf(start.toString()), listOf(1.0))
+
+        assertEquals(0, series.size)
+        assertFalse(series.hasValues())
+        assertNull(series.valueOrNull(start))
+        assertNull(series.mean(start.minusDays(5), start.plusDays(5)))
+        assertEquals(0, series.toBytes().size)
+    }
+
+    @Test
     fun missing_isASeriesWithoutValues() {
         val series = DailySeries.missing(start, 5)
 

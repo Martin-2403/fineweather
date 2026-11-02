@@ -375,6 +375,34 @@ class WeatherRepositoryTest {
         coVerify(exactly = 0) { referenceDao.insert(any()) }
     }
 
+    @Test
+    fun referenceYears_classicNeverMoves() {
+        assertEquals(1961 to 1990, WeatherRepository.referenceYears(HistoricReference.CLASSIC, LocalDate.of(2026, 10, 14)))
+        assertEquals(1961 to 1990, WeatherRepository.referenceYears(HistoricReference.CLASSIC, LocalDate.of(2031, 1, 1)))
+    }
+
+    @Test
+    fun referenceYears_currentIsTheLast30YearsOfTheLatestCompleteDecade() {
+        assertEquals(1991 to 2020, WeatherRepository.referenceYears(HistoricReference.CURRENT, LocalDate.of(2026, 10, 14)))
+        assertEquals(1991 to 2020, WeatherRepository.referenceYears(HistoricReference.CURRENT, LocalDate.of(2029, 12, 31)))
+    }
+
+    @Test
+    fun referenceYears_currentMovesOnAfterTheDecadeIsOver() {
+        // 2030 is not complete yet, so the new decade starts counting in 2031
+        assertEquals(1991 to 2020, WeatherRepository.referenceYears(HistoricReference.CURRENT, LocalDate.of(2030, 1, 1)))
+        assertEquals(1991 to 2020, WeatherRepository.referenceYears(HistoricReference.CURRENT, LocalDate.of(2030, 12, 31)))
+        assertEquals(2001 to 2030, WeatherRepository.referenceYears(HistoricReference.CURRENT, LocalDate.of(2031, 1, 1)))
+    }
+
+    @Test
+    fun referenceYears_currentMatchesTheLabelShown() {
+        val date = LocalDate.of(2031, 5, 5)
+        val (first, last) = WeatherRepository.referenceYears(HistoricReference.CURRENT, date)
+
+        assertEquals("$first–$last", HistoricReference.CURRENT.displayLabel(date))
+    }
+
     // ---- weather cache delegation ----
 
     @Test

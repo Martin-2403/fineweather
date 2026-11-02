@@ -156,4 +156,38 @@ class MetricTest {
         assertNull(Metric.PRECIPITATION.percentOfNormal(3.0, 1.9))
         assertEquals(150.0, Metric.PRECIPITATION.percentOfNormal(3.0, 2.0)!!, 1e-9)
     }
+
+    @Test
+    fun formatDelta_negativeZeroIsAZero() {
+        assertEquals("+0.00°C", Metric.TEMPERATURE.formatDelta(-0.0))
+        assertEquals("0.00°C", Metric.TEMPERATURE.formatDelta(-0.0, signAtZero = false))
+        assertEquals("0.0 h/day", Metric.SUNSHINE.formatDelta(-0.0))
+        assertEquals("0.0 mm", Metric.PRECIPITATION.formatDelta(-0.0))
+    }
+
+    @Test
+    fun formatDelta_rainRoundsLikeFormatAroundTenMillimetres() {
+        assertEquals("+9.9 mm", Metric.PRECIPITATION.formatDelta(9.94))
+        assertEquals("+10 mm", Metric.PRECIPITATION.formatDelta(9.96))
+        assertEquals("-10 mm", Metric.PRECIPITATION.formatDelta(-9.96))
+        assertEquals("-9.9 mm", Metric.PRECIPITATION.formatDelta(-9.94))
+        assertEquals("-19 mm", Metric.PRECIPITATION.formatDelta(-19.2))
+        assertEquals("-0.1 mm", Metric.PRECIPITATION.formatDelta(-0.06))
+    }
+
+    @Test
+    fun formatPair_rainKeepsTheDecimalForBothWhenOnlyOneIsBelowTen() {
+        assertEquals("10.0 mm vs 9.9 mm", Metric.PRECIPITATION.formatPair(9.96, 9.94))
+        assertEquals("10 mm vs 10 mm", Metric.PRECIPITATION.formatPair(9.96, 10.2))
+        assertEquals("12.0 mm vs 9.0 mm", Metric.PRECIPITATION.formatPair(12.0, 9.0))
+    }
+
+    @Test
+    fun formatPercent_roundsHalvesAwayFromZeroAndDropsTheSignOfZero() {
+        assertEquals("0%", Metric.formatPercent(-0.0))
+        assertEquals("0%", Metric.formatPercent(0.49))
+        assertEquals("+1%", Metric.formatPercent(0.5))
+        assertEquals("-1%", Metric.formatPercent(-0.5))
+        assertEquals("+100%", Metric.formatPercent(99.6))
+    }
 }

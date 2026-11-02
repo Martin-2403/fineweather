@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Ignore
 import org.junit.Test
 import java.time.LocalDate
 
@@ -62,6 +63,17 @@ class ClimateAnalysisTest {
         val march = result.first { it.month == 3 }
         assertEquals(climate.monthMean(3)!!, march.referenceMean!!, 1e-9)
         assertEquals(10.0 - climate.monthMean(3)!!, march.delta!!, 1e-9)
+    }
+
+    @Test
+    fun yearToDate_onNewYearsDayTreatsTheWholePreviousYearAsComplete() {
+        val series = seriesOf(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31)) { 10.0 }
+
+        val result = yearToDate(series, climate, LocalDate.of(2027, 1, 1))
+
+        assertEquals((1..12).toList(), result.map { it.month })
+        assertFalse(result.last().partial)
+        assertEquals(31, result.last().daysObserved)
     }
 
     @Test
@@ -232,6 +244,25 @@ class ForecastDataTest {
     }
 
     @Test
+    fun outlook_averagesOnlyTheDaysThatHaveAValue() {
+        val outlook = forecastOutlook(forecast { if (it.dayOfMonth in 15..16) null else 8.0 }, climate, days = 7)!!
+
+        assertEquals(5, outlook.days)
+        assertEquals(8.0, outlook.mean, 1e-6)
+        // Oct 14, 17, 18, 19, 20
+        assertEquals((10.14 + 10.17 + 10.18 + 10.19 + 10.20) / 5, outlook.referenceMean!!, 1e-6)
+    }
+
+    @Test
+    fun outlook_aForecastShorterThanTheDaysCoversWhatItHas() {
+        val outlook = forecastOutlook(forecast(days = 3), climate, days = 7)!!
+
+        assertEquals(3, outlook.days)
+        assertEquals(8.0, outlook.mean, 1e-6)
+        assertEquals((10.14 + 10.15 + 10.16) / 3, outlook.referenceMean!!, 1e-6)
+    }
+
+    @Test
     fun outlook_isNullWithoutForecastOrDays() {
         assertNull(forecastOutlook(null, climate, 7))
         assertNull(forecastOutlook(forecast(), climate, 0))
@@ -268,6 +299,45 @@ class ForecastDataTest {
         assertEquals(30, points.count { it.observed != null })
         assertEquals(7, points.count { it.forecast != null })
         assertTrue(points.all { it.band != null })
+    }
+
+    @Test
+    fun thisMonth_aForecastShorterThanTheSettingOnlyFillsItsOwnDays() {
+        val points = dayPoints(snapshot(forecast(days = 3)), MonthWindow.THIS_MONTH, forecastDays = 7)
+
+        assertEquals(31, points.size)
+        assertEquals(listOf(14, 15, 16), points.filter { it.forecast != null }.map { it.date.dayOfMonth })
+    }
+
+    @Test
+    fun last30Days_aMissingForecastDayIsAGapNotAZero() {
+        val points = dayPoints(snapshot(forecast { if (it.dayOfMonth == 16) null else 8.0 }), MonthWindow.LAST_30_DAYS, forecastDays = 7)
+
+        assertNull(points.first { it.date == LocalDate.of(2026, 10, 16) }.forecast)
+        assertEquals(8.0, points.first { it.date == LocalDate.of(2026, 10, 15) }.forecast!!, 1e-6)
+        assertEquals(8.0, points.first { it.date == LocalDate.of(2026, 10, 17) }.forecast!!, 1e-6)
+        assertEquals(6, points.count { it.forecast != null })
+    }
+
+    @Ignore("known issue: dayPoints assumes the forecast starts today")
+    @Test
+    fun dayPoints_aForecastStartingYesterdayStillGivesTheNextDaysFromToday() {
+        val behind = forecast(start = today.minusDays(1))
+
+        val points = dayPoints(snapshot(behind), MonthWindow.THIS_MONTH, forecastDays = 7)
+
+        assertEquals((14..20).toList(), points.filter { it.forecast != null }.map { it.date.dayOfMonth })
+    }
+
+    @Ignore("known issue: the outlook assumes the forecast starts today")
+    @Test
+    fun outlook_aForecastStartingYesterdayLeavesOutYesterday() {
+        val behind = forecast(start = today.minusDays(1)) { if (it == today.minusDays(1)) 100.0 else 8.0 }
+
+        val outlook = snapshot(behind).outlook(7)!!
+
+        assertEquals(7, outlook.days)
+        assertEquals(8.0, outlook.mean, 1e-6)
     }
 
     @Test
