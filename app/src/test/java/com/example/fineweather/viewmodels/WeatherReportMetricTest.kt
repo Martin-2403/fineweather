@@ -112,7 +112,7 @@ class WeatherReportMetricTest {
         val blocks = ((report(loaded(), Metric.PRECIPITATION).summary) as Loadable.Ready).value
 
         assertEquals(
-            "October: So far it is much wetter than the 1961–1990 average (+100%, 26 mm vs 13 mm).",
+            "October: So far it is much wetter than the 1961–1990 average (+100%, 26.0 mm vs 13.0 mm).",
             (blocks.first() as SummaryBlock.Headline).text,
         )
         assertEquals("Next 7 days: wetter than usual (21.0 mm vs 7.0 mm).", blocks[1].text)
@@ -147,7 +147,7 @@ class WeatherReportMetricTest {
         assertEquals(0, report.dayCount)
         assertEquals("No complete day of October yet, check back tomorrow.", report.blocks()[0].text)
         // 31 days of 1 mm
-        assertEquals("The 1961–1990 average for October is 31 mm.", report.blocks()[1].text)
+        assertEquals("The 1961–1990 average for October is 31.0 mm.", report.blocks()[1].text)
     }
 
     @Test
@@ -173,7 +173,7 @@ class WeatherReportMetricTest {
         val headline = (report.headline as Loadable.Ready).value
         assertEquals(Band.NEUTRAL, headline.band)
         assertEquals(
-            "October: So far it is 26 mm of rain, normal for these days is under 2 mm.",
+            "October: So far it is 26.0 mm of rain, normal for these days is under 2 mm.",
             ((report.summary as Loadable.Ready).value.first()).text,
         )
     }
@@ -272,7 +272,7 @@ class WeatherReportMetricTest {
         assertEquals(21.0, report.trend.value.mean, 1e-9)
         assertNull((report.snapshot as Loadable.Ready).value.reference)
         assertEquals(
-            listOf("The 1961–1990 reference is not available yet.", "Next 7 days: forecast to bring 21 mm."),
+            listOf("The 1961–1990 reference is not available yet.", "Next 7 days: forecast to bring 21.0 mm."),
             report.blocks().map { it.text },
         )
         assertEquals(StatusPicture.INITIAL, report.picture)

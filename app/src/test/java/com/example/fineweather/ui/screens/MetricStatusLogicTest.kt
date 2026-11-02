@@ -59,14 +59,14 @@ class MetricStatusLogicTest {
     @Test
     fun statusCard_rainShowsTheMillimetresAboveOrBelowTheNormal() {
         val wetter = buildStatusCardValue(divergence(Metric.PRECIPITATION, 29.0, 33.0))
-        assertEquals("+29 mm", wetter.text)
+        assertEquals("+29.0 mm", wetter.text)
         assertEquals(R.drawable.drop, wetter.icons?.resId)
         assertEquals(LightMetricTints.drop, wetter.icons?.tint)
         assertEquals(3, wetter.icons?.count)
         assertEquals("+++ wetter than average", wetter.icons?.contentDescription)
 
         val drier = buildStatusCardValue(divergence(Metric.PRECIPITATION, -20.0, 40.0))
-        assertEquals("-20 mm", drier.text)
+        assertEquals("-20.0 mm", drier.text)
         assertEquals(R.drawable.drop_dry, drier.icons?.resId)
         assertEquals(LightMetricTints.dry, drier.icons?.tint)
         assertEquals(2, drier.icons?.count)
@@ -93,7 +93,7 @@ class MetricStatusLogicTest {
                 divergence(Metric.PRECIPITATION, 29.0, 33.0, stdDev = 20.0, mode = TemperatureComparisonMode.NORMALIZED_ANOMALY),
             )
 
-        assertEquals("+29 mm", value.text)
+        assertEquals("+29.0 mm", value.text)
         assertEquals(1, value.icons?.count) // z = 1.45
     }
 
@@ -101,7 +101,7 @@ class MetricStatusLogicTest {
     fun statusCard_temperatureIsUnchanged() {
         val value = buildStatusCardValue(divergence(Metric.TEMPERATURE, 2.0, 10.0))
 
-        assertEquals("+2.00°C", value.text)
+        assertEquals("+2.0°C", value.text)
         assertEquals(R.drawable.fire, value.icons?.resId)
         assertEquals(WarmIconTint, value.icons?.tint)
         assertEquals("++ warmer than average", value.icons?.contentDescription)
@@ -109,8 +109,8 @@ class MetricStatusLogicTest {
         assertEquals(R.drawable.frost, colder.icons?.resId)
         assertEquals(CoolIconTint, colder.icons?.tint)
         assertEquals("-- colder than average", colder.icons?.contentDescription)
-        assertEquals("0.00°C", buildStatusCardValue(divergence(Metric.TEMPERATURE, 0.0, 10.0)).text)
-        assertEquals("-0.30°C", buildStatusCardValue(divergence(Metric.TEMPERATURE, -0.3, 10.0)).text)
+        assertEquals("0.0°C", buildStatusCardValue(divergence(Metric.TEMPERATURE, 0.0, 10.0)).text)
+        assertEquals("-0.3°C", buildStatusCardValue(divergence(Metric.TEMPERATURE, -0.3, 10.0)).text)
     }
 
     // ---- trend card ----
@@ -140,7 +140,7 @@ class MetricStatusLogicTest {
     @Test
     fun trendCard_rainShowsTheMillimetresAboveOrBelowTheNormalTotal() {
         val wetter = buildTrendCardValue(outlook(Metric.PRECIPITATION, 25.0, 14.0))
-        assertEquals("+11 mm", wetter.text)
+        assertEquals("+11.0 mm", wetter.text)
         assertEquals(R.drawable.up, wetter.icons?.resId)
         assertEquals(LightMetricTints.drop, wetter.icons?.tint)
         assertEquals(3, wetter.icons?.count)
@@ -302,6 +302,6 @@ class MetricStatusLogicTest {
         assertEquals("+2.0 mm", ValueWithIcons("+2.0 mm", null).withoutUnit(Metric.PRECIPITATION).text)
         assertEquals("-", ValueWithIcons("-", null, placeholder = true).withoutUnit(Metric.SUNSHINE).text)
         assertEquals("", ValueWithIcons("", null).withoutUnit(Metric.TEMPERATURE).text)
-        assertEquals("+1.43°C", ValueWithIcons("+1.43°C", null).withoutUnit(Metric.TEMPERATURE).text)
+        assertEquals("+1.4°C", ValueWithIcons("+1.4°C", null).withoutUnit(Metric.TEMPERATURE).text)
     }
 }

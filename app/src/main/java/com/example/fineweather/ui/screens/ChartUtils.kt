@@ -133,23 +133,23 @@ internal fun anomalyTickLabel(
         Metric.PRECIPITATION -> "${formatTick(value)} mm"
     }
 
-/** The label above a month's bar: `+1.8` (°C deviation), `186` (hours of sunshine), `7.5` (mm of rain). */
+/** The label above a month's bar: `+1.8` (°C deviation), `186.0` (hours of sunshine), `7.5` (mm of rain). */
 internal fun anomalyBarLabel(
     metric: Metric,
     value: Double,
 ): String =
     when (metric) {
         Metric.TEMPERATURE -> formatSigned(value)
-        Metric.SUNSHINE, Metric.PRECIPITATION -> Metric.PRECIPITATION.formatNumber(value)
+        Metric.SUNSHINE, Metric.PRECIPITATION -> metric.formatNumber(value)
     }
 
-/** A monthly amount of sunshine or rain with its unit: whole numbers from 10 on, else one decimal (`251 h`, `7.5 mm`). */
+/** A monthly amount of sunshine or rain with its unit, with one decimal (`251.0 h`, `7.5 mm`). */
 internal fun formatAmount(
     metric: Metric,
     value: Double,
-): String = "${Metric.PRECIPITATION.formatNumber(value)} ${amountUnit(metric)}"
+): String = "${metric.formatNumber(value)} ${amountUnit(metric)}"
 
-/** A signed monthly amount, see [formatAmount]; without [metric] just the number (`+12`, `-4.5`). */
+/** A signed monthly amount, see [formatAmount]; without [metric] just the number (`+12.0`, `-4.5`). */
 internal fun formatAmountDelta(
     value: Double,
     metric: Metric? = null,

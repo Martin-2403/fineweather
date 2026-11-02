@@ -123,7 +123,7 @@ private fun outlookText(
     val period = "Next ${if (outlook.days == 1) "1 day" else "${outlook.days} days"}"
     val reference = outlook.referenceMean
         ?: return "$period: forecast to ${if (metric.aggregation == Aggregation.TOTAL) "bring" else "average"} " +
-            "${compact(metric, outlook.mean)}."
+            "${metric.format(outlook.mean)}."
     // The same reference the status card judges, not one rebuilt from the delta.
     val assessment = assess(metric, outlook.mean, reference, null, mode)
     val delta = assessment.delta
@@ -132,7 +132,7 @@ private fun outlookText(
             "normal for those days is under ${AssessmentScales.MIN_NORMAL_RAIN_MM.toInt()} ${metric.unit}."
     }
     val total = metric.aggregation == Aggregation.TOTAL
-    val figures = compactPair(metric, outlook.mean, reference)
+    val figures = metric.formatPair(outlook.mean, reference)
     if (assessment.band == Band.NEUTRAL) {
         return "$period: about as ${metric.wording.neutral} as usual ($figures)."
     }
@@ -141,19 +141,6 @@ private fun outlookText(
     return if (total) {
         "$period: $side than usual ($figures)."
     } else {
-        "$period: about ${compact(metric, abs(delta))} $side than usual ($figures)."
+        "$period: about ${metric.format(abs(delta))} $side than usual ($figures)."
     }
 }
-
-/** A value for the outlook sentences; temperature there has one decimal, not the two of the full [Metric.format]. */
-private fun compact(
-    metric: Metric,
-    value: Double,
-): String = metric.format(value, compact = true)
-
-/** [Metric.formatPair] with the temperatures of [compact]. */
-private fun compactPair(
-    metric: Metric,
-    a: Double,
-    b: Double,
-): String = if (metric == Metric.TEMPERATURE) "${compact(metric, a)} vs ${compact(metric, b)}" else metric.formatPair(a, b)

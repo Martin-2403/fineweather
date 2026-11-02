@@ -97,7 +97,7 @@ class WeatherReportTest {
         assertEquals(today, report.today)
         assertEquals(
             listOf(
-                "April: So far it is much warmer than the 1961–1990 average (+6.00°C, 10.00°C vs 4.00°C).",
+                "April: So far it is much warmer than the 1961–1990 average (+6.0°C, 10.0°C vs 4.0°C).",
                 "Next 7 days: about 8.0°C warmer than usual (12.0°C vs 4.0°C).",
                 "Only 1 day so far, so this can change quickly.",
             ),
@@ -212,7 +212,7 @@ class WeatherReportTest {
         assertEquals(
             listOf(
                 "This year's weather data could not be loaded.",
-                "The 1961–1990 average for April is 4.00°C.",
+                "The 1961–1990 average for April is 4.0°C.",
             ),
             report.blocks().take(2).map { it.text },
         )
@@ -241,7 +241,7 @@ class WeatherReportTest {
         assertEquals(
             listOf(
                 "No complete day of April yet, check back tomorrow.",
-                "The 1961–1990 average for April is 4.00°C.",
+                "The 1961–1990 average for April is 4.0°C.",
             ),
             report.blocks().take(2).map { it.text },
         )

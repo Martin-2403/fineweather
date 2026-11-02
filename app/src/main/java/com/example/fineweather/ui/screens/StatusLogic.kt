@@ -117,7 +117,7 @@ internal fun buildStatusCardValue(
             else -> return ValueWithIcons("-", null, placeholder = true)
         }
     val delta = assessment.delta
-    val valueText = assessment.metric.formatDelta(delta, signAtZero = false)
+    val valueText = assessment.metric.formatDelta(delta)
     val count = assessment.severity
     if (count == 0) {
         return ValueWithIcons(valueText, null)
@@ -140,7 +140,7 @@ internal fun buildStatusCardValue(
 /**
  * Whether the next forecast days are warmer or cooler (sunnier, wetter, ...) than normal for those same days,
  * as the delta from that normal in the unit of the metric (rain in mm, not a percent), and arrows tinted by what
- * the metric is above or below. The cell is narrow, so a temperature has one decimal here.
+ * the metric is above or below.
  */
 internal fun buildTrendCardValue(
     trend: Loadable<ForecastOutlook>,
@@ -151,7 +151,7 @@ internal fun buildTrendCardValue(
     val delta = outlook?.delta ?: return ValueWithIcons("-", null, placeholder = true)
     val metric = outlook.metric
     val assessment = Assessment(delta, null, TemperatureComparisonMode.ABSOLUTE_DELTA, metric, outlook.referenceMean)
-    val text = metric.formatDelta(delta, signAtZero = false, compact = true)
+    val text = metric.formatDelta(delta)
     val wording = metric.wording
     val (resId, tint, description) =
         when (assessment.band) {

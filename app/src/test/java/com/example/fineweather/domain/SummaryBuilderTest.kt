@@ -44,7 +44,7 @@ class SummaryBuilderTest {
         assertEquals(
             listOf(
                 "No complete day of October yet, check back tomorrow.",
-                "The 1961–1990 average for October is 11.00°C.",
+                "The 1961–1990 average for October is 11.0°C.",
             ),
             blocks.map { it.text },
         )
@@ -70,7 +70,7 @@ class SummaryBuilderTest {
         val headline = buildSummary(input()).first() as SummaryBlock.Headline
 
         assertEquals(
-            "October: So far it is clearly warmer than the 1961–1990 average (+2.00°C, 13.00°C vs 11.00°C).",
+            "October: So far it is clearly warmer than the 1961–1990 average (+2.0°C, 13.0°C vs 11.0°C).",
             headline.text,
         )
         assertEquals(Band.WARM, headline.band)
@@ -81,7 +81,7 @@ class SummaryBuilderTest {
         val headline = buildSummary(input(monthToDate = 6.0)).first() as SummaryBlock.Headline
 
         assertEquals(
-            "October: So far it is much colder than the 1961–1990 average (-5.00°C, 6.00°C vs 11.00°C).",
+            "October: So far it is much colder than the 1961–1990 average (-5.0°C, 6.0°C vs 11.0°C).",
             headline.text,
         )
         assertEquals(Band.COLD, headline.band)
@@ -92,7 +92,7 @@ class SummaryBuilderTest {
         val headline = buildSummary(input(monthToDate = 11.4)).first() as SummaryBlock.Headline
 
         assertEquals(
-            "October: So far it is close to the 1961–1990 average (+0.40°C, 11.40°C vs 11.00°C).",
+            "October: So far it is close to the 1961–1990 average (+0.4°C, 11.4°C vs 11.0°C).",
             headline.text,
         )
         assertEquals(Band.NEUTRAL, headline.band)
@@ -160,7 +160,7 @@ class SummaryBuilderTest {
         val blocks = buildSummary(input(monthToDate = null, failed = setOf(DataSource.OBSERVED)))
 
         assertEquals("This year's weather data could not be loaded.", blocks.first().text)
-        assertEquals("The 1961–1990 average for October is 11.00°C.", blocks[1].text)
+        assertEquals("The 1961–1990 average for October is 11.0°C.", blocks[1].text)
     }
 
     @Test

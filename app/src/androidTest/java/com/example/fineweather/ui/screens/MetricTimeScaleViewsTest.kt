@@ -132,13 +132,13 @@ class MetricTimeScaleViewsTest {
         composeTestRule.onNodeWithText("Daily rain").assertIsDisplayed()
         composeTestRule.onNodeWithTag("monthInfoButton").assertIsDisplayed()
         composeTestRule.onNodeWithTag("monthSummary")
-            .assertTextEquals("13 days: 39 mm in total, +50% (39 mm vs 26 mm) compared with the same days of 1961–1990.")
+            .assertTextEquals("13 days: 39.0 mm in total, +50% (39.0 mm vs 26.0 mm) compared with the same days of 1961–1990.")
         composeTestRule.onNodeWithTag("monthCaption")
             .assertTextEquals("13 rainy days (>= 1 mm), wettest: 3.0 mm on Oct 1.")
         composeTestRule.onNodeWithTag("forecastSummary")
-            .assertTextEquals("Forecast: about 7.0 mm of rain in the next 7 days, vs 14 mm normal for those days.")
+            .assertTextEquals("Forecast: about 7.0 mm of rain in the next 7 days, vs 14.0 mm normal for those days.")
         composeTestRule
-            .onNodeWithContentDescription("Daily rain, 13 days, 39 mm in total, historical average 26 mm, with the forecast for the coming days.")
+            .onNodeWithContentDescription("Daily rain, 13 days, 39.0 mm in total, historical average 26.0 mm, with the forecast for the coming days.")
             .assertExists()
     }
 
@@ -243,13 +243,13 @@ class MetricTimeScaleViewsTest {
 
         composeTestRule.onNodeWithText("2026 compared with 1961–1990").assertIsDisplayed()
         composeTestRule.onNodeWithTag("yearSummary")
-            .assertTextEquals("So far this year: +429 h sunshine compared with the 1961–1990 average, 10 of 10 months sunnier.")
+            .assertTextEquals("So far this year: +429.0 h sunshine compared with the 1961–1990 average, 10 of 10 months sunnier.")
         composeTestRule.onNodeWithText("Total").assertIsDisplayed()
         composeTestRule.onNodeWithText("Δ%").assertIsDisplayed()
         composeTestRule.onNodeWithText("Jan").assertExists()
         composeTestRule.onNodeWithText("Oct*").assertExists()
         // January: 31 days of 6.0 vs 4.5 h/day
-        composeTestRule.onAllNodesWithText("186 h").onFirst().assertExists()
+        composeTestRule.onAllNodesWithText("186.0 h").onFirst().assertExists()
         composeTestRule.onAllNodesWithText("+33%").onFirst().assertExists()
         composeTestRule.onNodeWithText("Bars show each month's hours of sunshine", substring = true).assertExists()
         composeTestRule
@@ -262,10 +262,10 @@ class MetricTimeScaleViewsTest {
         show { YearView(rain, label, shape, cardColors, metric = Metric.PRECIPITATION) }
 
         composeTestRule.onNodeWithTag("yearSummary")
-            .assertTextEquals("So far this year: +286 mm rainfall compared with the 1961–1990 average, 10 of 10 months wetter.")
+            .assertTextEquals("So far this year: +286.0 mm rainfall compared with the 1961–1990 average, 10 of 10 months wetter.")
         composeTestRule.onNodeWithText("Total").assertIsDisplayed()
         // January: 31 days of 3 vs 2 mm
-        composeTestRule.onAllNodesWithText("+31 mm").onFirst().assertExists()
+        composeTestRule.onAllNodesWithText("+31.0 mm").onFirst().assertExists()
         composeTestRule.onAllNodesWithText("+50%").onFirst().assertExists()
         composeTestRule.onNodeWithText("Bars show each month's rain in mm", substring = true).assertExists()
         composeTestRule

@@ -45,10 +45,10 @@ class MetricTest {
     }
 
     @Test
-    fun format_temperatureKeepsTwoDecimalsAndTheGluedUnit() {
-        assertEquals("12.34°C", Metric.TEMPERATURE.format(12.34))
-        assertEquals("-0.50°C", Metric.TEMPERATURE.format(-0.5))
-        assertEquals("12.34", Metric.TEMPERATURE.formatNumber(12.34))
+    fun format_temperatureHasOneDecimalAndTheGluedUnit() {
+        assertEquals("12.3°C", Metric.TEMPERATURE.format(12.34))
+        assertEquals("-0.5°C", Metric.TEMPERATURE.format(-0.5))
+        assertEquals("12.3", Metric.TEMPERATURE.formatNumber(12.34))
     }
 
     @Test
@@ -58,53 +58,41 @@ class MetricTest {
     }
 
     @Test
-    fun format_rainHasOneDecimalBelowTenMillimetres() {
+    fun format_rainHasOneDecimalAtAnyAmount() {
         assertEquals("0.0 mm", Metric.PRECIPITATION.format(0.0))
         assertEquals("7.5 mm", Metric.PRECIPITATION.format(7.54))
         assertEquals("9.9 mm", Metric.PRECIPITATION.format(9.94))
-        // 9.96 would round to 10.0, which is shown whole
-        assertEquals("10 mm", Metric.PRECIPITATION.format(9.96))
-        assertEquals("10 mm", Metric.PRECIPITATION.format(10.0))
-        assertEquals("42 mm", Metric.PRECIPITATION.format(42.4))
+        assertEquals("10.0 mm", Metric.PRECIPITATION.format(9.96))
+        assertEquals("10.0 mm", Metric.PRECIPITATION.format(10.0))
+        assertEquals("42.4 mm", Metric.PRECIPITATION.format(42.4))
         assertEquals("7.5", Metric.PRECIPITATION.formatNumber(7.54))
     }
 
     @Test
     fun formatDelta_isSigned() {
-        assertEquals("+1.30°C", Metric.TEMPERATURE.formatDelta(1.3))
-        assertEquals("-1.30°C", Metric.TEMPERATURE.formatDelta(-1.3))
+        assertEquals("+1.3°C", Metric.TEMPERATURE.formatDelta(1.3))
+        assertEquals("-1.3°C", Metric.TEMPERATURE.formatDelta(-1.3))
         assertEquals("+0.8 h/day", Metric.SUNSHINE.formatDelta(0.84))
         assertEquals("-1.6 h/day", Metric.SUNSHINE.formatDelta(-1.6))
-        assertEquals("+19 mm", Metric.PRECIPITATION.formatDelta(19.2))
+        assertEquals("+19.2 mm", Metric.PRECIPITATION.formatDelta(19.2))
         assertEquals("-7.5 mm", Metric.PRECIPITATION.formatDelta(-7.54))
     }
 
     @Test
-    fun formatDelta_zeroHasASignOnlyIfAsked() {
-        assertEquals("+0.00°C", Metric.TEMPERATURE.formatDelta(0.0))
-        assertEquals("0.00°C", Metric.TEMPERATURE.formatDelta(0.0, signAtZero = false))
-        // the sign of a temperature stays as it always was, even when it rounds to zero
-        assertEquals("-0.00°C", Metric.TEMPERATURE.formatDelta(-0.001))
-        // sunshine and rain drop the sign of a difference that rounds to zero
+    fun format_aValueThatRoundsToZeroHasNoMinusSign() {
+        assertEquals("0.0°C", Metric.TEMPERATURE.format(-0.04))
+        assertEquals("0.0°C vs 4.0°C", Metric.TEMPERATURE.formatPair(-0.04, 4.0))
+    }
+
+    @Test
+    fun formatDelta_aDifferenceThatRoundsToZeroHasNoSignForAnyMetric() {
+        assertEquals("0.0°C", Metric.TEMPERATURE.formatDelta(0.0))
+        assertEquals("0.0°C", Metric.TEMPERATURE.formatDelta(-0.001))
+        assertEquals("0.0°C", Metric.TEMPERATURE.formatDelta(0.04))
+        assertEquals("0.0°C", Metric.TEMPERATURE.formatDelta(-0.04))
+        assertEquals("+0.1°C", Metric.TEMPERATURE.formatDelta(0.06))
         assertEquals("0.0 h/day", Metric.SUNSHINE.formatDelta(-0.04))
         assertEquals("0.0 mm", Metric.PRECIPITATION.formatDelta(0.03))
-    }
-
-    @Test
-    fun compact_givesATemperatureOneDecimalAndLeavesTheOthersAlone() {
-        assertEquals("12.3°C", Metric.TEMPERATURE.format(12.34, compact = true))
-        assertEquals("12.34°C", Metric.TEMPERATURE.format(12.34))
-        assertEquals("+4.0°C", Metric.TEMPERATURE.formatDelta(4.04, compact = true))
-        assertEquals("-1.3°C", Metric.TEMPERATURE.formatDelta(-1.3, compact = true))
-        assertEquals("5.3 h/day", Metric.SUNSHINE.format(5.26, compact = true))
-        assertEquals("42 mm", Metric.PRECIPITATION.format(42.4, compact = true))
-    }
-
-    @Test
-    fun compact_aTemperatureThatRoundsToZeroHasNoSign() {
-        assertEquals("0.0°C", Metric.TEMPERATURE.formatDelta(0.04, compact = true))
-        assertEquals("0.0°C", Metric.TEMPERATURE.formatDelta(-0.04, compact = true))
-        assertEquals("+0.1°C", Metric.TEMPERATURE.formatDelta(0.06, compact = true))
     }
 
     @Test
@@ -135,19 +123,19 @@ class MetricTest {
     }
 
     @Test
-    fun formatPair_rainSharesOnePrecision() {
-        assertEquals("62 mm vs 33 mm", Metric.PRECIPITATION.formatPair(62.0, 33.0))
+    fun formatPair_rainHasOneDecimalForBoth() {
+        assertEquals("62.0 mm vs 33.0 mm", Metric.PRECIPITATION.formatPair(62.0, 33.0))
         assertEquals("61.0 mm vs 4.2 mm", Metric.PRECIPITATION.formatPair(61.0, 4.2))
         assertEquals("5.0 mm vs 33.0 mm", Metric.PRECIPITATION.formatPair(5.0, 33.0))
-        // 9.96 rounds to 10, so both are whole
-        assertEquals("10 mm vs 33 mm", Metric.PRECIPITATION.formatPair(9.96, 33.0))
+        assertEquals("10.0 mm vs 33.0 mm", Metric.PRECIPITATION.formatPair(9.96, 33.0))
         assertEquals("0.0 mm vs 0.0 mm", Metric.PRECIPITATION.formatPair(0.0, 0.0))
     }
 
     @Test
-    fun formatPair_otherMetricsFormatEachNumberAsUsual() {
+    fun formatPair_otherMetricsHaveOneDecimalForBoth() {
         assertEquals("6.0 h/day vs 5.0 h/day", Metric.SUNSHINE.formatPair(6.0, 5.0))
-        assertEquals("12.34°C vs 11.00°C", Metric.TEMPERATURE.formatPair(12.34, 11.0))
+        assertEquals("12.3°C vs 11.0°C", Metric.TEMPERATURE.formatPair(12.34, 11.0))
+        assertEquals("10.0°C vs 4.0°C", Metric.TEMPERATURE.formatPair(10.0, 4.0))
     }
 
     @Test
@@ -159,8 +147,7 @@ class MetricTest {
 
     @Test
     fun formatDelta_negativeZeroIsAZero() {
-        assertEquals("+0.00°C", Metric.TEMPERATURE.formatDelta(-0.0))
-        assertEquals("0.00°C", Metric.TEMPERATURE.formatDelta(-0.0, signAtZero = false))
+        assertEquals("0.0°C", Metric.TEMPERATURE.formatDelta(-0.0))
         assertEquals("0.0 h/day", Metric.SUNSHINE.formatDelta(-0.0))
         assertEquals("0.0 mm", Metric.PRECIPITATION.formatDelta(-0.0))
     }
@@ -168,18 +155,11 @@ class MetricTest {
     @Test
     fun formatDelta_rainRoundsLikeFormatAroundTenMillimetres() {
         assertEquals("+9.9 mm", Metric.PRECIPITATION.formatDelta(9.94))
-        assertEquals("+10 mm", Metric.PRECIPITATION.formatDelta(9.96))
-        assertEquals("-10 mm", Metric.PRECIPITATION.formatDelta(-9.96))
+        assertEquals("+10.0 mm", Metric.PRECIPITATION.formatDelta(9.96))
+        assertEquals("-10.0 mm", Metric.PRECIPITATION.formatDelta(-9.96))
         assertEquals("-9.9 mm", Metric.PRECIPITATION.formatDelta(-9.94))
-        assertEquals("-19 mm", Metric.PRECIPITATION.formatDelta(-19.2))
+        assertEquals("-19.2 mm", Metric.PRECIPITATION.formatDelta(-19.2))
         assertEquals("-0.1 mm", Metric.PRECIPITATION.formatDelta(-0.06))
-    }
-
-    @Test
-    fun formatPair_rainKeepsTheDecimalForBothWhenOnlyOneIsBelowTen() {
-        assertEquals("10.0 mm vs 9.9 mm", Metric.PRECIPITATION.formatPair(9.96, 9.94))
-        assertEquals("10 mm vs 10 mm", Metric.PRECIPITATION.formatPair(9.96, 10.2))
-        assertEquals("12.0 mm vs 9.0 mm", Metric.PRECIPITATION.formatPair(12.0, 9.0))
     }
 
     @Test

@@ -74,66 +74,26 @@ enum class Metric(
             Aggregation.TOTAL -> dailyMean * days
         }
 
-    /**
-     * A value of this metric with its unit: `12.34°C`, `5.3 h/day`, `42 mm` (`7.5 mm` below 10).
-     * With [compact] a temperature has one decimal, as `12.3°C`, for the narrow places.
-     */
-    fun format(
-        value: Double,
-        compact: Boolean = false,
-    ): String = formatNumber(value, compact) + unitSuffix
+    /** A value of this metric with its unit, always with one decimal: `12.3°C`, `5.3 h/day`, `42.0 mm`. */
+    fun format(value: Double): String = formatNumber(value) + unitSuffix
 
     /** [format] without the unit. */
-    fun formatNumber(
-        value: Double,
-        compact: Boolean = false,
-    ): String =
-        when (this) {
-            TEMPERATURE -> String.format(Locale.US, if (compact) "%.1f" else "%.2f", value)
-            SUNSHINE -> String.format(Locale.US, "%.1f", value)
-            PRECIPITATION -> String.format(Locale.US, if (hasDecimal(value)) "%.1f" else "%.0f", value)
-        }
+    fun formatNumber(value: Double): String = String.format(Locale.US, "%.1f", value).let { if (it == "-0.0") "0.0" else it }
 
-    /**
-     * "[a] vs [b]" with the unit, both numbers with the same precision: for rain one decimal for both if
-     * either is below 10 mm, else whole numbers for both. Other metrics format each number as usual.
-     */
+    /** "[a] vs [b]" with the unit, both numbers with one decimal (`10.0°C vs 4.0°C`, `41.0 mm vs 26.0 mm`). */
     fun formatPair(
         a: Double,
         b: Double,
-    ): String {
-        val numbers =
-            if (this == PRECIPITATION) {
-                val pattern = if (hasDecimal(a) || hasDecimal(b)) "%.1f" else "%.0f"
-                String.format(Locale.US, pattern, a) to String.format(Locale.US, pattern, b)
-            } else {
-                formatNumber(a) to formatNumber(b)
-            }
-        return "${numbers.first}$unitSuffix vs ${numbers.second}$unitSuffix"
-    }
-
-    /** Whether a rain amount is shown with a decimal: below 10 mm once rounded to one decimal. */
-    private fun hasDecimal(value: Double): Boolean = abs(String.format(Locale.US, "%.1f", value).toDouble()) < 10.0
+    ): String = "${formatNumber(a)}$unitSuffix vs ${formatNumber(b)}$unitSuffix"
 
     /**
-     * A signed difference: `+1.30°C`, `-0.8 h/day`, `+19 mm`. With [signAtZero] false an exact zero has
-     * no sign. For sunshine and rain a difference that rounds to zero has none either, and neither has
-     * a [compact] temperature (`0.0°C`, never `+0.0°C`).
+     * A signed difference: `+1.3°C`, `-0.8 h/day`, `+19.0 mm`. A difference that rounds to zero has no sign
+     * (`0.0°C`, never `+0.0°C`), exact zero included.
      */
-    fun formatDelta(
-        delta: Double,
-        signAtZero: Boolean = true,
-        compact: Boolean = false,
-    ): String {
-        val number = formatNumber(abs(delta), compact)
-        val sign =
-            when {
-                delta < 0 -> "-"
-                delta > 0 || signAtZero -> "+"
-                else -> ""
-            }
-        val roundsToZero = (this != TEMPERATURE || compact) && number.toDouble() == 0.0
-        return (if (roundsToZero) "" else sign) + number + unitSuffix
+    fun formatDelta(delta: Double): String {
+        val number = formatNumber(abs(delta))
+        val sign = if (number.toDouble() == 0.0) "" else if (delta < 0) "-" else "+"
+        return sign + number + unitSuffix
     }
 
     /**

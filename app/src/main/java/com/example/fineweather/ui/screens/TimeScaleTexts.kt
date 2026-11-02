@@ -20,7 +20,7 @@ internal fun monthName(
 ): String = Month.of(month).getDisplayName(style, Locale.ENGLISH)
 
 /** A temperature with one decimal, as the Month and Year views show it. */
-internal fun degrees(value: Double?): String = value?.let { String.format(Locale.US, "%.1f°C", it) } ?: "–"
+internal fun degrees(value: Double?): String = value?.let { Metric.TEMPERATURE.format(it) } ?: "–"
 
 private fun dayCount(days: Int): String = if (days == 1) "1 day" else "$days days"
 
@@ -39,7 +39,7 @@ internal val Metric.dailyNoun: String
 internal val Metric.dailyTitle: String get() = "Daily $dailyNoun"
 
 /** Whether [delta] is too small to show a sign: it rounds to zero in the metric's unit. */
-private fun Metric.negligible(delta: Double): Boolean = formatDelta(delta, signAtZero = false).none { it in '1'..'9' }
+private fun Metric.negligible(delta: Double): Boolean = formatDelta(delta).none { it in '1'..'9' }
 
 /** How a period compares with its normal, in words after the value: `+0.8 h/day`, `+85% (41 vs 22 mm)`. */
 private fun comparisonText(

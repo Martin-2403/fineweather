@@ -92,22 +92,22 @@ class ChartUtilsTest {
     }
 
     @Test
-    fun formatAmount_isWholeFromTenAndHasADecimalBelow() {
+    fun formatAmount_alwaysHasOneDecimal() {
         assertEquals("7.5 mm", formatAmount(Metric.PRECIPITATION, 7.54))
-        assertEquals("10 mm", formatAmount(Metric.PRECIPITATION, 9.96))
-        assertEquals("251 h", formatAmount(Metric.SUNSHINE, 251.4))
-        assertEquals("1234 mm", formatAmount(Metric.PRECIPITATION, 1234.4))
+        assertEquals("10.0 mm", formatAmount(Metric.PRECIPITATION, 9.96))
+        assertEquals("251.4 h", formatAmount(Metric.SUNSHINE, 251.4))
+        assertEquals("1234.4 mm", formatAmount(Metric.PRECIPITATION, 1234.4))
         assertEquals("0.0 h", formatAmount(Metric.SUNSHINE, 0.0))
     }
 
     @Test
     fun formatAmountDelta_isSignedAndNeverHasASignOnZero() {
-        assertEquals("+12", formatAmountDelta(12.2))
+        assertEquals("+12.2", formatAmountDelta(12.2))
         assertEquals("-4.5", formatAmountDelta(-4.5))
-        assertEquals("+12 mm", formatAmountDelta(12.2, Metric.PRECIPITATION))
-        assertEquals("-12 h", formatAmountDelta(-12.4, Metric.SUNSHINE))
-        assertEquals("+1234 mm", formatAmountDelta(1234.0, Metric.PRECIPITATION))
-        assertEquals("-10 mm", formatAmountDelta(-9.96, Metric.PRECIPITATION))
+        assertEquals("+12.2 mm", formatAmountDelta(12.2, Metric.PRECIPITATION))
+        assertEquals("-12.4 h", formatAmountDelta(-12.4, Metric.SUNSHINE))
+        assertEquals("+1234.0 mm", formatAmountDelta(1234.0, Metric.PRECIPITATION))
+        assertEquals("-10.0 mm", formatAmountDelta(-9.96, Metric.PRECIPITATION))
         assertEquals("0.0", formatAmountDelta(-0.04))
         assertEquals("0.0 mm", formatAmountDelta(0.04, Metric.PRECIPITATION))
         assertEquals("0.0 h", formatAmountDelta(-0.0, Metric.SUNSHINE))
