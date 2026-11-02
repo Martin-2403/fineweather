@@ -112,7 +112,7 @@ class WeatherReportMetricTest {
         val blocks = ((report(loaded(), Metric.PRECIPITATION).summary) as Loadable.Ready).value
 
         assertEquals(
-            "October so far: much wetter than the 1961–1990 average (+100%, 26 mm vs 13 mm).",
+            "October: So far it is much wetter than the 1961–1990 average (+100%, 26 mm vs 13 mm).",
             (blocks.first() as SummaryBlock.Headline).text,
         )
         assertEquals("Next 7 days: wetter than usual (21.0 mm vs 7.0 mm).", blocks[1].text)
@@ -173,7 +173,7 @@ class WeatherReportMetricTest {
         val headline = (report.headline as Loadable.Ready).value
         assertEquals(Band.NEUTRAL, headline.band)
         assertEquals(
-            "October so far: 26 mm of rain, normal for these days is under 2 mm.",
+            "October: So far it is 26 mm of rain, normal for these days is under 2 mm.",
             ((report.summary as Loadable.Ready).value.first()).text,
         )
     }
@@ -195,7 +195,7 @@ class WeatherReportMetricTest {
         assertEquals(7.0, trend.mean, 1e-9)
         assertEquals(2.0, trend.delta!!, 1e-9)
         assertEquals(
-            "October so far: clearly sunnier than the 1961–1990 average (+1.0 h/day, 6.0 h/day vs 5.0 h/day).",
+            "October: So far it is clearly sunnier than the 1961–1990 average (+1.0 h/day, 6.0 h/day vs 5.0 h/day).",
             report.blocks().first().text,
         )
     }
