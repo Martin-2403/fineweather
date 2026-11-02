@@ -200,16 +200,21 @@ class WeatherRepository(
         fetchLocks.withLock(referenceLockKey(locationId, reference)) {
             val (firstYear, lastYear) = referenceYears(reference, today)
             val start = LocalDate.of(firstYear, 1, 1)
+            val end = LocalDate.of(lastYear, 12, 31)
             val now = clock()
             val cached = referenceClimateDao.get(locationId, reference.id)
-            if (cached != null && cached.firstYear == firstYear && cached.lastYear == lastYear) {
+            // A blob of the wrong length is a corrupt row, which counts as a miss.
+            if (cached != null &&
+                cached.firstYear == firstYear &&
+                cached.lastYear == lastYear &&
+                cached.data.holdsDays(daysBetween(start, end))
+            ) {
                 referenceClimateDao.touch(locationId, reference.id, now)
                 return@withLock CacheResult(
                     ReferenceClimate(DailySeries.fromBytes(start, cached.data), firstYear, lastYear),
                     fromCache = true,
                 )
             }
-            val end = LocalDate.of(lastYear, 12, 31)
             val series =
                 fetchArchive(latitude, longitude, start, end, REFERENCE_METRICS) { daily ->
                     DailySeries.fromApi(start, end, daily.time, daily.requireTemperature())

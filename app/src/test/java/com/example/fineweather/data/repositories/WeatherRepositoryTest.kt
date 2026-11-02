@@ -348,6 +348,20 @@ class WeatherRepositoryTest {
     }
 
     @Test
+    fun getReferenceClimate_aBlobOfTheWrongLengthIsACacheMissNotACrash() = runTest {
+        stubArchive(valueOf = { 3.0 })
+        coEvery { referenceDao.get("loc-1", "1961_1990") } returns
+            ReferenceClimateEntity("loc-1", "1961_1990", 1961, 1990, byteArrayOf(1, 2, 3), 1L)
+
+        val result = repository.getReferenceClimate("loc-1", 1.0, 2.0, HistoricReference.CLASSIC, today)
+
+        assertFalse(result.fromCache)
+        assertEquals(3.0, result.value.series.valueOrNull(LocalDate.of(1961, 1, 1))!!, 1e-6)
+        coVerify(exactly = 1) { referenceDao.insert(any()) }
+        coVerify(exactly = 0) { referenceDao.touch(any(), any(), any()) }
+    }
+
+    @Test
     fun getReferenceClimate_refetchesWhenCurrentReferenceMovesToNextDecade() = runTest {
         stubArchive(valueOf = { 1.0 })
         coEvery { referenceDao.get("loc-1", "current") } returns
