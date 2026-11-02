@@ -394,6 +394,8 @@ class MetricAnalysisTest {
 
         assertEquals(4.0, summary.referenceTotal!!, 1e-9)
         assertEquals(5.0, summary.observedTotal!!, 1e-9)
+        assertEquals(2, summary.observedDays)
+        assertEquals(1, summary.totalDays)
     }
 
     @Test
@@ -404,6 +406,7 @@ class MetricAnalysisTest {
         val summary = summarize(points, sun)
 
         assertEquals(11.0, summary.observedTotal!!, 1e-9)
+        assertEquals(2, summary.totalDays)
         assertNull(summary.referenceTotal)
     }
 

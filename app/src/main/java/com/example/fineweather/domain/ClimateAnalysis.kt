@@ -305,6 +305,8 @@ data class WindowSummary(
     /** Sunshine totals, in hours, over the days that have a normal (all observed days without any normal). */
     val observedTotal: Double? = null,
     val referenceTotal: Double? = null,
+    /** The days the sunshine totals add up; fewer than [observedDays] while some observed days lack a normal. */
+    val totalDays: Int = observedDays,
 ) {
     val delta: Double? get() = if (observedMean != null && referenceMean != null) observedMean - referenceMean else null
 
@@ -320,11 +322,11 @@ fun summarize(
     val observed = points.filter { it.observed != null }
     val comparable = observed.filter { it.referenceMean != null }
     val days = points.count { it.elapsed }
+    // Sunshine totals cover the same days, so their difference is like-for-like; without a reference every observed day counts.
+    val totalled = if (metric == Metric.SUNSHINE) comparable.ifEmpty { observed } else observed
     val sunshineTotals =
         if (metric == Metric.SUNSHINE) {
-            // Both over the same days, so their difference is like-for-like; without a reference every observed day counts.
-            val summed = comparable.ifEmpty { observed }
-            summed.sumOf { it.observed!! } to comparable.takeIf { it.isNotEmpty() }?.sumOf { it.referenceMean!! }
+            totalled.sumOf { it.observed!! } to comparable.takeIf { it.isNotEmpty() }?.sumOf { it.referenceMean!! }
         } else {
             null to null
         }
@@ -337,6 +339,7 @@ fun summarize(
         metric = metric,
         observedTotal = sunshineTotals.first,
         referenceTotal = sunshineTotals.second,
+        totalDays = totalled.size,
     )
 }
 

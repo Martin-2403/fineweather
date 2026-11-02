@@ -68,7 +68,7 @@ internal fun monthSummaryText(
     val reference = summary.referenceMean
     if (metric == Metric.SUNSHINE) {
         val total = summary.observedTotal ?: return "No daily data available for this period yet."
-        val referenceTotal = summary.referenceTotal ?: return "${dayCount(summary.observedDays)}: ${formatHours(total)} total."
+        val referenceTotal = summary.referenceTotal ?: return "${dayCount(summary.totalDays)}: ${formatHours(total)} total."
         val delta = total - referenceTotal
         val comparison =
             if (abs(delta) < 0.05) {
@@ -76,7 +76,7 @@ internal fun monthSummaryText(
             } else {
                 formatSigned(delta) + " h compared with"
             }
-        return "${dayCount(summary.observedDays)}: ${formatHours(total)} total, $comparison the " +
+        return "${dayCount(summary.totalDays)}: ${formatHours(total)} total, $comparison the " +
             "${formatHours(referenceTotal)} average for the same days of $referenceLabel."
     }
     if (metric == Metric.TEMPERATURE) {
@@ -256,7 +256,7 @@ internal fun dailyChartDescription(
             Metric.TEMPERATURE -> "Daily mean temperatures, ${dayCount(summary.observedDays)}, averaging ${degrees(observed)}"
             Metric.SUNSHINE -> {
                 val average = summary.referenceTotal?.let { ", historical average ${formatHours(it)}" }.orEmpty()
-                "Daily sunshine, ${dayCount(summary.observedDays)}, ${summary.observedTotal?.let(::formatHours) ?: "–"} total$average"
+                "Daily sunshine, ${dayCount(summary.totalDays)}, ${summary.observedTotal?.let(::formatHours) ?: "–"} total$average"
             }
             Metric.PRECIPITATION -> {
                 val average = summary.referenceMean?.let { ", historical average ${metric.format(it)}" }.orEmpty()

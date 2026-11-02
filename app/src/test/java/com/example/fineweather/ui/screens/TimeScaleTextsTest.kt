@@ -415,6 +415,19 @@ class TimeScaleTextsTest {
     }
 
     @Test
+    fun sunshineTexts_countTheDaysTheTotalsAddUp() {
+        // 5 days observed, but only 3 of them have a normal and are totalled
+        val partial =
+            WindowSummary(5, 6.0, 5.0, 0, 0, Metric.SUNSHINE, observedTotal = 18.0, referenceTotal = 15.0, totalDays = 3)
+
+        assertEquals(
+            "3 days: 18.0 h total, +3.0 h compared with the 15.0 h average for the same days of $ref.",
+            monthSummaryText(partial, ref),
+        )
+        assertTrue(dailyChartDescription(partial, withForecast = false).startsWith("Daily sunshine, 3 days, 18.0 h total"))
+    }
+
+    @Test
     fun yearTexts_oneComparedMonthIsSingular() {
         val one = YearSummary(delta = 1.0, warmerMonths = 1, comparedMonths = 1)
 
