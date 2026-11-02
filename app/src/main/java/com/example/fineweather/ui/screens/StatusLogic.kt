@@ -221,14 +221,16 @@ internal fun resolveStatusImageRes(
     }
 
 /**
- * Whether the search field holds text that was never searched in this process: the field is saved across
- * process death, the loaded data is not, so it shows e.g. "Berlin" with an idle status and no place.
+ * Whether the search field holds text that was searched before the process died: the field and [searchedBefore]
+ * are saved across process death, the loaded data is not, so it shows e.g. "Berlin" with an idle status and no
+ * place. Text that was only typed (never searched) is left alone, also after a rotation.
  */
 internal fun needsSearchRestore(
     location: String,
     search: SearchStatus,
     hasPlace: Boolean,
-): Boolean = location.isNotBlank() && search == SearchStatus.Idle && !hasPlace
+    searchedBefore: Boolean,
+): Boolean = searchedBefore && location.isNotBlank() && search == SearchStatus.Idle && !hasPlace
 
 internal fun SearchStatus.displayText(metric: Metric = Metric.TEMPERATURE): String =
     when (this) {

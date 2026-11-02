@@ -85,6 +85,8 @@ fun WeatherScreen(
 ) {
     var location by rememberSaveable { mutableStateOf("") }
     var showAlternatives by rememberSaveable { mutableStateOf(false) }
+    // Whether a search was issued for the text: only then is it worth searching again after process death.
+    var searchedBefore by rememberSaveable { mutableStateOf(false) }
     var timeScale by rememberSaveable { mutableStateOf(TimeScale.MONTH) }
     val state by viewModel.state.collectAsState()
     val report by viewModel.report.collectAsState()
@@ -125,7 +127,7 @@ fun WeatherScreen(
 
     // After process death the saved text is back but nothing is loaded: search for it once.
     LaunchedEffect(Unit) {
-        if (needsSearchRestore(location, state.search, selectedPlace != null)) {
+        if (needsSearchRestore(location, state.search, selectedPlace != null, searchedBefore)) {
             viewModel.fetchWeather(location)
         }
     }
@@ -166,11 +168,13 @@ fun WeatherScreen(
                         onSearch = {
                             focusManager.clearFocus()
                             keyboardController?.hide()
+                            searchedBefore = location.isNotBlank()
                             viewModel.fetchWeather(location)
                         },
                         onClear = {
                             keyboardController?.hide()
                             location = ""
+                            searchedBefore = false
                             viewModel.fetchWeather("")
                         },
                         isFavorite = isFavoriteSelected,
@@ -270,6 +274,7 @@ fun WeatherScreen(
                 onDismissFavorites()
                 // Not left to the effect above: picking the shown place again leaves its keys unchanged.
                 location = place.name
+                searchedBefore = true
                 viewModel.selectPlace(place)
             },
             onDismiss = onDismissFavorites,
@@ -284,6 +289,7 @@ fun WeatherScreen(
             onSelect = { place ->
                 showAlternatives = false
                 location = place.name
+                searchedBefore = true
                 viewModel.selectPlace(place)
             },
             onDismiss = { showAlternatives = false },

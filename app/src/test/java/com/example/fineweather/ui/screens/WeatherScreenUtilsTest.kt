@@ -164,14 +164,21 @@ class WeatherScreenUtilsTest {
     }
 
     @Test
-    fun needsSearchRestore_onlyForSavedTextThatWasNeverSearched() {
-        assertTrue(needsSearchRestore("Berlin", SearchStatus.Idle, hasPlace = false))
-        assertFalse(needsSearchRestore("", SearchStatus.Idle, hasPlace = false))
-        assertFalse(needsSearchRestore("  ", SearchStatus.Idle, hasPlace = false))
-        assertFalse(needsSearchRestore("Berlin", SearchStatus.Searching("Berlin"), hasPlace = false))
-        assertFalse(needsSearchRestore("Berlin", SearchStatus.NotFound("Berlin"), hasPlace = false))
-        assertFalse(needsSearchRestore("Berlin", SearchStatus.Idle, hasPlace = true))
-        assertFalse(needsSearchRestore("Berlin", SearchStatus.Resolved(PlaceLabel("Berlin", "1.00, 2.00")), hasPlace = true))
+    fun needsSearchRestore_onlyForSavedTextThatWasSearched() {
+        val resolved = SearchStatus.Resolved(PlaceLabel("Berlin", "1.00, 2.00"))
+        assertTrue(needsSearchRestore("Berlin", SearchStatus.Idle, hasPlace = false, searchedBefore = true))
+        assertFalse(needsSearchRestore("", SearchStatus.Idle, hasPlace = false, searchedBefore = true))
+        assertFalse(needsSearchRestore("  ", SearchStatus.Idle, hasPlace = false, searchedBefore = true))
+        assertFalse(needsSearchRestore("Berlin", SearchStatus.Searching("Berlin"), hasPlace = false, searchedBefore = true))
+        assertFalse(needsSearchRestore("Berlin", SearchStatus.NotFound("Berlin"), hasPlace = false, searchedBefore = true))
+        assertFalse(needsSearchRestore("Berlin", SearchStatus.Idle, hasPlace = true, searchedBefore = true))
+        assertFalse(needsSearchRestore("Berlin", resolved, hasPlace = true, searchedBefore = true))
+    }
+
+    @Test
+    fun needsSearchRestore_textThatWasOnlyTypedIsNeverSearched() {
+        // half-typed text after a rotation, or typed after clearing the field
+        assertFalse(needsSearchRestore("Ber", SearchStatus.Idle, hasPlace = false, searchedBefore = false))
     }
 
     @Test
