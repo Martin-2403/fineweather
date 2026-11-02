@@ -4,7 +4,6 @@ import com.example.fineweather.domain.Metric
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
-import org.junit.Ignore
 import org.junit.Test
 
 class ChartUtilsTest {
@@ -114,7 +113,6 @@ class ChartUtilsTest {
         assertEquals("0.0 h", formatAmountDelta(-0.0, Metric.SUNSHINE))
     }
 
-    @Ignore("known issue: formatSigned keeps the sign of a delta that rounds to zero (+0.0, -0.0)")
     @Test
     fun formatSigned_aDeltaThatRoundsToZeroHasNoSign() {
         assertEquals("0.0", formatSigned(0.03))

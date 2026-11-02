@@ -84,15 +84,15 @@ class TimeScaleTextsTest {
     @Test
     fun monthSummary_rainGivesTotalPercentAndBothValues() {
         assertEquals(
-            "13 days 41 mm in total, +85% (41 mm vs 22 mm) compared with the same days of $ref.",
+            "13 days: 41 mm in total, +85% (41 mm vs 22 mm) compared with the same days of $ref.",
             monthSummaryText(summary(Metric.PRECIPITATION, 13, 41.3, 22.3), ref),
         )
         assertEquals(
-            "30 days 36 mm in total, -47% (36 mm vs 67 mm) compared with the same days of $ref.",
+            "30 days: 36 mm in total, -47% (36 mm vs 67 mm) compared with the same days of $ref.",
             monthSummaryText(summary(Metric.PRECIPITATION, 30, 35.6, 67.0), ref),
         )
         assertEquals(
-            "5 days 7.5 mm in total, +50% (7.5 mm vs 5.0 mm) compared with the same days of $ref.",
+            "5 days: 7.5 mm in total, +50% (7.5 mm vs 5.0 mm) compared with the same days of $ref.",
             monthSummaryText(summary(Metric.PRECIPITATION, 5, 7.5, 5.0), ref),
         )
     }
@@ -100,7 +100,7 @@ class TimeScaleTextsTest {
     @Test
     fun monthSummary_rainWithALowNormalUsesTheMillimetreDelta() {
         assertEquals(
-            "3 days 3.2 mm in total, +2.7 mm compared with the same days of $ref.",
+            "3 days: 3.2 mm in total, +2.7 mm compared with the same days of $ref.",
             monthSummaryText(summary(Metric.PRECIPITATION, 3, 3.2, 0.5), ref),
         )
     }
@@ -108,11 +108,11 @@ class TimeScaleTextsTest {
     @Test
     fun monthSummary_rainNeutralAndWithoutReference() {
         assertEquals(
-            "13 days 41 mm in total, in line with the same days of $ref.",
+            "13 days: 41 mm in total, in line with the same days of $ref.",
             monthSummaryText(summary(Metric.PRECIPITATION, 13, 41.2, 41.0), ref),
         )
-        assertEquals("13 days 41 mm in total.", monthSummaryText(summary(Metric.PRECIPITATION, 13, 41.2, null), ref))
-        assertEquals("1 day 0.0 mm in total.", monthSummaryText(summary(Metric.PRECIPITATION, 1, 0.0, null), ref))
+        assertEquals("13 days: 41 mm in total.", monthSummaryText(summary(Metric.PRECIPITATION, 13, 41.2, null), ref))
+        assertEquals("1 day: 0.0 mm in total.", monthSummaryText(summary(Metric.PRECIPITATION, 1, 0.0, null), ref))
     }
 
     // ---- captions ----
@@ -435,7 +435,6 @@ class TimeScaleTextsTest {
         }
     }
 
-    @Ignore("known issue: temperature deltas that round to zero are shown as +0.0 / -0.0")
     @Test
     fun temperatureTexts_aDeltaThatRoundsToZeroHasNoSign() {
         val texts =
