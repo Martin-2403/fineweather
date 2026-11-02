@@ -4,7 +4,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.Ignore
 import org.junit.Test
 import java.time.LocalDate
 
@@ -319,7 +318,6 @@ class ForecastDataTest {
         assertEquals(6, points.count { it.forecast != null })
     }
 
-    @Ignore("known issue: dayPoints assumes the forecast starts today")
     @Test
     fun dayPoints_aForecastStartingYesterdayStillGivesTheNextDaysFromToday() {
         val behind = forecast(start = today.minusDays(1))
@@ -329,7 +327,6 @@ class ForecastDataTest {
         assertEquals((14..20).toList(), points.filter { it.forecast != null }.map { it.date.dayOfMonth })
     }
 
-    @Ignore("known issue: the outlook assumes the forecast starts today")
     @Test
     fun outlook_aForecastStartingYesterdayLeavesOutYesterday() {
         val behind = forecast(start = today.minusDays(1)) { if (it == today.minusDays(1)) 100.0 else 8.0 }
@@ -338,6 +335,30 @@ class ForecastDataTest {
 
         assertEquals(7, outlook.days)
         assertEquals(8.0, outlook.mean, 1e-6)
+    }
+
+    @Test
+    fun dayPoints_aForecastStartingTomorrowLeavesTodayEmptyAndKeepsTheFullLength() {
+        val ahead = forecast(start = today.plusDays(1))
+
+        val month = dayPoints(snapshot(ahead), MonthWindow.THIS_MONTH, forecastDays = 7)
+        val last30 = dayPoints(snapshot(ahead), MonthWindow.LAST_30_DAYS, forecastDays = 7)
+
+        assertEquals((15..21).toList(), month.filter { it.forecast != null }.map { it.date.dayOfMonth })
+        assertNull(month.first { it.date == today }.forecast)
+        assertEquals(38, last30.size)
+        assertEquals(LocalDate.of(2026, 10, 21), last30.last().date)
+        assertEquals((15..21).toList(), last30.filter { it.forecast != null }.map { it.date.dayOfMonth })
+    }
+
+    @Test
+    fun outlook_aForecastStartingTomorrowCoversTheFirstDaysOfTheForecast() {
+        val ahead = forecast(start = today.plusDays(1)) { if (it == today.plusDays(1)) 11.0 else 8.0 }
+
+        val outlook = snapshot(ahead).outlook(7)!!
+
+        assertEquals(7, outlook.days)
+        assertEquals((11.0 + 6 * 8.0) / 7, outlook.mean, 1e-6)
     }
 
     @Test

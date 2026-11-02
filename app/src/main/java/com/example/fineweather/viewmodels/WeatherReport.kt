@@ -84,7 +84,7 @@ fun buildReport(
     val referenceSlice = month.referenceSlice
     val climate = referenceSlice.valueOrNull()
 
-    val outlook = forecastSeries?.let { forecastOutlook(it, climate, forecastDays, metric) }
+    val outlook = forecastSeries?.let { forecastOutlook(it, climate, forecastDays, metric, today) }
     val dayCount = month.comparison?.daysObserved ?: 0
     val referenceStdDev = month.stdDev
     val monthValue = month.observed

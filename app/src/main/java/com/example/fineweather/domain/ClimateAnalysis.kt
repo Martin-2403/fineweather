@@ -200,7 +200,9 @@ data class DayPoint(
 
 /**
  * The days of the month of yesterday, or the 30 days ending yesterday followed by the forecast days.
- * Forecast values are attached to the days from today on, for at most [forecastDays] days.
+ * Forecast values are attached by date to the days from today on, for at most [forecastDays] days from the
+ * first forecast day that is not before today. The forecast starts today in the place's time zone, which can
+ * be a day before or after the device's today: a day before is left out, a day after leaves today empty.
  */
 fun dayPoints(
     snapshot: ClimateSnapshot,
@@ -209,7 +211,8 @@ fun dayPoints(
 ): List<DayPoint> {
     val yesterday = snapshot.today.minusDays(1)
     val forecast = snapshot.forecast
-    val forecastEnd = forecast?.start?.plusDays((forecastDays - 1).toLong())
+    val forecastStart = forecast?.start?.let { maxOf(it, snapshot.today) }
+    val forecastEnd = forecastStart?.plusDays((forecastDays - 1).toLong())
     val dates =
         when (window) {
             MonthWindow.THIS_MONTH -> {
@@ -232,8 +235,8 @@ fun dayPoints(
         }
     return dates.map { date ->
         val inForecast =
-            forecast != null && forecastEnd != null && date.isAfter(yesterday) &&
-                !date.isBefore(forecast.start) && !date.isAfter(forecastEnd)
+            forecast != null && forecastStart != null && forecastEnd != null &&
+                !date.isBefore(forecastStart) && !date.isAfter(forecastEnd)
         DayPoint(
             date = date,
             observed = if (date.isAfter(yesterday)) null else snapshot.series.valueOrNull(date),
@@ -261,14 +264,20 @@ data class ForecastOutlook(
     val deltaPercent: Double? get() = metric.percent(delta, referenceMean)
 }
 
+/**
+ * The outlook over the first [days] days of [forecast] that are not before [today] (default: the forecast's own
+ * start); the forecast starts today in the place's time zone, which can be a day before the device's today.
+ */
 fun forecastOutlook(
     forecast: DailySeries?,
     reference: ReferenceClimate?,
     days: Int,
     metric: Metric = Metric.TEMPERATURE,
+    today: LocalDate? = null,
 ): ForecastOutlook? {
     if (forecast == null || days <= 0) return null
-    val values = forecast.days(forecast.start, forecast.start.plusDays(days - 1L))
+    val first = if (today == null) forecast.start else maxOf(forecast.start, today)
+    val values = forecast.days(first, first.plusDays(days - 1L))
     if (values.isEmpty()) return null
     val referenceMeans =
         reference?.let { climate ->
@@ -382,6 +391,6 @@ fun ClimateSnapshot.months(): List<MonthlyAnomaly> = yearToDate(series, referenc
 fun ClimateSnapshot.upcomingMonths(): List<MonthlyAnomaly> = upcomingMonths(reference, today, metric)
 
 /** The next [days] of the forecast, see [forecastOutlook]. */
-fun ClimateSnapshot.outlook(days: Int): ForecastOutlook? = forecastOutlook(forecast, reference, days, metric)
+fun ClimateSnapshot.outlook(days: Int): ForecastOutlook? = forecastOutlook(forecast, reference, days, metric, today)
 
 fun ClimateSnapshot.summarize(points: List<DayPoint>): WindowSummary = summarize(points, metric)

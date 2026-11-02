@@ -7,7 +7,7 @@ data class ClimateSnapshot(
     val series: DailySeries,
     val reference: ReferenceClimate?,
     val today: LocalDate,
-    /** Daily forecast starting today (up to 14 days), if it could be loaded. */
+    /** Daily forecast (up to 14 days) starting today in the place's time zone, if it could be loaded. */
     val forecast: DailySeries? = null,
     /** What [series], [reference] and [forecast] measure. */
     val metric: Metric = Metric.TEMPERATURE,
