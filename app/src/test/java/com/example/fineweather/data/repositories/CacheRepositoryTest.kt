@@ -26,7 +26,7 @@ class CacheRepositoryTest {
 
     @Test
     fun stats_combinesWeatherAndSearchCounts() = runTest {
-        every { referenceDao.observeLocationCount() } returns flowOf(3)
+        every { referenceDao.observeCachedLocationCount() } returns flowOf(3)
         every { geoCodeDao.observeSearchCount() } returns flowOf(7)
 
         val stats = RoomCacheRepository(weatherDao, geoCodeDao, referenceDao, yearSeriesDao, forecastDao).stats.first()
@@ -35,8 +35,19 @@ class CacheRepositoryTest {
     }
 
     @Test
+    fun stats_countTheLocationsOfAllWeatherCachesSoClearingStaysPossible() = runTest {
+        // a place whose reference was evicted but whose forecast and year are still cached
+        every { referenceDao.observeCachedLocationCount() } returns flowOf(1)
+        every { geoCodeDao.observeSearchCount() } returns flowOf(0)
+
+        val stats = RoomCacheRepository(weatherDao, geoCodeDao, referenceDao, yearSeriesDao, forecastDao).stats.first()
+
+        assertFalse(stats.isEmpty)
+    }
+
+    @Test
     fun clear_clearsBothCaches() = runTest {
-        every { referenceDao.observeLocationCount() } returns flowOf(0)
+        every { referenceDao.observeCachedLocationCount() } returns flowOf(0)
         every { geoCodeDao.observeSearchCount() } returns flowOf(0)
 
         RoomCacheRepository(weatherDao, geoCodeDao, referenceDao, yearSeriesDao, forecastDao).clear()

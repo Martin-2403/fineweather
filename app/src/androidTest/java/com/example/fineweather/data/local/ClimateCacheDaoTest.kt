@@ -183,8 +183,23 @@ class ClimateCacheDaoTest {
         referenceDao.insert(reference("loc-1", lastUsed = 2).copy(referenceId = "current"))
         referenceDao.insert(reference("loc-2", lastUsed = 3))
 
-        assertEquals(2, referenceDao.observeLocationCount().first())
+        assertEquals(2, referenceDao.observeCachedLocationCount().first())
         assertEquals(3, referenceDao.observeCount().first())
+    }
+
+    @Test
+    fun cachedLocationCount_coversAllWeatherCachesAndCountsEachPlaceOnce() = runBlocking {
+        assertEquals(0, referenceDao.observeCachedLocationCount().first())
+
+        // a place with only a forecast (its reference was evicted) still counts
+        forecastDao.insert(ForecastSeriesEntity("loc-1", "2026-10-14", "2026-10-27", byteArrayOf(1), "2026-10-14"))
+        assertEquals(1, referenceDao.observeCachedLocationCount().first())
+
+        yearSeriesDao.insert(yearSeries("loc-1", fetchedDate = "2026-10-14"))
+        yearSeriesDao.insert(yearSeries("loc-2", fetchedDate = "2026-10-14"))
+        referenceDao.insert(reference("loc-2", lastUsed = 1))
+        referenceDao.insert(reference("loc-3", lastUsed = 2))
+        assertEquals(3, referenceDao.observeCachedLocationCount().first())
     }
 
     @Test

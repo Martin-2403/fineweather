@@ -31,7 +31,7 @@ class RoomCacheRepository(
 ) : CacheRepository {
 
     override val stats: Flow<CacheStats> =
-        combine(referenceClimateDao.observeLocationCount(), geoCodeDao.observeSearchCount()) { weather, searches ->
+        combine(referenceClimateDao.observeCachedLocationCount(), geoCodeDao.observeSearchCount()) { weather, searches ->
             CacheStats(weatherEntries = weather, searchEntries = searches)
         }.distinctUntilChanged()
 

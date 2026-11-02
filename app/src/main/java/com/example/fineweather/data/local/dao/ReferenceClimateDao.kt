@@ -67,8 +67,17 @@ interface ReferenceClimateDao {
     @Query("SELECT COUNT(*) FROM reference_climate")
     fun observeCount(): Flow<Int>
 
-    @Query("SELECT COUNT(DISTINCT locationId) FROM reference_climate")
-    fun observeLocationCount(): Flow<Int>
+    /** The locations with a row in any of the weather caches (reference, current year, forecast), each once. */
+    @Query(
+        """
+        SELECT COUNT(*) FROM (
+            SELECT locationId FROM reference_climate
+            UNION SELECT locationId FROM year_series
+            UNION SELECT locationId FROM forecast_series
+        )
+        """,
+    )
+    fun observeCachedLocationCount(): Flow<Int>
 
     @Query("DELETE FROM reference_climate")
     suspend fun clearAll()
