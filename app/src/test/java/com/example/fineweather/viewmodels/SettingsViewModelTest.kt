@@ -111,6 +111,21 @@ class SettingsViewModelTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
+    fun setHasOpenedFavorites_updatesState() = runTest {
+        val repository = FakeSettingsRepository()
+        val viewModel = SettingsViewModel(repository, FakeCacheRepository())
+
+        advanceUntilIdle()
+        assertEquals(false, viewModel.hasOpenedFavorites.value)
+
+        viewModel.setHasOpenedFavorites(true)
+        advanceUntilIdle()
+
+        assertEquals(true, viewModel.hasOpenedFavorites.value)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
     fun cacheStats_reflectsRepository() = runTest {
         val cacheRepository = FakeCacheRepository(CacheStats(weatherEntries = 3, searchEntries = 5))
         val viewModel = SettingsViewModel(FakeSettingsRepository(), cacheRepository)
@@ -181,11 +196,13 @@ class SettingsViewModelTest {
         private val languageState = MutableStateFlow(initialLanguage)
         private val comparisonModeState = MutableStateFlow(initialTemperatureComparisonMode)
         private val hasSeenInfoState = MutableStateFlow(initialHasSeenInfo)
+        private val hasOpenedFavoritesState = MutableStateFlow(false)
         override val forecastDays: Flow<Int> = state
         override val historicReference: Flow<HistoricReference> = referenceState
         override val searchLanguage: Flow<String> = languageState
         override val temperatureComparisonMode: Flow<TemperatureComparisonMode> = comparisonModeState
         override val hasSeenInfo: Flow<Boolean> = hasSeenInfoState
+        override val hasOpenedFavorites: Flow<Boolean> = hasOpenedFavoritesState
 
         override suspend fun setForecastDays(days: Int) {
             state.value = days
@@ -205,6 +222,10 @@ class SettingsViewModelTest {
 
         override suspend fun setHasSeenInfo(seen: Boolean) {
             hasSeenInfoState.value = seen
+        }
+
+        override suspend fun setHasOpenedFavorites(opened: Boolean) {
+            hasOpenedFavoritesState.value = opened
         }
     }
 }

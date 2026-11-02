@@ -109,6 +109,10 @@ class WeatherViewModel(
     private val _snackbarMessages = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val snackbarMessages = _snackbarMessages.asSharedFlow()
 
+    // One event per place saved by toggleFavorite, so the UI can point at the favorites list.
+    private val _favoriteAdded = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val favoriteAdded = _favoriteAdded.asSharedFlow()
+
     /** The running geocoding of a search; starting another search or selection cancels it. */
     private var searchJob: Job? = null
 
@@ -400,8 +404,10 @@ class WeatherViewModel(
                 return@launch
             }
             val result = favoriteRepository.addFavorite(selected)
-            if (result == FavoriteAddResult.LIMIT_REACHED) {
-                _snackbarMessages.tryEmit("Favorites limit reached (10). Remove one to add another.")
+            when (result) {
+                FavoriteAddResult.ADDED -> _favoriteAdded.tryEmit(Unit)
+                FavoriteAddResult.LIMIT_REACHED ->
+                    _snackbarMessages.tryEmit("Favorites limit reached (10). Remove one to add another.")
             }
         }
     }

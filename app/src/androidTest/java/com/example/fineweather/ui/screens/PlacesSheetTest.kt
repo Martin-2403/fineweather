@@ -2,7 +2,6 @@ package com.example.fineweather.ui.screens
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.example.fineweather.data.models.GeoPlace
@@ -25,41 +24,19 @@ class PlacesSheetTest {
         composeTestRule.setContent {
             FineWeatherTheme {
                 PlacesSheet(
-                    title = "Favorites",
+                    title = "Other matches",
                     places = listOf(augsburg, berlin),
                     emptyMessage = "none",
                     onSelect = { selected = it },
                     onDismiss = {},
-                    onRemove = {},
                 )
             }
         }
 
-        composeTestRule.onNodeWithText("Favorites").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Other matches").assertIsDisplayed()
         composeTestRule.onNodeWithText("Berlin").performClick()
 
         assertEquals(berlin, selected)
-    }
-
-    @Test
-    fun removeButton_removesThatPlace() {
-        var removed: GeoPlace? = null
-        composeTestRule.setContent {
-            FineWeatherTheme {
-                PlacesSheet(
-                    title = "Favorites",
-                    places = listOf(augsburg, berlin),
-                    emptyMessage = "none",
-                    onSelect = {},
-                    onDismiss = {},
-                    onRemove = { removed = it },
-                )
-            }
-        }
-
-        composeTestRule.onAllNodesWithTag("removeFavoriteButton")[1].performClick()
-
-        assertEquals(berlin, removed)
     }
 
     @Test
@@ -67,32 +44,15 @@ class PlacesSheetTest {
         composeTestRule.setContent {
             FineWeatherTheme {
                 PlacesSheet(
-                    title = "Favorites",
-                    places = emptyList(),
-                    emptyMessage = "No favorites yet.",
-                    onSelect = {},
-                    onDismiss = {},
-                )
-            }
-        }
-
-        composeTestRule.onNodeWithText("No favorites yet.").assertIsDisplayed()
-    }
-
-    @Test
-    fun withoutRemoveCallback_noRemoveButtonsAreShown() {
-        composeTestRule.setContent {
-            FineWeatherTheme {
-                PlacesSheet(
                     title = "Other matches",
-                    places = listOf(augsburg),
-                    emptyMessage = "none",
+                    places = emptyList(),
+                    emptyMessage = "No other matches.",
                     onSelect = {},
                     onDismiss = {},
                 )
             }
         }
 
-        assertEquals(0, composeTestRule.onAllNodesWithTag("removeFavoriteButton").fetchSemanticsNodes().size)
+        composeTestRule.onNodeWithText("No other matches.").assertIsDisplayed()
     }
 }

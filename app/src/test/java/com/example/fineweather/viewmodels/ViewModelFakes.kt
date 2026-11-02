@@ -42,11 +42,13 @@ class FakeSettingsRepository(
     private val languageState = MutableStateFlow(initialLanguage)
     private val comparisonModeState = MutableStateFlow(initialComparisonMode)
     private val hasSeenInfoState = MutableStateFlow(false)
+    private val hasOpenedFavoritesState = MutableStateFlow(false)
     override val forecastDays: Flow<Int> = state
     override val historicReference: Flow<HistoricReference> = referenceState
     override val searchLanguage: Flow<String> = languageState
     override val temperatureComparisonMode: Flow<TemperatureComparisonMode> = comparisonModeState
     override val hasSeenInfo: Flow<Boolean> = hasSeenInfoState
+    override val hasOpenedFavorites: Flow<Boolean> = hasOpenedFavoritesState
 
     override suspend fun setForecastDays(days: Int) {
         state.value = days
@@ -66,5 +68,9 @@ class FakeSettingsRepository(
 
     override suspend fun setHasSeenInfo(seen: Boolean) {
         hasSeenInfoState.value = seen
+    }
+
+    override suspend fun setHasOpenedFavorites(opened: Boolean) {
+        hasOpenedFavoritesState.value = opened
     }
 }
