@@ -80,13 +80,13 @@ class MetricTimeScaleViewsTest {
         composeTestRule.onNodeWithTag("monthInfoButton").assertIsDisplayed()
         composeTestRule.onNodeWithTag("monthWindow_Month").assertIsDisplayed()
         composeTestRule.onNodeWithTag("monthSummary")
-            .assertTextEquals("13 days averaged 6.0 h/day, +1.5 h/day compared with the same days of 1961–1990.")
-        composeTestRule.onNodeWithTag("monthCaption")
-            .assertTextEquals("13 days sunnier and 0 days duller than the typical day.")
+            .assertTextEquals("13 days: 78.0 h total, +19.5 h compared with the 58.5 h average for the same days of 1961–1990.")
+        // sunshine has no caption line, unlike temperature and rain
+        composeTestRule.onNodeWithTag("monthCaption").assertDoesNotExist()
         composeTestRule.onNodeWithTag("forecastSummary")
             .assertTextEquals("Forecast: the next 7 days average 5.5 h/day, +1.0 h/day compared with normal for those days.")
         composeTestRule
-            .onNodeWithContentDescription("Daily sunshine, 13 days, averaging 6.0 h/day, with the forecast for the coming days.")
+            .onNodeWithContentDescription("Daily sunshine, 13 days, 78.0 h total, historical average 58.5 h, with the forecast for the coming days.")
             .assertExists()
     }
 
@@ -96,7 +96,7 @@ class MetricTimeScaleViewsTest {
 
         composeTestRule.onNodeWithText("30 days").performClick()
 
-        composeTestRule.onNodeWithTag("monthSummary").assertTextContains("30 days averaged 6.0 h/day", substring = true)
+        composeTestRule.onNodeWithTag("monthSummary").assertTextContains("30 days: 180.0 h total", substring = true)
     }
 
     @Test
@@ -118,7 +118,7 @@ class MetricTimeScaleViewsTest {
     fun monthView_sunshineWithoutReferenceOrForecastKeepsOnlyWhatItKnows() {
         show { MonthView(snapshot(Metric.SUNSHINE, 6.0, null, null), 7, label, shape, cardColors, metric = Metric.SUNSHINE) }
 
-        composeTestRule.onNodeWithTag("monthSummary").assertTextEquals("13 days averaged 6.0 h/day.")
+        composeTestRule.onNodeWithTag("monthSummary").assertTextEquals("13 days: 78.0 h total.")
         composeTestRule.onNodeWithTag("monthCaption").assertDoesNotExist()
         composeTestRule.onNodeWithTag("forecastSummary").assertDoesNotExist()
     }
@@ -132,13 +132,13 @@ class MetricTimeScaleViewsTest {
         composeTestRule.onNodeWithText("Daily rain").assertIsDisplayed()
         composeTestRule.onNodeWithTag("monthInfoButton").assertIsDisplayed()
         composeTestRule.onNodeWithTag("monthSummary")
-            .assertTextEquals("13 days: 39 mm in total, +50% (39 vs 26 mm) compared with the same days of 1961–1990.")
+            .assertTextEquals("13 days: 39 mm in total, +50% (39 mm vs 26 mm) compared with the same days of 1961–1990.")
         composeTestRule.onNodeWithTag("monthCaption")
             .assertTextEquals("13 rainy days (>= 1 mm), wettest: 3.0 mm on Oct 1.")
         composeTestRule.onNodeWithTag("forecastSummary")
             .assertTextEquals("Forecast: about 7.0 mm of rain in the next 7 days, vs 14 mm normal for those days.")
         composeTestRule
-            .onNodeWithContentDescription("Daily rain, 13 days, 39 mm in total, with the forecast for the coming days.")
+            .onNodeWithContentDescription("Daily rain, 13 days, 39 mm in total, historical average 26 mm, with the forecast for the coming days.")
             .assertExists()
     }
 
@@ -157,7 +157,7 @@ class MetricTimeScaleViewsTest {
         show { MonthView(snapshot(Metric.PRECIPITATION, 0.0, 2.0, null), 7, label, shape, cardColors, metric = Metric.PRECIPITATION) }
 
         composeTestRule.onNodeWithTag("monthCaption").assertTextEquals("No rainy days (>= 1 mm).")
-        composeTestRule.onNodeWithTag("monthSummary").assertTextContains("0.0 mm in total, -100% (0.0 vs 26 mm)", substring = true)
+        composeTestRule.onNodeWithTag("monthSummary").assertTextContains("0.0 mm in total, -100% (0.0 mm vs 26.0 mm)", substring = true)
     }
 
     // ---- window and metric ----
@@ -180,7 +180,7 @@ class MetricTimeScaleViewsTest {
         metric = Metric.SUNSHINE
         composeTestRule.waitForIdle()
         composeTestRule.onNodeWithTag("monthWindow_30 days").assertIsSelected()
-        composeTestRule.onNodeWithTag("monthSummary").assertTextContains("30 days averaged", substring = true)
+        composeTestRule.onNodeWithTag("monthSummary").assertTextContains("30 days: 180.0 h total", substring = true)
 
         metric = Metric.PRECIPITATION
         composeTestRule.waitForIdle()
@@ -249,7 +249,7 @@ class MetricTimeScaleViewsTest {
         composeTestRule.onNodeWithText("Jan").assertExists()
         composeTestRule.onNodeWithText("Oct*").assertExists()
         // January: 31 days of 6.0 vs 4.5 h/day
-        composeTestRule.onNodeWithText("186 h").assertExists()
+        composeTestRule.onAllNodesWithText("186 h").onFirst().assertExists()
         composeTestRule.onAllNodesWithText("+33%").onFirst().assertExists()
         composeTestRule.onNodeWithText("Bars show each month's hours of sunshine", substring = true).assertExists()
         composeTestRule
@@ -265,7 +265,7 @@ class MetricTimeScaleViewsTest {
             .assertTextEquals("So far this year: +286 mm rainfall compared with the 1961–1990 average, 10 of 10 months wetter.")
         composeTestRule.onNodeWithText("Total").assertIsDisplayed()
         // January: 31 days of 3 vs 2 mm
-        composeTestRule.onNodeWithText("+31 mm").assertExists()
+        composeTestRule.onAllNodesWithText("+31 mm").onFirst().assertExists()
         composeTestRule.onAllNodesWithText("+50%").onFirst().assertExists()
         composeTestRule.onNodeWithText("Bars show each month's rain in mm", substring = true).assertExists()
         composeTestRule
@@ -277,7 +277,7 @@ class MetricTimeScaleViewsTest {
     fun yearView_rainWithATinyNormalShowsTheMillimetreDeltaWithoutAPercent() {
         show { YearView(snapshot(Metric.PRECIPITATION, 0.2, 0.05, null), label, shape, cardColors, metric = Metric.PRECIPITATION) }
 
-        composeTestRule.onNodeWithText("+4.7 mm", substring = true).assertExists()
+        composeTestRule.onAllNodesWithText("+4.7 mm", substring = true).onFirst().assertExists()
         composeTestRule.onAllNodesWithText("–").onFirst().assertExists()
     }
 

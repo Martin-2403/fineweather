@@ -184,7 +184,7 @@ class MetricViewsTest {
         show { ReportViews(report(Metric.TEMPERATURE)) }
 
         assertShown(
-            "April so far: much warmer than the 1961–1990 average (+6.00°C, 10.00°C vs 4.00°C).",
+            "April: So far it is much warmer than the 1961–1990 average (+6.00°C, 10.00°C vs 4.00°C).",
             "Next 7 days: about 8.0°C warmer than usual (12.0°C vs 4.0°C).",
             "Only 1 day so far, so this can change quickly.",
             "+6.00°C",
@@ -199,11 +199,10 @@ class MetricViewsTest {
         show { ReportViews(report(Metric.SUNSHINE)) }
 
         assertShown(
-            "April so far: clearly duller than the 1961–1990 average (-1.0 h/day, 5.0 h/day vs 6.0 h/day).",
+            "April: So far it is clearly duller than the 1961–1990 average (-1.0 h/day, 5.0 h/day vs 6.0 h/day).",
             "Next 7 days: about 2.0 h/day sunnier than usual (8.0 h/day vs 6.0 h/day).",
             "-1.0 h/day",
-            // the narrow trend cell has no room for the unit
-            "+2.0",
+            "+2.0 h/day",
         )
         composeTestRule.onNodeWithContentDescription("-- duller than average").assertIsDisplayed()
         composeTestRule.onNodeWithContentDescription("Forecast sunnier than normal").assertIsDisplayed()
@@ -215,7 +214,7 @@ class MetricViewsTest {
 
         // April 1 so far and the normal of that day, the next 7 days and their normal
         assertShown(
-            "April so far: much wetter than the 1961–1990 average (+100%, 6.0 mm vs 3.0 mm).",
+            "April: So far it is much wetter than the 1961–1990 average (+100%, 6.0 mm vs 3.0 mm).",
             "Next 7 days: wetter than usual (28 mm vs 21 mm).",
             "+3.0 mm",
             "+7.0 mm",
