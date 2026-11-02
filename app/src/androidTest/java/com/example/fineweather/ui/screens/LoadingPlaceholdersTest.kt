@@ -85,7 +85,7 @@ class LoadingPlaceholdersTest {
         loading: Boolean,
         summary: List<SummaryBlock> = emptyList(),
     ) {
-        val cell = if (loading) loadingCell else ValueWithIcons("+1.00°C", null)
+        val cell = if (loading) loadingCell else ValueWithIcons("+1.0°C", null)
         StatusHeaderCard(
             imageRes = R.drawable.warm,
             summary = summary,

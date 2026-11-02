@@ -184,10 +184,10 @@ class MetricViewsTest {
         show { ReportViews(report(Metric.TEMPERATURE)) }
 
         assertShown(
-            "April: So far it is much warmer than the 1961–1990 average (+6.00°C, 10.00°C vs 4.00°C).",
+            "April: So far it is much warmer than the 1961–1990 average (+6.0°C, 10.0°C vs 4.0°C).",
             "Next 7 days: about 8.0°C warmer than usual (12.0°C vs 4.0°C).",
             "Only 1 day so far, so this can change quickly.",
-            "+6.00°C",
+            "+6.0°C",
             "+8.0°C",
         )
         composeTestRule.onNodeWithContentDescription("+++ warmer than average").assertIsDisplayed()
@@ -215,7 +215,7 @@ class MetricViewsTest {
         // April 1 so far and the normal of that day, the next 7 days and their normal
         assertShown(
             "April: So far it is much wetter than the 1961–1990 average (+100%, 6.0 mm vs 3.0 mm).",
-            "Next 7 days: wetter than usual (28 mm vs 21 mm).",
+            "Next 7 days: wetter than usual (28.0 mm vs 21.0 mm).",
             "+3.0 mm",
             "+7.0 mm",
         )
@@ -304,10 +304,10 @@ class MetricViewsTest {
     /** The worst cells of each metric: a text and three icons, loading, and a dash. */
     private val headerCases: List<Pair<ValueWithIcons, ValueWithIcons>> =
         listOf(
-            cell("+4.0°C", 3) to cell("+1.43°C", 3), // temperature
+            cell("+4.0°C", 3) to cell("+1.4°C", 3), // temperature
             cell("-3.2 h/day", 3) to cell("-1.8 h/day", 3), // sunshine
-            cell("+100 mm", 3) to cell("+100 mm", 3), // rain
-            cell("", 1) to ValueWithIcons("-1.00°C", null),
+            cell("+100.0 mm", 3) to cell("+100.0 mm", 3), // rain
+            cell("", 1) to ValueWithIcons("-1.0°C", null),
             ValueWithIcons("", null, loading = true) to ValueWithIcons("", null, loading = true),
             ValueWithIcons("-", null, placeholder = true) to ValueWithIcons("-", null, placeholder = true),
         )
