@@ -54,7 +54,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import okhttp3.ResponseBody.Companion.toResponseBody
+import retrofit2.HttpException
+import retrofit2.Response
 import java.io.IOException
+import java.net.UnknownHostException
 import java.time.LocalDate
 
 class WeatherViewModelTest {
@@ -428,6 +432,42 @@ class WeatherViewModelTest {
         advanceUntilIdle()
 
         assertTrue(state.search is SearchStatus.NotFound)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun fetchWeather_aGeoCodeFailureOfTheNetworkIsNotAMissingCity() = runTest {
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } throws Exception("Failed to fetch geocoding", UnknownHostException("host"))
+
+        viewModel.fetchWeather("Berlin")
+        advanceUntilIdle()
+
+        assertEquals(SearchStatus.Failed("Berlin", FailKind.NETWORK), state.search)
+        assertNull(state.selectedPlace)
+        assertEquals(Loadable.Unavailable(Reason.NOT_AVAILABLE), state.forecast)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun fetchWeather_aRateLimitedGeoCodeIsNotAMissingCity() = runTest {
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } throws RateLimitException()
+
+        viewModel.fetchWeather("Berlin")
+        advanceUntilIdle()
+
+        assertEquals(SearchStatus.Failed("Berlin", FailKind.RATE_LIMITED), state.search)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun fetchWeather_aServiceErrorOfTheGeoCodeIsNotAMissingCity() = runTest {
+        val http = HttpException(Response.error<Any>(500, "error".toResponseBody()))
+        coEvery { geoCodeRepository.getGeoCode(any(), any()) } throws Exception("Failed to fetch geocoding", http)
+
+        viewModel.fetchWeather("Berlin")
+        advanceUntilIdle()
+
+        assertEquals(SearchStatus.Failed("Berlin", FailKind.OTHER), state.search)
     }
 
     // ---- loading state ----

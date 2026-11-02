@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import retrofit2.HttpException
 import java.io.IOException
 import java.time.LocalDate
 import java.util.concurrent.atomic.AtomicBoolean
@@ -173,9 +174,10 @@ class WeatherViewModel(
                             "WeatherAPI",
                             ex.message ?: "Error occurred while trying to geocode the location",
                         )
+                        val kind = ex.geocodeFailKind()
                         updateIfCurrent(generation) {
                             it.copy(
-                                search = SearchStatus.NotFound(location),
+                                search = if (kind != null) SearchStatus.Failed(location, kind) else SearchStatus.NotFound(location),
                                 selectedPlace = null,
                                 places = emptyList(),
                                 forecast = Loadable.Unavailable(Reason.NOT_AVAILABLE),
@@ -434,6 +436,20 @@ class WeatherViewModel(
         }
     }
 
+}
+
+/**
+ * Why a geocoding that threw could not answer, or null if the service answered and the place is just unknown
+ * (an answer without results does not parse, so that ends up here too).
+ */
+private fun Throwable.geocodeFailKind(): FailKind? {
+    val chain = generateSequence(this) { it.cause }.toList()
+    return when {
+        chain.any { it is RateLimitException } -> FailKind.RATE_LIMITED
+        chain.any { it is IOException } -> FailKind.NETWORK
+        chain.any { it is HttpException } -> FailKind.OTHER
+        else -> null
+    }
 }
 
 private enum class Slice(val label: String) {

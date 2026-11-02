@@ -17,6 +17,10 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import okhttp3.ResponseBody.Companion.toResponseBody
+import retrofit2.HttpException
+import retrofit2.Response
+import java.io.IOException
 
 class GeoCodeRepositoryTest {
 
@@ -167,6 +171,26 @@ class GeoCodeRepositoryTest {
         val thrown = runCatching { repository.getGeoCode("Rome", "en") }.exceptionOrNull()
 
         assertTrue(thrown is Exception)
+    }
+
+    @Test
+    fun getGeoCode_keepsTheCauseOfANetworkFailure() = runTest {
+        coEvery { api.getGeoCoding(any(), any(), any(), any()) } throws IOException("offline")
+
+        val thrown = runCatching { repository.getGeoCode("Rome", "en") }.exceptionOrNull()
+
+        assertTrue("was $thrown", thrown?.cause is IOException)
+    }
+
+    @Test
+    fun getGeoCode_aTooManyRequestsResponseIsARateLimit() = runTest {
+        val http = HttpException(Response.error<GeoCodingResponse>(429, "error".toResponseBody()))
+        coEvery { api.getGeoCoding(any(), any(), any(), any()) } throws http
+
+        val thrown = runCatching { repository.getGeoCode("Rome", "en") }.exceptionOrNull()
+
+        assertTrue("was $thrown", thrown is RateLimitException)
+        assertEquals(http, thrown?.cause)
     }
 
     @Test

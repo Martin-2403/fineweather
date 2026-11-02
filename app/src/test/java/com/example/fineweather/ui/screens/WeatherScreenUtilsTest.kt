@@ -150,6 +150,14 @@ class WeatherScreenUtilsTest {
         assertEquals("Searching for Ulm...", SearchStatus.Searching("Ulm").displayText())
         assertEquals("City not found", SearchStatus.NotFound("Ulm").displayText())
         assertEquals(
+            "Could not reach the weather service. Check your connection and try again.",
+            SearchStatus.Failed("Ulm", FailKind.NETWORK).displayText(),
+        )
+        assertEquals(
+            "Weather service limit reached. Try again in a minute.",
+            SearchStatus.Failed("Ulm", FailKind.RATE_LIMITED).displayText(),
+        )
+        assertEquals(
             "Ulm, Germany (48.40, 9.99)",
             SearchStatus.Resolved(PlaceLabel("Ulm, Germany", "48.40, 9.99")).displayText(),
         )

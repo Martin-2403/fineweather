@@ -13,6 +13,7 @@ import com.example.fineweather.domain.Metric
 import com.example.fineweather.domain.SummaryBlock
 import com.example.fineweather.ui.models.IconStack
 import com.example.fineweather.ui.models.ValueWithIcons
+import com.example.fineweather.viewmodels.FailKind
 import com.example.fineweather.viewmodels.Loadable
 import com.example.fineweather.viewmodels.SearchStatus
 import com.example.fineweather.viewmodels.StatusPicture
@@ -225,6 +226,12 @@ internal fun SearchStatus.displayText(metric: Metric = Metric.TEMPERATURE): Stri
         is SearchStatus.Searching -> "Searching for $query..."
         is SearchStatus.Resolved -> "${label.name} (${label.coordinates})"
         is SearchStatus.NotFound -> "City not found"
+        is SearchStatus.Failed ->
+            if (kind == FailKind.RATE_LIMITED) {
+                "Weather service limit reached. Try again in a minute."
+            } else {
+                "Could not reach the weather service. Check your connection and try again."
+            }
     }
 
 internal fun Loadable<List<SummaryBlock>>.toBlocks(): List<SummaryBlock> =

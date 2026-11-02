@@ -62,5 +62,9 @@ sealed interface SearchStatus {
 
     data class Resolved(val label: PlaceLabel) : SearchStatus
 
+    /** The search found nothing for [query]. */
     data class NotFound(val query: String) : SearchStatus
+
+    /** The search for [query] could not be answered (offline, rate limited, service error), which says nothing about the place. */
+    data class Failed(val query: String, val kind: FailKind) : SearchStatus
 }

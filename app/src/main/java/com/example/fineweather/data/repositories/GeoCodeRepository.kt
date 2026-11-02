@@ -7,12 +7,17 @@ import com.example.fineweather.data.models.GeoPlace
 import com.example.fineweather.data.models.GeocodeSelection
 import com.example.fineweather.data.models.GeocodingResult
 import kotlinx.coroutines.CancellationException
+import retrofit2.HttpException
 import java.util.Locale
 
 class GeoCodeRepository(
     private val openMeteoGeoCodeApi: OpenMeteoGeoCodeApiService,
     private val geoCodeDao: GeoCodeDao,
 ) {
+    private companion object {
+        const val HTTP_TOO_MANY_REQUESTS = 429
+    }
+
     suspend fun getGeoCode(
         name: String,
         language: String,
@@ -68,7 +73,8 @@ class GeoCodeRepository(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            throw Exception("Failed to fetch geocoding", e)
+            // The cause stays, so the caller can tell a network problem from a place that does not exist.
+            throw if (e is HttpException && e.code() == HTTP_TOO_MANY_REQUESTS) RateLimitException(e) else Exception("Failed to fetch geocoding", e)
         }
     }
 
