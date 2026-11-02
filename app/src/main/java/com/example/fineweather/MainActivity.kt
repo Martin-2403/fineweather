@@ -159,12 +159,9 @@ fun WeatherApp() {
     var showFavorites by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
+    // Only the first run opens the overlay by itself; it never closes it, which the dismiss button does.
     LaunchedEffect(hasSeenInfo) {
-        if (hasSeenInfo == false) {
-            showInfo = true
-        } else if (hasSeenInfo == true) {
-            showInfo = false
-        }
+        if (hasSeenInfo == false) showInfo = true
     }
 
     Scaffold(
