@@ -29,7 +29,7 @@ class WeatherScreenUtilsTest {
     @Test
     fun buildStatusCardValue_returnsFireForPositiveDelta() {
         val value = buildStatusCardValue(divergence(2.0))
-        assertEquals("+2.00°C", value.text)
+        assertEquals("+2.0°C", value.text)
         assertEquals(R.drawable.fire, value.icons?.resId)
         assertEquals(2, value.icons?.count)
         assertEquals(Color(0xFFE53935), value.icons?.tint)
@@ -38,7 +38,7 @@ class WeatherScreenUtilsTest {
     @Test
     fun buildStatusCardValue_returnsSnowForNegativeDelta() {
         val value = buildStatusCardValue(divergence(-2.0))
-        assertEquals("-2.00°C", value.text)
+        assertEquals("-2.0°C", value.text)
         assertEquals(R.drawable.frost, value.icons?.resId)
         assertEquals(2, value.icons?.count)
         assertEquals(Color(0xFF1E88E5), value.icons?.tint)
@@ -47,7 +47,7 @@ class WeatherScreenUtilsTest {
     @Test
     fun buildStatusCardValue_returnsApproxZeroWhenClose() {
         val value = buildStatusCardValue(divergence(0.3))
-        assertEquals("+0.30°C", value.text)
+        assertEquals("+0.3°C", value.text)
         assertEquals(null, value.icons)
         assertFalse(value.placeholder)
     }
@@ -56,7 +56,7 @@ class WeatherScreenUtilsTest {
     fun buildStatusCardValue_usesAnomalyBandsForIcons() {
         val value =
             buildStatusCardValue(divergence(1.36, stdDev = 0.8, mode = TemperatureComparisonMode.NORMALIZED_ANOMALY))
-        assertEquals("+1.36°C", value.text)
+        assertEquals("+1.4°C", value.text)
         assertEquals(R.drawable.fire, value.icons?.resId)
         assertEquals(2, value.icons?.count)
     }

@@ -238,7 +238,7 @@ class WeatherViewModelTest {
         assertEquals(Loadable.Unavailable(Reason.NOT_AVAILABLE), report.headline)
         assertEquals(0, report.dayCount)
         assertEquals(
-            listOf("No complete day of April yet, check back tomorrow.", "The 1961–1990 average for April is 4.00°C."),
+            listOf("No complete day of April yet, check back tomorrow.", "The 1961–1990 average for April is 4.0°C."),
             summaryTexts().take(2),
         )
     }
@@ -273,7 +273,7 @@ class WeatherViewModelTest {
         assertEquals(0, report.dayCount)
         assertEquals(Loadable.Failed(FailKind.OTHER), report.snapshot)
         assertEquals(
-            listOf("This year's weather data could not be loaded.", "The 1961–1990 average for April is 4.00°C."),
+            listOf("This year's weather data could not be loaded.", "The 1961–1990 average for April is 4.0°C."),
             summaryTexts().take(2),
         )
     }

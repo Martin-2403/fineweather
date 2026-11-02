@@ -186,12 +186,12 @@ class MetricChartUtilsTest {
     }
 
     @Test
-    fun anomalyBarLabel_temperatureIsSignedAndTheTotalsAreCompact() {
+    fun anomalyBarLabel_temperatureIsSignedAndTheTotalsHaveOneDecimal() {
         assertEquals("+1.8", anomalyBarLabel(Metric.TEMPERATURE, 1.84))
         assertEquals("-0.5", anomalyBarLabel(Metric.TEMPERATURE, -0.45))
-        assertEquals("186", anomalyBarLabel(Metric.SUNSHINE, 186.2))
+        assertEquals("186.2", anomalyBarLabel(Metric.SUNSHINE, 186.2))
         assertEquals("7.5", anomalyBarLabel(Metric.PRECIPITATION, 7.46))
-        assertEquals("93", anomalyBarLabel(Metric.PRECIPITATION, 93.0))
+        assertEquals("93.0", anomalyBarLabel(Metric.PRECIPITATION, 93.0))
     }
 
     // ---- colours ----

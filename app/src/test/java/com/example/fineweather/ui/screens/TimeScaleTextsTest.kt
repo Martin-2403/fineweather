@@ -83,11 +83,11 @@ class TimeScaleTextsTest {
     @Test
     fun monthSummary_rainGivesTotalPercentAndBothValues() {
         assertEquals(
-            "13 days: 41 mm in total, +85% (41 mm vs 22 mm) compared with the same days of $ref.",
+            "13 days: 41.3 mm in total, +85% (41.3 mm vs 22.3 mm) compared with the same days of $ref.",
             monthSummaryText(summary(Metric.PRECIPITATION, 13, 41.3, 22.3), ref),
         )
         assertEquals(
-            "30 days: 36 mm in total, -47% (36 mm vs 67 mm) compared with the same days of $ref.",
+            "30 days: 35.6 mm in total, -47% (35.6 mm vs 67.0 mm) compared with the same days of $ref.",
             monthSummaryText(summary(Metric.PRECIPITATION, 30, 35.6, 67.0), ref),
         )
         assertEquals(
@@ -107,10 +107,10 @@ class TimeScaleTextsTest {
     @Test
     fun monthSummary_rainNeutralAndWithoutReference() {
         assertEquals(
-            "13 days: 41 mm in total, in line with the same days of $ref.",
+            "13 days: 41.2 mm in total, in line with the same days of $ref.",
             monthSummaryText(summary(Metric.PRECIPITATION, 13, 41.2, 41.0), ref),
         )
-        assertEquals("13 days: 41 mm in total.", monthSummaryText(summary(Metric.PRECIPITATION, 13, 41.2, null), ref))
+        assertEquals("13 days: 41.2 mm in total.", monthSummaryText(summary(Metric.PRECIPITATION, 13, 41.2, null), ref))
         assertEquals("1 day: 0.0 mm in total.", monthSummaryText(summary(Metric.PRECIPITATION, 1, 0.0, null), ref))
     }
 
@@ -154,7 +154,7 @@ class TimeScaleTextsTest {
         val points = listOf(day(7, 3.0), day(8, 12.0), day(9, 1.4), day(10, 0.0), day(11, 5.0), day(12, 2.0))
 
         assertEquals(
-            "5 rainy days (>= 1 mm), wettest: 12 mm on Oct 8.",
+            "5 rainy days (>= 1 mm), wettest: 12.0 mm on Oct 8.",
             monthCaptionText(s, points),
         )
         assertEquals("1 rainy day (>= 1 mm), wettest: 7.5 mm on Oct 3.", rainCaption(RainDays(1, LocalDate.of(2026, 10, 3) to 7.5)))
@@ -188,11 +188,11 @@ class TimeScaleTextsTest {
     @Test
     fun forecastSummary_rain() {
         assertEquals(
-            "Forecast: about 25 mm of rain in the next 7 days, vs 14 mm normal for those days.",
+            "Forecast: about 25.2 mm of rain in the next 7 days, vs 14.4 mm normal for those days.",
             forecastSummaryText(outlook(Metric.PRECIPITATION, 25.2, 14.4)),
         )
         assertEquals(
-            "Forecast: no rain in the next 7 days, vs 14 mm normal for those days.",
+            "Forecast: no rain in the next 7 days, vs 14.4 mm normal for those days.",
             forecastSummaryText(outlook(Metric.PRECIPITATION, 0.0, 14.4)),
         )
         assertEquals("Forecast: about 4.5 mm of rain in the next 7 days.", forecastSummaryText(outlook(Metric.PRECIPITATION, 4.5, null)))
@@ -275,7 +275,7 @@ class TimeScaleTextsTest {
             dailyChartDescription(summary(Metric.SUNSHINE, 13, 5.3, 4.0), withForecast = true),
         )
         assertEquals(
-            "Daily rain, 13 days, 41 mm in total, historical average 22 mm.",
+            "Daily rain, 13 days, 41.0 mm in total, historical average 22.0 mm.",
             dailyChartDescription(summary(Metric.PRECIPITATION, 13, 41.0, 22.0), withForecast = false),
         )
     }
@@ -302,12 +302,12 @@ class TimeScaleTextsTest {
         val s = summarizeYear(months(Metric.SUNSHINE, 5.0 to 4.5, 6.0 to 5.0, 4.0 to 5.0))
 
         assertEquals(
-            "So far this year: +15 h sunshine compared with the $ref average, 2 of 3 months sunnier.",
+            "So far this year: +15.0 h sunshine compared with the $ref average, 2 of 3 months sunnier.",
             yearSummaryText(2026, s, ref, Metric.SUNSHINE),
         )
         val duller = summarizeYear(months(Metric.SUNSHINE, 4.0 to 5.0, 4.5 to 5.0))
         assertEquals(
-            "So far this year: -45 h sunshine compared with the $ref average, 0 of 2 months sunnier.",
+            "So far this year: -45.0 h sunshine compared with the $ref average, 0 of 2 months sunnier.",
             yearSummaryText(2026, duller, ref, Metric.SUNSHINE),
         )
     }
@@ -317,7 +317,7 @@ class TimeScaleTextsTest {
         val s = summarizeYear(months(Metric.PRECIPITATION, 80.0 to 60.0, 50.0 to 70.0, 120.0 to 100.0))
 
         assertEquals(
-            "So far this year: +20 mm rainfall compared with the $ref average, 2 of 3 months wetter.",
+            "So far this year: +20.0 mm rainfall compared with the $ref average, 2 of 3 months wetter.",
             yearSummaryText(2026, s, ref, Metric.PRECIPITATION),
         )
     }
@@ -371,11 +371,11 @@ class TimeScaleTextsTest {
         )
         // sunshine is shown as hours per month: 30 days of 5.4 vs 4.8 h/day
         assertEquals(
-            listOf("162 h", "144 h", "+18 h", "+13%"),
+            listOf("162.0 h", "144.0 h", "+18.0 h", "+13%"),
             yearTableCells(Metric.SUNSHINE, months(Metric.SUNSHINE, 5.4 to 4.8).first()),
         )
         assertEquals(
-            listOf("81 mm", "60 mm", "+21 mm", "+35%"),
+            listOf("81.0 mm", "60.0 mm", "+21.0 mm", "+35%"),
             yearTableCells(Metric.PRECIPITATION, months(Metric.PRECIPITATION, 81.0 to 60.0).first()),
         )
         // a tiny normal has no percent
@@ -393,7 +393,7 @@ class TimeScaleTextsTest {
     fun yearTable_aRunningMonthUsesTheDaysSoFar() {
         val running = MonthlyAnomaly(10, 4.0, 3.0, null, daysObserved = 14, partial = true, metric = Metric.SUNSHINE, days = 15)
 
-        assertEquals(listOf("60 h", "45 h", "+15 h", "+33%"), yearTableCells(Metric.SUNSHINE, running))
+        assertEquals(listOf("60.0 h", "45.0 h", "+15.0 h", "+33%"), yearTableCells(Metric.SUNSHINE, running))
     }
 
     @Test
