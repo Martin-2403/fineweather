@@ -32,12 +32,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -468,6 +470,26 @@ class WeatherViewModelTest {
         advanceUntilIdle()
 
         assertEquals(SearchStatus.Failed("Berlin", FailKind.OTHER), state.search)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun fetchWeather_waitsForTheStoredSearchLanguage() = runTest {
+        val slowSettings =
+            object : SettingsRepository by FakeSettingsRepository() {
+                override val searchLanguage: Flow<String> =
+                    flow {
+                        delay(1_000)
+                        emit("de")
+                    }
+            }
+        val early = newViewModel(settings = slowSettings)
+        stubSearch()
+
+        early.fetchWeather("Berlin")
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { geoCodeRepository.getGeoCode("Berlin", "de") }
     }
 
     // ---- loading state ----

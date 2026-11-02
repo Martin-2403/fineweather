@@ -60,7 +60,6 @@ class WeatherViewModel(
     private val _historicReference = MutableStateFlow(SettingsDefaults.DEFAULT_HISTORIC_REFERENCE)
     private val _temperatureComparisonMode =
         MutableStateFlow(SettingsDefaults.DEFAULT_TEMPERATURE_COMPARISON_MODE)
-    private val _searchLanguage = MutableStateFlow(SettingsDefaults.DEFAULT_SEARCH_LANGUAGE)
 
     /** The metric the report is about; it stays across searches. */
     private val _metric = MutableStateFlow(Metric.TEMPERATURE)
@@ -137,11 +136,6 @@ class WeatherViewModel(
             }
         }
         viewModelScope.launch {
-            settingsRepository.searchLanguage.collect { language ->
-                _searchLanguage.value = language
-            }
-        }
-        viewModelScope.launch {
             settingsRepository.temperatureComparisonMode.collect { mode ->
                 _temperatureComparisonMode.value = mode
             }
@@ -163,7 +157,8 @@ class WeatherViewModel(
                         weatherRepository.cleanOutdatedWeatherDate()
                         geoCodeRepository.getGeoCode(
                             name = location.trim(),
-                            language = _searchLanguage.value,
+                            // Waits for the stored setting: a search right at the start must not use the default.
+                            language = settingsRepository.searchLanguage.first(),
                         )
                     } catch (e: CancellationException) {
                         throw e
