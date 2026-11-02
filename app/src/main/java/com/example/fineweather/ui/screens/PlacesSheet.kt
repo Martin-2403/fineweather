@@ -31,8 +31,8 @@ import com.example.fineweather.data.models.GeoPlace
 import com.example.fineweather.nunitoSansFamily
 
 /**
- * A bottom sheet listing places to pick from: the saved favorites (with a remove button per row)
- * or the other matches of a search.
+ * A bottom sheet listing places to pick from, e.g. the other matches of a search. The saved favorites
+ * have their own [FavoritesPanel].
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,7 +42,6 @@ internal fun PlacesSheet(
     emptyMessage: String,
     onSelect: (GeoPlace) -> Unit,
     onDismiss: () -> Unit,
-    onRemove: ((GeoPlace) -> Unit)? = null,
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -78,7 +77,7 @@ internal fun PlacesSheet(
                 PlaceRow(
                     place = place,
                     onClick = { onSelect(place) },
-                    onRemove = onRemove?.let { remove -> { remove(place) } },
+                    onRemove = null,
                 )
                 if (index != places.lastIndex) {
                     DividerLine()
@@ -88,8 +87,9 @@ internal fun PlacesSheet(
     }
 }
 
+/** A place to pick, with a remove button when [onRemove] is given. */
 @Composable
-private fun PlaceRow(
+internal fun PlaceRow(
     place: GeoPlace,
     onClick: () -> Unit,
     onRemove: (() -> Unit)?,
@@ -130,7 +130,7 @@ private fun PlaceRow(
             ) {
                 Icon(
                     painter = painterResource(id = R.drawable.delete_24),
-                    contentDescription = "Remove favorite",
+                    contentDescription = "Remove ${place.displayName()} from favorites",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                     modifier = Modifier.size(20.dp),
                 )

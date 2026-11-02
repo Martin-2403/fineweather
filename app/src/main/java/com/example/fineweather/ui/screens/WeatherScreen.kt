@@ -57,6 +57,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextOverflow
 import com.example.fineweather.viewmodels.PlaceLabel
+import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.widthIn
@@ -83,6 +84,7 @@ fun WeatherScreen(
     onDismissInfo: () -> Unit,
     showFavorites: Boolean,
     onDismissFavorites: () -> Unit,
+    favoritesAnchor: IntRect?,
     modifier: Modifier = Modifier,
 ) {
     var location by rememberSaveable { mutableStateOf("") }
@@ -267,9 +269,11 @@ fun WeatherScreen(
             )
         }
     }
-    if (showFavorites) {
-        PlacesSheet(
-            title = "Favorites",
+    // The panel hangs under the favorites icon of the top bar, whose bounds are not known before its layout.
+    if (favoritesAnchor != null) {
+        FavoritesPanel(
+            visible = showFavorites,
+            anchor = favoritesAnchor,
             places = favorites,
             emptyMessage = "No favorites yet. Tap the star next to the search bar to save a place.",
             onSelect = { place ->
@@ -279,8 +283,8 @@ fun WeatherScreen(
                 searchedBefore = true
                 viewModel.selectPlace(place)
             },
-            onDismiss = onDismissFavorites,
             onRemove = { place -> viewModel.removeFavorite(place.id) },
+            onDismiss = onDismissFavorites,
         )
     }
     if (showAlternatives && alternatives.isNotEmpty()) {
