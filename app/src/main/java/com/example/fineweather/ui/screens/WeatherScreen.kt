@@ -256,6 +256,8 @@ fun WeatherScreen(
             emptyMessage = "No favorites yet. Tap the star next to the search bar to save a place.",
             onSelect = { place ->
                 onDismissFavorites()
+                // Not left to the effect above: picking the shown place again leaves its keys unchanged.
+                location = place.name
                 viewModel.selectPlace(place)
             },
             onDismiss = onDismissFavorites,
@@ -269,6 +271,7 @@ fun WeatherScreen(
             emptyMessage = "No other matches for this search.",
             onSelect = { place ->
                 showAlternatives = false
+                location = place.name
                 viewModel.selectPlace(place)
             },
             onDismiss = { showAlternatives = false },
