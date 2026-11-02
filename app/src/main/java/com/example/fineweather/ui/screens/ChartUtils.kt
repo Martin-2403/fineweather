@@ -45,6 +45,7 @@ internal fun formatTick(value: Double): String =
 
 /** A delta with one decimal and its sign (`+1.8`, `-0.4`); a delta that rounds to zero has no sign (`0.0`). */
 internal fun formatSigned(value: Double): String {
+    if (value.isNaN()) return "NaN"
     val number = String.format(Locale.US, "%.1f", abs(value))
     val sign = if (number == "0.0") "" else if (value < 0) "-" else "+"
     return sign + number

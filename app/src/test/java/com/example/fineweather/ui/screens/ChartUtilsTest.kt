@@ -119,4 +119,9 @@ class ChartUtilsTest {
         assertEquals("0.0", formatSigned(-0.04))
         assertEquals("+0.1", formatSigned(0.06))
     }
+
+    @Test
+    fun formatSigned_nanHasNoSign() {
+        assertEquals("NaN", formatSigned(Double.NaN))
+    }
 }
