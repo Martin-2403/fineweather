@@ -79,9 +79,14 @@ class MetricTest {
     }
 
     @Test
+    fun format_aValueThatRoundsToZeroHasNoMinusSign() {
+        assertEquals("0.0°C", Metric.TEMPERATURE.format(-0.04))
+        assertEquals("0.0°C vs 4.0°C", Metric.TEMPERATURE.formatPair(-0.04, 4.0))
+    }
+
+    @Test
     fun formatDelta_aDifferenceThatRoundsToZeroHasNoSignForAnyMetric() {
         assertEquals("0.0°C", Metric.TEMPERATURE.formatDelta(0.0))
-        assertEquals("0.0°C", Metric.TEMPERATURE.formatDelta(0.0, signAtZero = false))
         assertEquals("0.0°C", Metric.TEMPERATURE.formatDelta(-0.001))
         assertEquals("0.0°C", Metric.TEMPERATURE.formatDelta(0.04))
         assertEquals("0.0°C", Metric.TEMPERATURE.formatDelta(-0.04))
@@ -143,7 +148,6 @@ class MetricTest {
     @Test
     fun formatDelta_negativeZeroIsAZero() {
         assertEquals("0.0°C", Metric.TEMPERATURE.formatDelta(-0.0))
-        assertEquals("0.0°C", Metric.TEMPERATURE.formatDelta(-0.0, signAtZero = false))
         assertEquals("0.0 h/day", Metric.SUNSHINE.formatDelta(-0.0))
         assertEquals("0.0 mm", Metric.PRECIPITATION.formatDelta(-0.0))
     }

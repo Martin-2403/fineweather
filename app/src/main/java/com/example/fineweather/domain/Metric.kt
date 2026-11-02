@@ -78,7 +78,7 @@ enum class Metric(
     fun format(value: Double): String = formatNumber(value) + unitSuffix
 
     /** [format] without the unit. */
-    fun formatNumber(value: Double): String = String.format(Locale.US, "%.1f", value)
+    fun formatNumber(value: Double): String = String.format(Locale.US, "%.1f", value).let { if (it == "-0.0") "0.0" else it }
 
     /** "[a] vs [b]" with the unit, both numbers with one decimal (`10.0°C vs 4.0°C`, `41.0 mm vs 26.0 mm`). */
     fun formatPair(
@@ -88,21 +88,12 @@ enum class Metric(
 
     /**
      * A signed difference: `+1.3°C`, `-0.8 h/day`, `+19.0 mm`. A difference that rounds to zero has no sign
-     * (`0.0°C`, never `+0.0°C`), exact zero included, so [signAtZero] currently changes nothing.
+     * (`0.0°C`, never `+0.0°C`), exact zero included.
      */
-    fun formatDelta(
-        delta: Double,
-        signAtZero: Boolean = true,
-    ): String {
+    fun formatDelta(delta: Double): String {
         val number = formatNumber(abs(delta))
-        val sign =
-            when {
-                delta < 0 -> "-"
-                delta > 0 || signAtZero -> "+"
-                else -> ""
-            }
-        val roundsToZero = number.toDouble() == 0.0
-        return (if (roundsToZero) "" else sign) + number + unitSuffix
+        val sign = if (number.toDouble() == 0.0) "" else if (delta < 0) "-" else "+"
+        return sign + number + unitSuffix
     }
 
     /**

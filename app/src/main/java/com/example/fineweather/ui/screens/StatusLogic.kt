@@ -117,7 +117,7 @@ internal fun buildStatusCardValue(
             else -> return ValueWithIcons("-", null, placeholder = true)
         }
     val delta = assessment.delta
-    val valueText = assessment.metric.formatDelta(delta, signAtZero = false)
+    val valueText = assessment.metric.formatDelta(delta)
     val count = assessment.severity
     if (count == 0) {
         return ValueWithIcons(valueText, null)
@@ -151,7 +151,7 @@ internal fun buildTrendCardValue(
     val delta = outlook?.delta ?: return ValueWithIcons("-", null, placeholder = true)
     val metric = outlook.metric
     val assessment = Assessment(delta, null, TemperatureComparisonMode.ABSOLUTE_DELTA, metric, outlook.referenceMean)
-    val text = metric.formatDelta(delta, signAtZero = false)
+    val text = metric.formatDelta(delta)
     val wording = metric.wording
     val (resId, tint, description) =
         when (assessment.band) {
