@@ -12,7 +12,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.Ignore
 import org.junit.Test
 import java.time.LocalDate
 import java.util.Locale
@@ -416,6 +415,28 @@ class TimeScaleTextsTest {
     }
 
     @Test
+    fun yearTexts_oneComparedMonthIsSingular() {
+        val one = YearSummary(delta = 1.0, warmerMonths = 1, comparedMonths = 1)
+
+        assertEquals(
+            "Monthly deviation from the $ref average. 1 of 1 month was warmer.",
+            yearChartDescription(one, ref),
+        )
+        assertEquals(
+            "So far 2026 is +1.0°C compared with $ref, with 1 of 1 month warmer than average.",
+            yearSummaryText(2026, one, ref),
+        )
+    }
+
+    @Test
+    fun dailyChartDescription_oneDayIsSingular() {
+        Metric.entries.forEach { metric ->
+            val text = dailyChartDescription(summary(metric, 1, 5.0, 4.0), withForecast = false)
+            assertTrue(text, ", 1 day," in text)
+        }
+    }
+
+    @Test
     fun shortDate_isAnEnglishMonthAndTheDay() {
         assertEquals("Oct 8", shortDate(LocalDate.of(2026, 10, 8)))
         assertEquals("Dec 31", shortDate(LocalDate.of(2026, 12, 31)))
@@ -449,7 +470,6 @@ class TimeScaleTextsTest {
         texts.forEach { assertFalse(it, "+0.0" in it || "-0.0" in it) }
     }
 
-    @Ignore("known issue: the forecast sentence says '1 days' for a one-day outlook")
     @Test
     fun forecastSummary_oneDayIsSingular() {
         Metric.entries.forEach { metric ->

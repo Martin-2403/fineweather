@@ -4,7 +4,6 @@ import com.example.fineweather.data.models.TemperatureComparisonMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
-import org.junit.Ignore
 import org.junit.Test
 
 class SummaryBuilderTest {
@@ -119,7 +118,6 @@ class SummaryBuilderTest {
         assertEquals("Next 7 days: about 2.5°C cooler than usual (7.5°C vs 10.0°C).", cooler)
     }
 
-    @Ignore("known issue: the outlook sentence says 'Next 1 days' for a one-day outlook")
     @Test
     fun outlook_oneDayIsSingular() {
         val oneDay = ForecastOutlook(days = 1, mean = 14.0, referenceMean = 10.0)

@@ -120,7 +120,7 @@ private fun outlookText(
     mode: TemperatureComparisonMode,
 ): String {
     val metric = outlook.metric
-    val period = "Next ${outlook.days} days"
+    val period = "Next ${if (outlook.days == 1) "1 day" else "${outlook.days} days"}"
     val reference = outlook.referenceMean
         ?: return "$period: forecast to ${if (metric.aggregation == Aggregation.TOTAL) "bring" else "average"} " +
             "${compact(metric, outlook.mean)}."

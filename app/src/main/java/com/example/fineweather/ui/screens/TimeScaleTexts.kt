@@ -137,7 +137,7 @@ internal fun rainCaption(rain: RainDays): String {
 /** The sentence about the coming days: how the forecast compares with the normal of exactly those days. */
 internal fun forecastSummaryText(outlook: ForecastOutlook): String {
     val metric = outlook.metric
-    val period = "next ${outlook.days} days"
+    val period = "next ${dayCount(outlook.days)}"
     val reference = outlook.referenceMean
     when (metric) {
         Metric.TEMPERATURE -> {
@@ -253,18 +253,24 @@ internal fun dailyChartDescription(
     val observed = summary.observedMean
     val head =
         when (metric) {
-            Metric.TEMPERATURE -> "Daily mean temperatures, ${summary.observedDays} days, averaging ${degrees(observed)}"
+            Metric.TEMPERATURE -> "Daily mean temperatures, ${dayCount(summary.observedDays)}, averaging ${degrees(observed)}"
             Metric.SUNSHINE -> {
                 val average = summary.referenceTotal?.let { ", historical average ${formatHours(it)}" }.orEmpty()
-                "Daily sunshine, ${summary.observedDays} days, ${summary.observedTotal?.let(::formatHours) ?: "–"} total$average"
+                "Daily sunshine, ${dayCount(summary.observedDays)}, ${summary.observedTotal?.let(::formatHours) ?: "–"} total$average"
             }
             Metric.PRECIPITATION -> {
                 val average = summary.referenceMean?.let { ", historical average ${metric.format(it)}" }.orEmpty()
-                "Daily rain, ${summary.observedDays} days, ${observed?.let(metric::format) ?: "–"} in total$average"
+                "Daily rain, ${dayCount(summary.observedDays)}, ${observed?.let(metric::format) ?: "–"} in total$average"
             }
         }
     return head + if (withForecast) ", with the forecast for the coming days." else "."
 }
+
+/** `3 of 5 months`, `1 of 1 month`. */
+private fun monthsOf(summary: YearSummary): String =
+    "${summary.warmerMonths} of ${summary.comparedMonths} ${if (summary.comparedMonths == 1) "month" else "months"}"
+
+private fun wasOrWere(summary: YearSummary): String = if (summary.comparedMonths == 1) "was" else "were"
 
 /** The sentence under the monthly chart. */
 internal fun yearSummaryText(
@@ -274,7 +280,7 @@ internal fun yearSummaryText(
     metric: Metric = Metric.TEMPERATURE,
 ): String {
     val delta = summary.delta ?: return "No monthly comparison is available yet."
-    val months = "${summary.warmerMonths} of ${summary.comparedMonths} months"
+    val months = monthsOf(summary)
     if (metric == Metric.TEMPERATURE) {
         return "So far $year is ${formatSigned(delta)}°C compared with $referenceLabel, with $months warmer than average."
     }
@@ -293,11 +299,11 @@ internal fun yearChartDescription(
 ): String =
     when (metric) {
         Metric.TEMPERATURE ->
-            "Monthly deviation from the $referenceLabel average. ${summary.warmerMonths} of ${summary.comparedMonths} months were warmer."
+            "Monthly deviation from the $referenceLabel average. ${monthsOf(summary)} ${wasOrWere(summary)} warmer."
 
         else ->
             "Monthly ${metric.dailyNoun} compared with the $referenceLabel average. " +
-                "${summary.warmerMonths} of ${summary.comparedMonths} months were ${metric.wording.above}."
+                "${monthsOf(summary)} ${wasOrWere(summary)} ${metric.wording.above}."
     }
 
 /** The note under the monthly table. */
