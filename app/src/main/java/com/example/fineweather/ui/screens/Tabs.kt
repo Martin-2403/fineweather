@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -36,8 +37,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import kotlin.math.ceil
 import com.example.fineweather.nunitoSansFamily
-import com.example.fineweather.ui.theme.HazyBlue
-import com.example.fineweather.ui.theme.LightTeal
 import com.example.fineweather.ui.theme.SoftMist
 import com.example.fineweather.ui.theme.TealInk
 
@@ -58,11 +57,18 @@ internal fun CompactToggle(
 ) {
     val shape = RoundedCornerShape(50)
     val outline = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+    val selectedFill = MaterialTheme.colorScheme.primary
+    val selectedText = MaterialTheme.colorScheme.onPrimary
+    val dark = isDarkCard()
+    val idleFill = if (dark) MaterialTheme.colorScheme.surfaceVariant else SoftMist
+    val idleText = if (dark) MaterialTheme.colorScheme.onSurfaceVariant else TealInk
     Row(
         modifier =
             modifier
                 .then(if (fillWidth) Modifier.fillMaxWidth() else Modifier)
-                .height(30.dp)
+                .height(36.dp)
+                // Before the clip, which would cut the shadow off.
+                .shadow(2.dp, shape)
                 .clip(shape)
                 .selectableGroup()
                 .border(1.dp, outline, shape),
@@ -75,7 +81,7 @@ internal fun CompactToggle(
                     Modifier
                         .then(if (fillWidth) Modifier.weight(1f) else Modifier)
                         .fillMaxHeight()
-                        .background(if (selected) LightTeal else SoftMist)
+                        .background(if (selected) selectedFill else idleFill)
                         .selectable(selected = selected, role = Role.RadioButton, onClick = { onSelect(index) })
                         .padding(horizontal = 12.dp)
                         .testTag("${tagPrefix}_$label")
@@ -86,8 +92,8 @@ internal fun CompactToggle(
                     text = label,
                     fontFamily = nunitoSansFamily,
                     style = MaterialTheme.typography.labelMedium,
-                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                    color = if (selected) HazyBlue else TealInk,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
+                    color = if (selected) selectedText else idleText,
                 )
             }
         }
