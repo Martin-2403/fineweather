@@ -64,6 +64,15 @@ class SettingsViewModel(
             initialValue = null,
         )
 
+    val hasOpenedFavorites: StateFlow<Boolean?> =
+        settingsRepository.hasOpenedFavorites
+            .map<Boolean, Boolean?> { it }
+            .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = null,
+        )
+
     fun setForecastDays(days: Int) {
         require(days == SettingsDefaults.FORECAST_DAYS_SHORT ||
                 days == SettingsDefaults.FORECAST_DAYS_LONG
@@ -97,6 +106,12 @@ class SettingsViewModel(
     fun setHasSeenInfo(seen: Boolean) {
         viewModelScope.launch {
             settingsRepository.setHasSeenInfo(seen)
+        }
+    }
+
+    fun setHasOpenedFavorites(opened: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setHasOpenedFavorites(opened)
         }
     }
 

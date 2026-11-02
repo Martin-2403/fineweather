@@ -64,11 +64,13 @@ interface SettingsRepository {
     val searchLanguage: Flow<String>
     val temperatureComparisonMode: Flow<TemperatureComparisonMode>
     val hasSeenInfo: Flow<Boolean>
+    val hasOpenedFavorites: Flow<Boolean>
     suspend fun setForecastDays(days: Int)
     suspend fun setHistoricReference(reference: HistoricReference)
     suspend fun setSearchLanguage(language: String)
     suspend fun setTemperatureComparisonMode(mode: TemperatureComparisonMode)
     suspend fun setHasSeenInfo(seen: Boolean)
+    suspend fun setHasOpenedFavorites(opened: Boolean)
 }
 
 class DataStoreSettingsRepository(
@@ -81,6 +83,7 @@ class DataStoreSettingsRepository(
         val SEARCH_LANGUAGE = stringPreferencesKey("search_language")
         val TEMPERATURE_COMPARISON_MODE = stringPreferencesKey("temperature_comparison_mode")
         val HAS_SEEN_INFO = booleanPreferencesKey("has_seen_info")
+        val HAS_OPENED_FAVORITES = booleanPreferencesKey("has_opened_favorites")
     }
 
     override val forecastDays: Flow<Int> =
@@ -122,6 +125,11 @@ class DataStoreSettingsRepository(
             .map { prefs -> prefs[Keys.HAS_SEEN_INFO] ?: false }
             .distinctUntilChanged()
 
+    override val hasOpenedFavorites: Flow<Boolean> =
+        dataStore.data
+            .map { prefs -> prefs[Keys.HAS_OPENED_FAVORITES] ?: false }
+            .distinctUntilChanged()
+
     override suspend fun setForecastDays(days: Int) {
         dataStore.edit { prefs ->
             prefs[Keys.FORECAST_DAYS] = days
@@ -149,6 +157,12 @@ class DataStoreSettingsRepository(
     override suspend fun setHasSeenInfo(seen: Boolean) {
         dataStore.edit { prefs ->
             prefs[Keys.HAS_SEEN_INFO] = seen
+        }
+    }
+
+    override suspend fun setHasOpenedFavorites(opened: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[Keys.HAS_OPENED_FAVORITES] = opened
         }
     }
 }

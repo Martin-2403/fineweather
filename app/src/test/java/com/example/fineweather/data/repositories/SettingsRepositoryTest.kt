@@ -24,6 +24,17 @@ class SettingsRepositoryTest {
     }
 
     @Test
+    fun setHasOpenedFavorites_updatesFlow() = runTest {
+        val repository = DataStoreSettingsRepository(createDataStore(this))
+
+        assertEquals(false, repository.hasOpenedFavorites.first())
+
+        repository.setHasOpenedFavorites(true)
+
+        assertEquals(true, repository.hasOpenedFavorites.first())
+    }
+
+    @Test
     fun setForecastDays_updatesFlow() = runTest {
         val repository = DataStoreSettingsRepository(createDataStore(this))
 

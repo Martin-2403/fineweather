@@ -902,6 +902,48 @@ class WeatherViewModelTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
+    fun toggleFavorite_addingEmitsFavoriteAdded_removingDoesNot() = runTest {
+        val selected = GeoPlace("loc-1", "Berlin", "Germany", null, 1.0, 2.0)
+        stubSearch(data = FineWeatherData("Berlin", Pair(1.0, 2.0), "loc-1", "Germany"))
+        viewModel.selectPlace(selected)
+        advanceUntilIdle()
+        var added = 0
+        val collector = launch(start = CoroutineStart.UNDISPATCHED) { viewModel.favoriteAdded.collect { added++ } }
+
+        viewModel.toggleFavorite()
+        advanceUntilIdle()
+        assertEquals(1, added)
+
+        viewModel.toggleFavorite()
+        advanceUntilIdle()
+        assertEquals(1, added)
+        collector.cancel()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun toggleFavorite_whenFavoritesFull_doesNotEmitFavoriteAdded() = runTest {
+        val fullFavorites =
+            (1..10).map { index ->
+                GeoPlace("loc-$index", "City $index", "Country", null, index.toDouble(), index.toDouble())
+            }
+        favoriteRepository = FakeFavoriteRepository(fullFavorites)
+        viewModel = newViewModel(favorites = favoriteRepository)
+        stubSearch(data = FineWeatherData("New City", Pair(11.0, 11.0), "loc-11", "Country"))
+        viewModel.selectPlace(GeoPlace("loc-11", "New City", "Country", null, 11.0, 11.0))
+        advanceUntilIdle()
+        var added = 0
+        val collector = launch(start = CoroutineStart.UNDISPATCHED) { viewModel.favoriteAdded.collect { added++ } }
+
+        viewModel.toggleFavorite()
+        advanceUntilIdle()
+
+        assertEquals(0, added)
+        collector.cancel()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
     fun toggleFavorite_whenFavoritesFull_emitsSnackbarMessage() = runTest {
         val fullFavorites =
             (1..10).map { index ->
@@ -1289,6 +1331,7 @@ class WeatherViewModelTest {
         private val languageState = MutableStateFlow(initialLanguage)
         private val comparisonModeState = MutableStateFlow(initialComparisonMode)
         private val hasSeenInfoState = MutableStateFlow(false)
+        private val hasOpenedFavoritesState = MutableStateFlow(false)
         var setForecastCalls = 0
             private set
         override val forecastDays: Flow<Int> = state
@@ -1296,6 +1339,7 @@ class WeatherViewModelTest {
         override val searchLanguage: Flow<String> = languageState
         override val temperatureComparisonMode: Flow<TemperatureComparisonMode> = comparisonModeState
         override val hasSeenInfo: Flow<Boolean> = hasSeenInfoState
+        override val hasOpenedFavorites: Flow<Boolean> = hasOpenedFavoritesState
 
         override suspend fun setForecastDays(days: Int) {
             setForecastCalls += 1
@@ -1316,6 +1360,10 @@ class WeatherViewModelTest {
 
         override suspend fun setHasSeenInfo(seen: Boolean) {
             hasSeenInfoState.value = seen
+        }
+
+        override suspend fun setHasOpenedFavorites(opened: Boolean) {
+            hasOpenedFavoritesState.value = opened
         }
     }
 
