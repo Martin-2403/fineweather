@@ -129,10 +129,13 @@ fun WeatherScreen(
         }
     }
 
-    // After process death the saved text is back but nothing is loaded: search for it once.
+    // After process death the saved text is back but nothing is loaded: search for it once. Without such a
+    // search the home place is shown; the ViewModel makes sure that happens once, not again after a rotation.
     LaunchedEffect(Unit) {
         if (needsSearchRestore(location, state.search, selectedPlace != null, searchedBefore)) {
             viewModel.fetchWeather(location)
+        } else if (shouldLoadHomeOnStart(location, state.search, selectedPlace != null, searchedBefore)) {
+            viewModel.loadHomeOnStart()
         }
     }
 
