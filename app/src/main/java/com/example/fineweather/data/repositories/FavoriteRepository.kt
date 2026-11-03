@@ -8,9 +8,20 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
 interface FavoriteRepository {
+    /** The favorites, the home place first and the others newest first. */
     val favorites: Flow<List<GeoPlace>>
+
+    /** The id of the home place, null while there is none. */
+    val homeId: Flow<String?>
     suspend fun addFavorite(place: GeoPlace): FavoriteAddResult
     suspend fun removeFavorite(placeId: String)
+
+    /** Makes the favorite [placeId] the home place, replacing the current one; does nothing for a non-favorite. */
+    suspend fun setHome(placeId: String)
+    suspend fun clearHome()
+
+    /** The home place, read once; [favorites] needs a moment to emit after the start. */
+    suspend fun getHome(): GeoPlace?
 }
 
 enum class FavoriteAddResult {
@@ -27,6 +38,8 @@ class RoomFavoriteRepository(
             .map { entities -> entities.map { it.toGeoPlace() } }
             .distinctUntilChanged()
 
+    override val homeId: Flow<String?> = favoriteDao.observeHomeId().distinctUntilChanged()
+
     override suspend fun addFavorite(place: GeoPlace): FavoriteAddResult {
         val alreadyFavorite = favoriteDao.exists(place.id)
         if (!alreadyFavorite) {
@@ -35,13 +48,23 @@ class RoomFavoriteRepository(
                 return FavoriteAddResult.LIMIT_REACHED
             }
         }
-        favoriteDao.upsert(place.toEntity())
+        favoriteDao.save(place.toEntity())
         return FavoriteAddResult.ADDED
     }
 
     override suspend fun removeFavorite(placeId: String) {
         favoriteDao.deleteById(placeId)
     }
+
+    override suspend fun setHome(placeId: String) {
+        favoriteDao.setHome(placeId)
+    }
+
+    override suspend fun clearHome() {
+        favoriteDao.clearHome()
+    }
+
+    override suspend fun getHome(): GeoPlace? = favoriteDao.getHome()?.toGeoPlace()
 
     private fun GeoPlace.toEntity(): FavoritePlaceEntity =
         FavoritePlaceEntity(

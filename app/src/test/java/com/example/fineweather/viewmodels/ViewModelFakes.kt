@@ -9,12 +9,19 @@ import com.example.fineweather.data.repositories.SettingsDefaults
 import com.example.fineweather.data.repositories.SettingsRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 
 class FakeFavoriteRepository(
     initialFavorites: List<GeoPlace> = emptyList(),
+    initialHomeId: String? = null,
 ) : FavoriteRepository {
     private val state = MutableStateFlow(initialFavorites)
-    override val favorites: Flow<List<GeoPlace>> = state
+    private val homeState = MutableStateFlow(initialHomeId)
+
+    // Like the DAO: the home place first, the rest in their order.
+    override val favorites: Flow<List<GeoPlace>> =
+        combine(state, homeState) { places, homeId -> places.sortedBy { it.id != homeId } }
+    override val homeId: Flow<String?> = homeState
 
     override suspend fun addFavorite(place: GeoPlace): FavoriteAddResult {
         if (state.value.none { it.id == place.id } && state.value.size >= 10) {
@@ -28,7 +35,18 @@ class FakeFavoriteRepository(
 
     override suspend fun removeFavorite(placeId: String) {
         state.value = state.value.filterNot { it.id == placeId }
+        if (homeState.value == placeId) homeState.value = null
     }
+
+    override suspend fun setHome(placeId: String) {
+        if (state.value.any { it.id == placeId }) homeState.value = placeId
+    }
+
+    override suspend fun clearHome() {
+        homeState.value = null
+    }
+
+    override suspend fun getHome(): GeoPlace? = state.value.firstOrNull { it.id == homeState.value }
 }
 
 class FakeSettingsRepository(
