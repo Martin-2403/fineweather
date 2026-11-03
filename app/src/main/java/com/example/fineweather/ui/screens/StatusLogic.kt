@@ -232,6 +232,19 @@ internal fun needsSearchRestore(
     searchedBefore: Boolean,
 ): Boolean = searchedBefore && location.isNotBlank() && search == SearchStatus.Idle && !hasPlace
 
+/**
+ * Whether the home place is loaded at the start: nothing is shown yet and no saved search is about to be
+ * restored, which wins. Text that was never searched (the home place's own name after process death, or a
+ * half-typed one) does not keep the home away.
+ */
+internal fun shouldLoadHomeOnStart(
+    location: String,
+    search: SearchStatus,
+    hasPlace: Boolean,
+    searchedBefore: Boolean,
+): Boolean =
+    search == SearchStatus.Idle && !hasPlace && !needsSearchRestore(location, search, hasPlace, searchedBefore)
+
 internal fun SearchStatus.displayText(metric: Metric = Metric.TEMPERATURE): String =
     when (this) {
         SearchStatus.Idle -> "Enter a location to see ${metric.overview}"

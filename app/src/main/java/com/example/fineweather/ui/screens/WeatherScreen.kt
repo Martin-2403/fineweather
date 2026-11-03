@@ -100,6 +100,7 @@ fun WeatherScreen(
     val apiCallCount by viewModel.apiCallCount.collectAsState(initial = 0)
     val cacheHitCount by viewModel.cacheHitCount.collectAsState(initial = 0)
     val favorites by viewModel.favorites.collectAsState(initial = emptyList())
+    val homeId by viewModel.homeId.collectAsState()
     val selectedPlace = state.selectedPlace
     val placeLabel = (state.search as? SearchStatus.Resolved)?.label
     val resolvedLocation = selectedPlace?.name.orEmpty()
@@ -129,10 +130,13 @@ fun WeatherScreen(
         }
     }
 
-    // After process death the saved text is back but nothing is loaded: search for it once.
+    // After process death the saved text is back but nothing is loaded: search for it once. Without such a
+    // search the home place is shown; the ViewModel makes sure that happens once, not again after a rotation.
     LaunchedEffect(Unit) {
         if (needsSearchRestore(location, state.search, selectedPlace != null, searchedBefore)) {
             viewModel.fetchWeather(location)
+        } else if (shouldLoadHomeOnStart(location, state.search, selectedPlace != null, searchedBefore)) {
+            viewModel.loadHomeOnStart()
         }
     }
 
@@ -275,6 +279,7 @@ fun WeatherScreen(
             visible = showFavorites,
             anchor = favoritesAnchor,
             places = favorites,
+            homeId = homeId,
             emptyMessage = "No favorites yet. Tap the star next to the search bar to save a place.",
             onSelect = { place ->
                 onDismissFavorites()
@@ -283,6 +288,7 @@ fun WeatherScreen(
                 searchedBefore = true
                 viewModel.selectPlace(place)
             },
+            onToggleHome = { place -> viewModel.toggleHome(place.id) },
             onRemove = { place -> viewModel.removeFavorite(place.id) },
             onDismiss = onDismissFavorites,
         )

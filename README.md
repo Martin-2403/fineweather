@@ -11,7 +11,7 @@ FineWeather is an Android app that compares recent, forecast, and historic tempe
 - Two cells that show how far from normal it is: **So far** (this month up to yesterday vs. the baseline) and **Next 7/14 days** (the forecast vs. normal for those same days), plus a caveat when current-month data is limited
 - A plain-language report with the figures: the verdict next to the status illustration, the outlook and caveats (few days of data, a forecast that could not be loaded) beneath it
 - Two views: **Month** (daily chart over the typical range with the forecast as a dashed line, for the month or the last 30 days) and **Year** (every month of the year so far against the baseline)
-- Favorites for saving places locally (star next to the search bar) and reopening them from the list icon in the header; "Not your city?" switches between places with the same name
+- Favorites for saving places locally (star next to the search bar) and reopening them from the list icon in the header; mark one as your home place (house icon in the list) and it loads when the app starts; "Not your city?" switches between places with the same name
 - Settings for forecast length, historic reference, search language, and divergence method
 - Local caching: the 30-year baseline is stored once per place (least recently used places are evicted, favorites are kept), the current year's daily values and the 14-day forecast refresh once a day; settings live in DataStore. Data is complete up to yesterday
 

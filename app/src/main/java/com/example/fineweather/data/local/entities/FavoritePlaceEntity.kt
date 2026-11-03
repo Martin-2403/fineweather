@@ -1,5 +1,6 @@
 package com.example.fineweather.data.local.entities
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -12,4 +13,6 @@ data class FavoritePlaceEntity(
     val latitude: Double,
     val longitude: Double,
     val addedAt: Long,
+    /** At most one favorite is the home place; the DAO keeps it that way. */
+    @ColumnInfo(defaultValue = "0") val isHome: Boolean = false,
 )

@@ -87,12 +87,17 @@ internal fun PlacesSheet(
     }
 }
 
-/** A place to pick, with a remove button when [onRemove] is given. */
+/**
+ * A place to pick, with a remove button when [onRemove] is given and, before it, a house button when
+ * [onToggleHome] is given that shows whether the place [isHome].
+ */
 @Composable
 internal fun PlaceRow(
     place: GeoPlace,
     onClick: () -> Unit,
     onRemove: (() -> Unit)?,
+    isHome: Boolean = false,
+    onToggleHome: (() -> Unit)? = null,
 ) {
     val subtitle = place.displaySubtitle()
     Row(
@@ -122,8 +127,27 @@ internal fun PlaceRow(
                 )
             }
         }
+        if (onToggleHome != null || onRemove != null) Spacer(modifier = Modifier.width(4.dp))
+        if (onToggleHome != null) {
+            IconButton(
+                onClick = onToggleHome,
+                modifier = Modifier.testTag("homeFavoriteButton"),
+            ) {
+                Icon(
+                    painter = painterResource(id = if (isHome) R.drawable.home_filled else R.drawable.home_outline),
+                    contentDescription =
+                        if (isHome) "Remove ${place.displayName()} as home" else "Set ${place.displayName()} as home",
+                    tint =
+                        if (isHome) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        },
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
         if (onRemove != null) {
-            Spacer(modifier = Modifier.width(4.dp))
             IconButton(
                 onClick = onRemove,
                 modifier = Modifier.testTag("removeFavoriteButton"),

@@ -105,6 +105,14 @@ class WeatherViewModel(
             initialValue = emptyList(),
         )
 
+    /** The home place among the [favorites], which list it first; null while there is none. */
+    val homeId: StateFlow<String?> =
+        favoriteRepository.homeId.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = null,
+        )
+
     // Never suspends the emitter: a snackbar stays up for seconds and loading must not wait for it.
     private val _snackbarMessages = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val snackbarMessages = _snackbarMessages.asSharedFlow()
@@ -125,6 +133,12 @@ class WeatherViewModel(
 
     /** When the extras request of this search hit the rate limit; they are expensive, so a retry waits. */
     private var extrasRateLimitedAt: Long? = null
+
+    /**
+     * Whether the start is over as far as the home place goes: it was asked for, or a search or selection came
+     * first. Kept here because the ViewModel outlives a rotation, which recreates the screen and its start effect.
+     */
+    private var homeStartHandled = false
 
     init {
         viewModelScope.launch {
@@ -213,8 +227,30 @@ class WeatherViewModel(
         loadAllSlices(place, today, generation)
     }
 
+    /**
+     * Shows the home place, if there is one, once per ViewModel: a repeated call (the start effect runs again
+     * after a rotation) does nothing, also when there was no home the first time or the search was cleared since.
+     * A search or selection that begins while the home is still being read wins.
+     */
+    fun loadHomeOnStart() {
+        if (homeStartHandled) return
+        homeStartHandled = true
+        val generation = searchGeneration
+        viewModelScope.launch {
+            val home = favoriteRepository.getHome() ?: return@launch
+            // The reference is read when the slices load, but the collector in init may not have delivered the
+            // stored one yet; selecting now would load the default and then reload it. Setting it first also
+            // keeps that collector from reloading, as it sees no change.
+            val reference = settingsRepository.historicReference.first()
+            if (generation != searchGeneration) return@launch
+            _historicReference.value = reference
+            selectPlace(home)
+        }
+    }
+
     /** Cancels everything of the previous search and starts a new generation. */
     private fun beginSearch(): Long {
+        homeStartHandled = true
         searchJob?.cancel()
         sliceJobs.values.forEach { it.cancel() }
         sliceJobs.clear()
@@ -415,6 +451,17 @@ class WeatherViewModel(
     fun removeFavorite(placeId: String) {
         viewModelScope.launch {
             favoriteRepository.removeFavorite(placeId)
+        }
+    }
+
+    /** Makes the favorite [placeId] the home place, or, if it already is, leaves no home. */
+    fun toggleHome(placeId: String) {
+        viewModelScope.launch {
+            if (homeId.value == placeId) {
+                favoriteRepository.clearHome()
+            } else {
+                favoriteRepository.setHome(placeId)
+            }
         }
     }
 

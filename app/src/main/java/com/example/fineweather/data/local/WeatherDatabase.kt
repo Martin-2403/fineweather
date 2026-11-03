@@ -28,7 +28,7 @@ import com.example.fineweather.data.local.entities.YearSeriesEntity
         YearSeriesEntity::class,
         ForecastSeriesEntity::class,
     ],
-    version = 13,
+    version = 14,
     exportSchema = true
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -58,6 +58,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                         .addMigrations(MIGRATION_10_11)
                         .addMigrations(MIGRATION_11_12)
                         .addMigrations(MIGRATION_12_13)
+                        .addMigrations(MIGRATION_13_14)
                         .fallbackToDestructiveMigration(false)
                         .build()
                 INSTANCE = instance
@@ -179,5 +180,13 @@ internal val MIGRATION_12_13 =
                 db.execSQL("ALTER TABLE `$table` ADD COLUMN `sunshineData` BLOB")
                 db.execSQL("ALTER TABLE `$table` ADD COLUMN `precipitationData` BLOB")
             }
+        }
+    }
+
+/** The home place is a flag on the favorite; no favorite is home on rows from before. */
+internal val MIGRATION_13_14 =
+    object : Migration(13, 14) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `favorite_places` ADD COLUMN `isHome` INTEGER NOT NULL DEFAULT 0")
         }
     }

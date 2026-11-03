@@ -186,6 +186,29 @@ class WeatherScreenUtilsTest {
     }
 
     @Test
+    fun shouldLoadHomeOnStart_whenNothingIsShownAndNoSearchIsToBeRestored() {
+        assertTrue(shouldLoadHomeOnStart("", SearchStatus.Idle, hasPlace = false, searchedBefore = false))
+        // the home place's own name, saved across process death without ever having been searched
+        assertTrue(shouldLoadHomeOnStart("Berlin", SearchStatus.Idle, hasPlace = false, searchedBefore = false))
+        assertTrue(shouldLoadHomeOnStart("", SearchStatus.Idle, hasPlace = false, searchedBefore = true))
+    }
+
+    @Test
+    fun shouldLoadHomeOnStart_aSearchToRestoreWins() {
+        assertTrue(needsSearchRestore("Paris", SearchStatus.Idle, hasPlace = false, searchedBefore = true))
+        assertFalse(shouldLoadHomeOnStart("Paris", SearchStatus.Idle, hasPlace = false, searchedBefore = true))
+    }
+
+    @Test
+    fun shouldLoadHomeOnStart_notOverSomethingAlreadyShown() {
+        val resolved = SearchStatus.Resolved(PlaceLabel("Berlin", "1.00, 2.00"))
+        assertFalse(shouldLoadHomeOnStart("Berlin", resolved, hasPlace = true, searchedBefore = true))
+        assertFalse(shouldLoadHomeOnStart("", SearchStatus.Searching("Berlin"), hasPlace = false, searchedBefore = true))
+        assertFalse(shouldLoadHomeOnStart("", SearchStatus.NotFound("Xyz"), hasPlace = false, searchedBefore = true))
+        assertFalse(shouldLoadHomeOnStart("", SearchStatus.Idle, hasPlace = true, searchedBefore = false))
+    }
+
+    @Test
     fun summary_hasNoBlocksWhileLoadingAndTheBlocksWhenReady() {
         assertEquals(Loadable.Loading.toBlocks(), emptyList<SummaryBlock>())
         val blocks = listOf<SummaryBlock>(SummaryBlock.Detail("text"))
