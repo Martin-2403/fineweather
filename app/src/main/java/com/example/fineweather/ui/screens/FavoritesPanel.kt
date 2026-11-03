@@ -49,15 +49,18 @@ private val PANEL_WIDTH = 288.dp
 /**
  * The saved favorites in a panel that hangs under the favorites icon of the top bar and grows from it.
  * [anchor] is the icon's bounds in the window; the panel scrolls once it would show more than
- * [VISIBLE_ROWS] rows, and closes on [onDismiss] (outside tap or back press).
+ * [VISIBLE_ROWS] rows, and closes on [onDismiss] (outside tap or back press). The place with [homeId] is
+ * marked as home; [onToggleHome] is asked to make a place home or, for the home itself, to unmark it.
  */
 @Composable
 internal fun FavoritesPanel(
     visible: Boolean,
     anchor: IntRect,
     places: List<GeoPlace>,
+    homeId: String?,
     emptyMessage: String,
     onSelect: (GeoPlace) -> Unit,
+    onToggleHome: (GeoPlace) -> Unit,
     onRemove: (GeoPlace) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -137,6 +140,8 @@ internal fun FavoritesPanel(
                             place = place,
                             onClick = { onSelect(place) },
                             onRemove = { onRemove(place) },
+                            isHome = place.id == homeId,
+                            onToggleHome = { onToggleHome(place) },
                         )
                         if (index != places.lastIndex) {
                             DividerLine()
