@@ -6,9 +6,11 @@ import androidx.room.testing.MigrationTestHelper
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
@@ -108,7 +110,7 @@ class WeatherDatabaseMigrationTest {
                     InstrumentationRegistry.getInstrumentation().targetContext,
                     WeatherDatabase::class.java,
                     dbName,
-                ).addMigrations(MIGRATION_12_13)
+                ).addMigrations(MIGRATION_12_13, MIGRATION_13_14)
                 .allowMainThreadQueries()
                 .build()
         try {
@@ -119,6 +121,65 @@ class WeatherDatabaseMigrationTest {
                 assertNull(row.precipitationData)
                 assertNull(room.yearSeriesDao().get("loc-1")!!.sunshineData)
                 assertNull(room.forecastSeriesDao().get("loc-1")!!.precipitationData)
+            }
+        } finally {
+            room.close()
+        }
+    }
+
+    private fun createV13WithFavorites() {
+        helper.createDatabase(dbName, 13).use { db ->
+            db.execSQL(
+                "INSERT INTO favorite_places (id, name, country, admin1, latitude, longitude, addedAt) " +
+                    "VALUES ('berlin', 'Berlin', 'Germany', 'Berlin', 52.52, 13.405, 100)",
+            )
+            db.execSQL(
+                "INSERT INTO favorite_places (id, name, country, admin1, latitude, longitude, addedAt) " +
+                    "VALUES ('oslo', 'Oslo', NULL, NULL, 59.91, 10.75, 200)",
+            )
+        }
+    }
+
+    @Test
+    fun migrate13To14_keepsEveryFavoriteAndNoneIsHome() {
+        createV13WithFavorites()
+
+        val db = helper.runMigrationsAndValidate(dbName, 14, true, MIGRATION_13_14)
+
+        db.query("SELECT id, name, country, latitude, addedAt, isHome FROM favorite_places ORDER BY addedAt").use {
+            assertEquals(2, it.count)
+            it.moveToFirst()
+            assertEquals("berlin", it.getString(0))
+            assertEquals("Berlin", it.getString(1))
+            assertEquals("Germany", it.getString(2))
+            assertEquals(52.52, it.getDouble(3), 0.0)
+            assertEquals(100L, it.getLong(4))
+            assertEquals(0, it.getInt(5))
+            it.moveToNext()
+            assertEquals("oslo", it.getString(0))
+            assertEquals(0, it.getInt(5))
+        }
+    }
+
+    @Test
+    fun migrate13To14_resultOpensWithRoomAndOldFavoritesAreReadable() {
+        createV13WithFavorites()
+        helper.runMigrationsAndValidate(dbName, 14, true, MIGRATION_13_14).close()
+
+        val room =
+            Room
+                .databaseBuilder(
+                    InstrumentationRegistry.getInstrumentation().targetContext,
+                    WeatherDatabase::class.java,
+                    dbName,
+                ).addMigrations(MIGRATION_13_14)
+                .allowMainThreadQueries()
+                .build()
+        try {
+            runBlocking {
+                val favorites = room.favoriteDao().observeAll().first()
+                assertEquals(listOf("oslo", "berlin"), favorites.map { it.id })
+                assertFalse(favorites.any { it.isHome })
             }
         } finally {
             room.close()
