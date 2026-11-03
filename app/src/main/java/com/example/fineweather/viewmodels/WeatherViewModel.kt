@@ -105,6 +105,14 @@ class WeatherViewModel(
             initialValue = emptyList(),
         )
 
+    /** The home place among the [favorites], which list it first; null while there is none. */
+    val homeId: StateFlow<String?> =
+        favoriteRepository.homeId.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = null,
+        )
+
     // Never suspends the emitter: a snackbar stays up for seconds and loading must not wait for it.
     private val _snackbarMessages = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val snackbarMessages = _snackbarMessages.asSharedFlow()
@@ -415,6 +423,17 @@ class WeatherViewModel(
     fun removeFavorite(placeId: String) {
         viewModelScope.launch {
             favoriteRepository.removeFavorite(placeId)
+        }
+    }
+
+    /** Makes the favorite [placeId] the home place, or, if it already is, leaves no home. */
+    fun toggleHome(placeId: String) {
+        viewModelScope.launch {
+            if (homeId.value == placeId) {
+                favoriteRepository.clearHome()
+            } else {
+                favoriteRepository.setHome(placeId)
+            }
         }
     }
 
